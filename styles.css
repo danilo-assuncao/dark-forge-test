@@ -1,0 +1,110 @@
+/* Base: dark background, off-white text (contrast > 7:1) */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: #0a0a0a;
+  color: #f5f5f5;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Marquee container fills the viewport */
+.marquee {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.row {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  flex-shrink: 0;
+  will-change: transform;
+  animation-name: marquee-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-duration: 40s;
+}
+
+.half {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.word {
+  display: inline-block;
+  flex-shrink: 0;
+  font-weight: 900;
+  font-size: clamp(3rem, 11vh, 9rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  padding: 0 0.3em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Alternate direction and vary speed/phase per row */
+.row:nth-child(odd) .track {
+  animation-direction: normal;
+}
+
+.row:nth-child(even) .track {
+  animation-direction: reverse;
+}
+
+.row:nth-child(1) .track { animation-duration: 38s; animation-delay: -4s; }
+.row:nth-child(2) .track { animation-duration: 52s; animation-delay: -18s; }
+.row:nth-child(3) .track { animation-duration: 44s; animation-delay: -9s; }
+.row:nth-child(4) .track { animation-duration: 61s; animation-delay: -27s; }
+.row:nth-child(5) .track { animation-duration: 47s; animation-delay: -13s; }
+.row:nth-child(6) .track { animation-duration: 56s; animation-delay: -31s; }
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Respect user preference: stop the motion */
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    animation: none;
+  }
+}
