@@ -1,0 +1,15 @@
+companion_globs:
+- '**'
+protected_paths:
+- .env*
+gates:
+- name: html-and-dan-check
+  run: python3 -c "from html.parser import HTMLParser; from pathlib import Path; p
+    = Path('index.html'); assert p.exists(), 'index.html missing'; txt = p.read_text(encoding='utf-8');
+    HTMLParser().feed(txt); combined = '\n'.join(f.read_text(encoding='utf-8') for
+    f in Path('.').glob('*') if f.suffix in ('.html', '.css', '.js')); assert 'DAN'
+    in combined.upper(), 'DAN text must appear in site files'"
+- name: js-syntax
+  run: python3 -c "import subprocess; from pathlib import Path; [subprocess.run(['node',
+    '--check', str(f)], check=True) for f in Path('.').rglob('*.js') if '.git' not
+    in f.parts]"

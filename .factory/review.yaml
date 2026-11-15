@@ -1,0 +1,13 @@
+effort: adaptive
+lenses:
+- name: correctness
+  required: true
+- name: security
+  required: true
+- name: tests
+  required: true
+final_pr:
+  lenses:
+  - integration
+  - spec-conformance
+  max_diff_lines: 15000
