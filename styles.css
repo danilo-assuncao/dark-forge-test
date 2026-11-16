@@ -108,3 +108,53 @@ body {
     animation: none;
   }
 }
+
+/* Accessible green action button, layered above the marquee */
+.action-button {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: calc(100vw - 2rem);
+  padding: 0.75em 1.5em;
+  border: 0;
+  border-radius: 0.5rem;
+  background-color: #15803d; /* white text on this green is ~5.0:1 (WCAG AA) */
+  color: #ffffff;
+  font-family: inherit;
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.action-button:hover {
+  background-color: #166534;
+}
+
+.action-button:focus {
+  outline: none;
+}
+
+.action-button:focus-visible {
+  outline: 3px solid #f5f5f5;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .action-button {
+    padding: 0.6em 1.1em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-button {
+    transition: none;
+  }
+}
