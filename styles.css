@@ -1,7 +1,9 @@
 /* Light is the only theme: opt out of system/browser dark rendering */
 :root {
   color-scheme: only light;
-  --bg: #ffffff;
+  /* Yellow page background; near-black text on it is ~16.2:1 (WCAG AAA) and
+     the green button stands out from it at ~4.1:1 (WCAG 1.4.11 needs 3:1) */
+  --bg: #ffeb3b;
   --text: #0a0a0a;
   --focus: #0a0a0a;
 }
