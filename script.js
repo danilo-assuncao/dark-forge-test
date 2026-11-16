@@ -48,59 +48,9 @@
     container.appendChild(fragment);
   }
 
-  var STORAGE_KEY = 'theme';
-
-  function readStoredTheme() {
-    try {
-      return window.localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
-    } catch (e) {
-      return 'light';
-    }
-  }
-
-  function storeTheme(theme) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, theme);
-    } catch (e) {
-      // Storage unavailable: ignore, theme still applies for this session.
-    }
-  }
-
-  function applyTheme(theme, button) {
-    var root = document.documentElement;
-    var isDark = theme === 'dark';
-    if (isDark) {
-      root.setAttribute('data-theme', 'dark');
-    } else {
-      root.removeAttribute('data-theme');
-    }
-    if (button) {
-      button.setAttribute('aria-pressed', isDark ? 'true' : 'false');
-      button.textContent = isDark ? 'Dark mode: on' : 'Dark mode: off';
-    }
-  }
-
-  function initTheme() {
-    var button = document.getElementById('theme-toggle');
-    applyTheme(readStoredTheme(), button);
-    if (!button) {
-      return;
-    }
-    button.addEventListener('click', function () {
-      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      applyTheme(next, button);
-      storeTheme(next);
-    });
-  }
-
-  function init() {
-    initTheme();
-    build();
-  }
-
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', build);
   } else {
-    init();
+    build();
   }
 })();

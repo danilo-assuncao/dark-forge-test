@@ -1,20 +1,9 @@
-/* Theme variables: light by default, dark via html[data-theme="dark"] */
+/* Light is the only theme: opt out of system/browser dark rendering */
 :root {
+  color-scheme: only light;
   --bg: #ffffff;
   --text: #0a0a0a;
   --focus: #0a0a0a;
-  --toggle-bg: #f0f0f0;
-  --toggle-text: #0a0a0a;
-  --toggle-border: #0a0a0a;
-}
-
-html[data-theme="dark"] {
-  --bg: #0a0a0a;
-  --text: #f5f5f5;
-  --focus: #f5f5f5;
-  --toggle-bg: #1f1f1f;
-  --toggle-text: #f5f5f5;
-  --toggle-border: #f5f5f5;
 }
 
 *,
@@ -174,40 +163,5 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .action-button {
     transition: none;
-  }
-}
-
-/* Theme toggle: fixed top-right, clear of the centered action button */
-.theme-toggle {
-  position: fixed;
-  top: 0.75rem;
-  right: 0.75rem;
-  z-index: 20;
-  min-width: 44px;
-  min-height: 44px;
-  max-width: calc(100vw - 1.5rem);
-  padding: 0.5em 1em;
-  border: 2px solid var(--toggle-border);
-  border-radius: 0.5rem;
-  background-color: var(--toggle-bg);
-  color: var(--toggle-text);
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.theme-toggle:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-
-@media (max-width: 480px) {
-  .theme-toggle {
-    top: 0.5rem;
-    right: 0.5rem;
-    font-size: 0.875rem;
-    padding: 0.5em 0.75em;
   }
 }
