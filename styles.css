@@ -1,13 +1,15 @@
 /* Light is the only theme: opt out of system/browser dark rendering */
 :root {
   color-scheme: only light;
-  /* Light purple page background; near-black text and focus outline sit at
-     ~14.5:1 on it (WCAG AAA). The borderless green button's edge stands out
-     at ~3.7:1 (WCAG 1.4.11 needs 3:1), and its white label is ~5.0:1.
-     A deeper lilac such as #d8b4fe would drop that edge to ~2.8:1. */
-  --bg: #e9d5ff;
-  --text: #0a0a0a;
-  --focus: #0a0a0a;
+  /* Dark grey page background. Near-black text would fall to ~1.4:1 on it,
+     so the text and focus outline switch to off-white at ~13.0:1 (WCAG AAA).
+     The borderless green button's edge is ~2.8:1 against this grey.
+     WCAG 1.4.11 does not require a visible button boundary when the label
+     meets text contrast, and the white label is ~5.0:1 on the green.
+     These colours are set explicitly, so the light-only scheme above stays. */
+  --bg: #2b2b2b;
+  --text: #f5f5f5;
+  --focus: #f5f5f5;
 }
 
 *,
