@@ -5,7 +5,10 @@
  * first paint (no flash of the wrong theme). Resolution order:
  *   1. the user's saved choice in localStorage;
  *   2. otherwise the system preference (prefers-color-scheme), which is also
- *      followed live while the user has not picked a theme explicitly.
+ *      followed live until the user picks a theme (saved earlier, or toggled
+ *      in this page view even if storage is unavailable).
+ *
+ * Tests: tests/theme.test.js (run `node --test` from the repository root).
  */
 (function () {
   'use strict';
@@ -19,6 +22,10 @@
   const darkQuery = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-color-scheme: dark)')
     : null;
+
+  // Set when the user toggles in this page view. Stops system changes from
+  // overriding them even if localStorage could not save the choice.
+  let userChose = false;
 
   // localStorage can throw (blocked storage, some private modes): fall back
   // to the system preference and simply skip persisting.
@@ -63,7 +70,7 @@
 
   if (darkQuery && typeof darkQuery.addEventListener === 'function') {
     darkQuery.addEventListener('change', function () {
-      if (!readSavedTheme()) {
+      if (!userChose && !readSavedTheme()) {
         applyTheme(systemTheme());
       }
     });
@@ -77,6 +84,7 @@
     syncToggle(currentTheme());
     toggle.addEventListener('click', function () {
       const next = currentTheme() === DARK ? LIGHT : DARK;
+      userChose = true;
       applyTheme(next);
       saveTheme(next);
     });
