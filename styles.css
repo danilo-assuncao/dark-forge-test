@@ -1,12 +1,11 @@
 /* Light is the only theme: opt out of system/browser dark rendering */
 :root {
   color-scheme: only light;
-  /* Yellow page background. Near-black text and focus outline sit at ~16.2:1
-     on it (WCAG AAA); off-white would drop to ~1.2:1. The green button fill
-     is ~4.1:1 against the yellow, and its dark green border is ~7.5:1 (WCAG
-     1.4.11 needs 3:1) in both default and hover states; a light green border
-     such as #4ade80 would fall to ~1.4:1. The white label stays ~5.0:1. */
-  --bg: #ffeb3b;
+  /* Light blue page background. Near-black text and focus outline sit at
+     ~13.0:1 on it (WCAG AAA). The green button fill is ~3.3:1 against the
+     light blue, and its dark green border is ~6.0:1 (WCAG 1.4.11 needs 3:1)
+     in both default and hover states. The white label stays ~5.0:1. */
+  --bg: #add8e6;
   --text: #0a0a0a;
   --focus: #0a0a0a;
 }
@@ -132,7 +131,7 @@ body {
   min-height: 44px;
   max-width: calc(100vw - 2rem);
   padding: 0.75em 1.5em;
-  border: 2px solid #14532d; /* ~7.5:1 against the --bg yellow (WCAG 1.4.11) */
+  border: 2px solid #14532d; /* ~6.0:1 against the --bg light blue (WCAG 1.4.11) */
   border-radius: 0.5rem;
   background-color: #15803d; /* white text on this green is ~5.0:1 (WCAG AA) */
   color: #ffffff;
