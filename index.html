@@ -5,9 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dan</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Not deferred: applies the saved or system theme before first paint. -->
+    <script src="theme.js"></script>
   </head>
   <body>
     <h1 class="visually-hidden">Dan</h1>
+    <button type="button" class="theme-toggle" id="theme-toggle" role="switch" aria-checked="false" hidden>
+      <span class="theme-toggle__label">Dark mode</span>
+      <span class="theme-toggle__track" aria-hidden="true">
+        <span class="theme-toggle__thumb"></span>
+      </span>
+    </button>
     <main class="marquee" id="marquee" aria-hidden="true"></main>
     <button type="button" class="action-button">Dan</button>
     <script src="script.js" defer></script>
