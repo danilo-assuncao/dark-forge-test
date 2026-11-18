@@ -189,7 +189,7 @@ test('the page background is light grey', function () {
 
   const css = stripCssComments(read('styles.css'));
   assert.match(css, /body\s*\{[^}]*background-color:\s*var\(--bg\)/,
-    'body must paint the yellow --bg');
+    'body must paint the light grey --bg');
 });
 
 test('only a light colour scheme is declared', function () {
