@@ -1,14 +1,16 @@
 /*
- * Dependency-free tests for the site's single dark theme (Node built-ins only).
+ * Dependency-free tests for the site's single light theme (Node built-ins only).
  *
  * Run from the repository root:  node --test
  *
- * The site ships one dark palette on a brown background. There is no light
+ * The site ships one light palette on a yellow background. There is no dark
  * mode: no theme switch, no prefers-color-scheme detection and no saved
- * choice. These checks read the static site files and fail if light-mode
- * support comes back, if the background stops being brown, if the palette
- * drops below WCAG contrast thresholds, or if the page stops painting with
- * those checked tokens (a hardcoded colour would bypass the contrast checks).
+ * choice. These checks read the static site files and fail if dark-mode
+ * support comes back, if the background stops being yellow, if the palette
+ * drops below WCAG contrast thresholds, if a ratio written in the styles.css
+ * comments no longer matches the real colours, or if the page stops painting
+ * with those checked tokens (a hardcoded colour would bypass the contrast
+ * checks).
  */
 'use strict';
 
@@ -24,6 +26,7 @@ const CONTRAST_CHECKS = [
   ['--text', '--bg', 7, 'marquee text (AAA)'],
   ['--focus', '--bg', 3, 'focus ring (WCAG 1.4.11)'],
   ['--button-border', '--bg', 3, 'button boundary (WCAG 1.4.11)'],
+  ['--button-bg', '--bg', 3, 'button fill against the page (WCAG 1.4.11)'],
   ['--button-text', '--button-bg', 4.5, 'button label (AA)'],
   ['--button-text', '--button-bg-hover', 4.5, 'hovered button label (AA)'],
 ];
@@ -80,6 +83,24 @@ function rootTokens() {
     tokens[match[1]] = match[2].trim().toLowerCase();
   }
   return tokens;
+}
+
+// Contrast ratios written in the :root comments as "~R:1 vs --other", as
+// [{ token, other, stated }]. Thresholds alone would let these drift.
+function documentedRatios() {
+  const blocks = read('styles.css').match(/:root\s*\{[^}]*\}/g) || [];
+  assert.equal(blocks.length, 1, 'styles.css must declare exactly one :root palette');
+  const claims = [];
+  const commented = /(--[\w-]+)\s*:[^;]+;[ \t]*\/\*([\s\S]*?)\*\//g;
+  let match;
+  while ((match = commented.exec(blocks[0])) !== null) {
+    const ratio = /~(\d+(?:\.\d+)?):1 vs (--[\w-]+)/g;
+    let claim;
+    while ((claim = ratio.exec(match[2])) !== null) {
+      claims.push({ token: match[1], other: claim[2], stated: claim[1] });
+    }
+  }
+  return claims;
 }
 
 // Every rule of styles.css except :root, including rules nested in @media and
@@ -157,26 +178,45 @@ function toHsl(hex) {
   return { hue: hue, saturation: saturation, lightness: lightness };
 }
 
-test('the page background is brown', function () {
+test('the page background is yellow', function () {
   const tokens = rootTokens();
   const hsl = toHsl(tokens['--bg']);
-  // Brown is a dark, desaturated orange: warm hue, some saturation, low lightness.
-  assert.ok(hsl.hue >= 10 && hsl.hue <= 45, '--bg hue should be orange-brown, got ' + hsl.hue);
-  assert.ok(hsl.saturation >= 0.2, '--bg should not be grey, got saturation ' + hsl.saturation);
-  assert.ok(hsl.lightness >= 0.1 && hsl.lightness <= 0.4,
-    '--bg should be a dark brown, got lightness ' + hsl.lightness);
+  // Yellow sits between amber and lime, is strongly saturated, and is light
+  // enough not to read as olive or ochre but not so pale it reads as cream.
+  assert.ok(hsl.hue >= 45 && hsl.hue <= 65, '--bg hue should be yellow, got ' + hsl.hue);
+  assert.ok(hsl.saturation >= 0.6, '--bg should be a vivid yellow, got saturation ' + hsl.saturation);
+  assert.ok(hsl.lightness >= 0.5 && hsl.lightness <= 0.85,
+    '--bg should be a light yellow, got lightness ' + hsl.lightness);
 
   const css = stripCssComments(read('styles.css'));
   assert.match(css, /body\s*\{[^}]*background-color:\s*var\(--bg\)/,
-    'body must paint the brown --bg');
+    'body must paint the yellow --bg');
 });
 
-test('only a dark colour scheme is declared', function () {
-  assert.equal(rootTokens()['color-scheme'], 'dark');
-  assert.match(read('index.html'), /<meta\s+name="color-scheme"\s+content="dark">/);
+test('only a light colour scheme is declared', function () {
+  assert.equal(rootTokens()['color-scheme'], 'light');
+  assert.match(read('index.html'), /<meta\s+name="color-scheme"\s+content="light">/);
 });
 
-test('text and controls keep accessible contrast on the brown background', function () {
+test('the contrast ratios written in styles.css match the real colours', function () {
+  const t = rootTokens();
+  const claims = documentedRatios();
+  claims.forEach(function (claim) {
+    assert.ok(t[claim.other], claim.token + ' compares against undeclared ' + claim.other);
+    const actual = contrastRatio(t[claim.token], t[claim.other]).toFixed(1);
+    assert.equal(actual, claim.stated,
+      claim.token + ' says ~' + claim.stated + ':1 vs ' + claim.other + ', real ratio is ' + actual + ':1');
+  });
+  CONTRAST_CHECKS.forEach(function (check) {
+    const documented = claims.some(function (claim) {
+      return (claim.token === check[0] && claim.other === check[1]) ||
+        (claim.token === check[1] && claim.other === check[0]);
+    });
+    assert.ok(documented, check[3] + ': styles.css should note the ' + check[0] + ' / ' + check[1] + ' ratio');
+  });
+});
+
+test('text and controls keep accessible contrast on the yellow background', function () {
   const t = rootTokens();
   CONTRAST_CHECKS.forEach(function (check) {
     const ratio = contrastRatio(t[check[0]], t[check[1]]);
@@ -253,14 +293,15 @@ test('the light/dark switch is gone from the page', function () {
   assert.equal(fs.existsSync(path.join(ROOT, 'theme.js')), false, 'theme.js should be deleted');
 });
 
-test('no light-mode styles, system detection or saved preference remain', function () {
+test('no dark-mode styles, system detection or saved preference remain', function () {
   const forbidden = [
     [/data-theme/i, 'data-theme attribute'],
     [/prefers-color-scheme/i, 'prefers-color-scheme detection'],
     [/localStorage/, 'localStorage persistence'],
     [/matchMedia/, 'matchMedia lookups'],
     [/theme-toggle/i, 'theme switch'],
-    [/color-scheme:\s*(only\s+)?light/i, 'light colour scheme'],
+    [/color-scheme:[^;]*\bdark\b/i, 'dark colour scheme'],
+    [/name="color-scheme"\s+content="[^"]*\bdark\b/i, 'dark colour-scheme meta tag'],
   ];
   siteFiles().forEach(function (file) {
     forbidden.forEach(function (rule) {
