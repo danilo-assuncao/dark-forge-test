@@ -1,14 +1,15 @@
-/* Single dark theme on a brown page background. Contrast ratios (WCAG 2.x)
-   are noted per token; tests/theme.test.js checks them. */
+/* Single light theme on a yellow page background. Contrast ratios (WCAG 2.x)
+   are noted per token as "~R:1 vs --token"; tests/theme.test.js checks both
+   the WCAG thresholds and that each noted ratio matches the real colours. */
 :root {
-  color-scheme: dark;
-  --bg: #5c3317;                 /* dark brown page background */
-  --text: #fdf4e3;               /* cream, ~9.9:1 on --bg (AAA) */
-  --focus: #fdf4e3;              /* ~9.9:1 on --bg */
-  --button-bg: #15803d;          /* white label ~5.0:1 (AA) */
-  --button-bg-hover: #166534;    /* white label ~7.1:1 */
-  --button-border: #4ade80;      /* ~6.2:1 on --bg (WCAG 1.4.11 needs 3:1) */
-  --button-text: #ffffff;
+  color-scheme: light;
+  --bg: #fde047;                 /* yellow page background */
+  --text: #171717;               /* near-black, ~13.6:1 vs --bg (AAA) */
+  --focus: #171717;              /* ~13.6:1 vs --bg (WCAG 1.4.11 needs 3:1) */
+  --button-bg: #15803d;          /* ~3.8:1 vs --bg (1.4.11); ~5.0:1 vs --button-text (AA) */
+  --button-bg-hover: #166534;    /* ~7.1:1 vs --button-text (AAA) */
+  --button-border: #14532d;      /* ~6.9:1 vs --bg (WCAG 1.4.11 needs 3:1) */
+  --button-text: #ffffff;        /* white button label */
 }
 
 *,
