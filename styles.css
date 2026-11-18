@@ -1,15 +1,15 @@
-/* Single light theme on a yellow page background. Contrast ratios (WCAG 2.x)
+/* Single light theme on a red page background. Contrast ratios (WCAG 2.x)
    are noted per token as "~R:1 vs --token"; tests/theme.test.js checks both
    the WCAG thresholds and that each noted ratio matches the real colours. */
 :root {
   color-scheme: light;
-  --bg: #fde047;                 /* yellow page background */
-  --text: #171717;               /* near-black, ~13.6:1 vs --bg (AAA) */
-  --focus: #171717;              /* ~13.6:1 vs --bg (WCAG 1.4.11 needs 3:1) */
-  --button-bg: #15803d;          /* ~3.8:1 vs --bg (1.4.11); ~5.0:1 vs --button-text (AA) */
-  --button-bg-hover: #166534;    /* ~7.1:1 vs --button-text (AAA) */
-  --button-border: #14532d;      /* ~6.9:1 vs --bg (WCAG 1.4.11 needs 3:1) */
-  --button-text: #ffffff;        /* white button label */
+  --bg: #991b1b;                 /* deep red page background */
+  --text: #ffffff;               /* white, ~8.3:1 vs --bg (AAA) */
+  --focus: #ffffff;              /* ~8.3:1 vs --bg (WCAG 1.4.11 needs 3:1) */
+  --button-bg: #ffffff;          /* white fill, ~8.3:1 vs --bg (1.4.11); ~10.0:1 vs --button-text (AAA) */
+  --button-bg-hover: #fecaca;    /* ~6.9:1 vs --button-text (AA) */
+  --button-border: #ffffff;      /* ~8.3:1 vs --bg (WCAG 1.4.11 needs 3:1) */
+  --button-text: #7f1d1d;        /* dark red button label, ~10.0:1 vs --button-bg (AAA) */
 }
 
 *,
