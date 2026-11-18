@@ -6,8 +6,9 @@
  * The site ships one dark palette on a brown background. There is no light
  * mode: no theme switch, no prefers-color-scheme detection and no saved
  * choice. These checks read the static site files and fail if light-mode
- * support comes back, if the background stops being brown, or if the
- * palette drops below WCAG contrast thresholds.
+ * support comes back, if the background stops being brown, if the palette
+ * drops below WCAG contrast thresholds, or if the page stops painting with
+ * those checked tokens (a hardcoded colour would bypass the contrast checks).
  */
 'use strict';
 
@@ -17,6 +18,36 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
+
+// [foreground token, background token, minimum ratio, what it covers]
+const CONTRAST_CHECKS = [
+  ['--text', '--bg', 7, 'marquee text (AAA)'],
+  ['--focus', '--bg', 3, 'focus ring (WCAG 1.4.11)'],
+  ['--button-border', '--bg', 3, 'button boundary (WCAG 1.4.11)'],
+  ['--button-text', '--button-bg', 4.5, 'button label (AA)'],
+  ['--button-text', '--button-bg-hover', 4.5, 'hovered button label (AA)'],
+];
+
+// [selector, property, token]: where each checked pair is actually painted.
+// The marquee words set no colour of their own and inherit body's --text.
+const REQUIRED_TOKEN_USES = [
+  ['body', 'background-color', '--bg'],
+  ['body', 'color', '--text'],
+  ['.action-button', 'background-color', '--button-bg'],
+  ['.action-button', 'border', '--button-border'],
+  ['.action-button', 'color', '--button-text'],
+  ['.action-button:hover', 'background-color', '--button-bg-hover'],
+  ['.action-button:focus-visible', 'outline', '--focus'],
+];
+
+// Properties that paint a colour. Their values may only use var(--token),
+// lengths and the keywords below.
+const COLOUR_PROPERTY = /^(color|background(-color|-image)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|(box|text)-shadow|fill|stroke|caret-color|accent-color|text-decoration(-color)?)$/;
+const NON_COLOUR_KEYWORDS = new Set([
+  'none', 'solid', 'dashed', 'dotted', 'double', 'inset',
+  'inherit', 'initial', 'unset', 'revert', 'currentcolor', 'transparent',
+]);
+const COLOUR_LITERAL = /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i;
 
 function read(name) {
   return fs.readFileSync(path.join(ROOT, name), 'utf8');
@@ -49,6 +80,38 @@ function rootTokens() {
     tokens[match[1]] = match[2].trim().toLowerCase();
   }
   return tokens;
+}
+
+// Every rule of styles.css except :root, including rules nested in @media and
+// @keyframes, as { selectors: [...], declarations: [{ property, value }] }.
+function styleRules() {
+  const css = stripCssComments(read('styles.css'));
+  const rules = [];
+  const rule = /([^{}]+)\{([^{}]*)\}/g;
+  let match;
+  while ((match = rule.exec(css)) !== null) {
+    const selectors = match[1].split(',').map(function (selector) {
+      return selector.trim();
+    });
+    if (selectors.indexOf(':root') !== -1) {
+      continue;
+    }
+    const declarations = match[2].split(';')
+      .map(function (declaration) {
+        return declaration.trim();
+      })
+      .filter(Boolean)
+      .map(function (declaration) {
+        const colon = declaration.indexOf(':');
+        return {
+          property: declaration.slice(0, colon).trim().toLowerCase(),
+          value: declaration.slice(colon + 1).trim().toLowerCase(),
+        };
+      });
+    rules.push({ selectors: selectors, declarations: declarations });
+  }
+  assert.ok(rules.length > 0, 'styles.css has no rules to check');
+  return rules;
 }
 
 function parseHex(value) {
@@ -115,19 +178,72 @@ test('only a dark colour scheme is declared', function () {
 
 test('text and controls keep accessible contrast on the brown background', function () {
   const t = rootTokens();
-  const checks = [
-    ['--text', '--bg', 7, 'marquee text (AAA)'],
-    ['--focus', '--bg', 3, 'focus ring (WCAG 1.4.11)'],
-    ['--button-border', '--bg', 3, 'button boundary (WCAG 1.4.11)'],
-    ['--button-text', '--button-bg', 4.5, 'button label (AA)'],
-    ['--button-text', '--button-bg-hover', 4.5, 'hovered button label (AA)'],
-  ];
-  checks.forEach(function (check) {
+  CONTRAST_CHECKS.forEach(function (check) {
     const ratio = contrastRatio(t[check[0]], t[check[1]]);
     assert.ok(ratio >= check[2],
       check[3] + ': ' + check[0] + ' on ' + check[1] + ' is ' + ratio.toFixed(2) +
       ':1, needs ' + check[2] + ':1');
   });
+});
+
+test('the page paints with the contrast-checked tokens', function () {
+  const rules = styleRules();
+  REQUIRED_TOKEN_USES.forEach(function (use) {
+    const selector = use[0];
+    const property = use[1];
+    const expected = 'var(' + use[2] + ')';
+    const values = rules
+      .filter(function (rule) {
+        return rule.selectors.indexOf(selector) !== -1;
+      })
+      .reduce(function (all, rule) {
+        return all.concat(rule.declarations);
+      }, [])
+      .filter(function (declaration) {
+        return declaration.property === property;
+      })
+      .map(function (declaration) {
+        return declaration.value;
+      });
+    assert.ok(values.length > 0, selector + ' must declare ' + property);
+    values.forEach(function (value) {
+      assert.ok(value.indexOf(expected) !== -1,
+        selector + ' { ' + property + ': ' + value + ' } must use ' + expected);
+    });
+  });
+});
+
+test('no colour is hardcoded outside the :root palette', function () {
+  const audited = new Set();
+  CONTRAST_CHECKS.forEach(function (check) {
+    audited.add(check[0]);
+    audited.add(check[1]);
+  });
+
+  styleRules().forEach(function (rule) {
+    const where = rule.selectors.join(', ');
+    rule.declarations.forEach(function (declaration) {
+      const label = where + ' { ' + declaration.property + ': ' + declaration.value + ' }';
+      assert.doesNotMatch(declaration.value, COLOUR_LITERAL, label + ' hardcodes a colour');
+      if (!COLOUR_PROPERTY.test(declaration.property)) {
+        return;
+      }
+      const rest = declaration.value.replace(/var\(([^)]*)\)/g, function (whole, inner) {
+        const token = inner.trim();
+        assert.match(token, /^--[\w-]+$/, label + ': var() fallbacks could hide a colour');
+        assert.ok(audited.has(token), label + ': ' + token + ' is not contrast-checked');
+        return ' ';
+      });
+      (rest.replace(/-?\d*\.?\d+[a-z%]*/g, ' ').match(/[a-z-]+/g) || []).forEach(function (word) {
+        assert.ok(NON_COLOUR_KEYWORDS.has(word), label + ': "' + word + '" may be a named colour');
+      });
+    });
+  });
+
+  const html = read('index.html');
+  assert.doesNotMatch(html, /<style[\s>]|\sstyle\s*=/i, 'index.html must not carry inline styles');
+  assert.doesNotMatch(read('script.js'), /\.style\b|cssText|setProperty|insertRule/,
+    'script.js must not set styles directly');
 });
 
 test('the light/dark switch is gone from the page', function () {
