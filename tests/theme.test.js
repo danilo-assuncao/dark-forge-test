@@ -3,10 +3,10 @@
  *
  * Run from the repository root:  node --test
  *
- * The site ships one light palette on a yellow background. There is no dark
+ * The site ships one light palette on a light grey background. There is no dark
  * mode: no theme switch, no prefers-color-scheme detection and no saved
  * choice. These checks read the static site files and fail if dark-mode
- * support comes back, if the background stops being yellow, if the palette
+ * support comes back, if the background stops being light grey, if the palette
  * drops below WCAG contrast thresholds, if a ratio written in the styles.css
  * comments no longer matches the real colours, or if the page stops painting
  * with those checked tokens (a hardcoded colour would bypass the contrast
@@ -178,15 +178,14 @@ function toHsl(hex) {
   return { hue: hue, saturation: saturation, lightness: lightness };
 }
 
-test('the page background is yellow', function () {
+test('the page background is light grey', function () {
   const tokens = rootTokens();
   const hsl = toHsl(tokens['--bg']);
-  // Yellow sits between amber and lime, is strongly saturated, and is light
-  // enough not to read as olive or ochre but not so pale it reads as cream.
-  assert.ok(hsl.hue >= 45 && hsl.hue <= 65, '--bg hue should be yellow, got ' + hsl.hue);
-  assert.ok(hsl.saturation >= 0.6, '--bg should be a vivid yellow, got saturation ' + hsl.saturation);
-  assert.ok(hsl.lightness >= 0.5 && hsl.lightness <= 0.85,
-    '--bg should be a light yellow, got lightness ' + hsl.lightness);
+  // Grey is neutral: no hue and no saturation (equal R, G and B channels).
+  // It must be light enough for the dark text and controls to keep contrast.
+  assert.equal(hsl.saturation, 0, '--bg should be a neutral grey, got saturation ' + hsl.saturation);
+  assert.ok(hsl.lightness >= 0.7 && hsl.lightness <= 0.9,
+    '--bg should be a light grey, got lightness ' + hsl.lightness);
 
   const css = stripCssComments(read('styles.css'));
   assert.match(css, /body\s*\{[^}]*background-color:\s*var\(--bg\)/,
@@ -216,7 +215,7 @@ test('the contrast ratios written in styles.css match the real colours', functio
   });
 });
 
-test('text and controls keep accessible contrast on the yellow background', function () {
+test('text and controls keep accessible contrast on the grey background', function () {
   const t = rootTokens();
   CONTRAST_CHECKS.forEach(function (check) {
     const ratio = contrastRatio(t[check[0]], t[check[1]]);
