@@ -26,7 +26,7 @@
 
   function cleanQty(q) {
     var n = Math.floor(Number(q));
-    if (!isFinite(n) || n < 1) return 1;
+    if (isNaN(n) || n < 1) return 1;
     return Math.min(n, MAX_QTY);
   }
 
@@ -43,10 +43,14 @@
       } catch (e) { /* storage full or blocked: keep in-memory cart */ }
     }
 
+    // Re-reads storage so changes made by other tabs are not overwritten.
+    // If storage is missing/unreadable/empty/corrupt, in-memory state is kept.
     function load() {
       var data = null;
       try { data = storage ? JSON.parse(storage.getItem(STORAGE_KEY)) : null; } catch (e) { data = null; }
       if (!data || !Array.isArray(data.lines)) return;
+      lines = [];
+      coupon = null;
       data.lines.forEach(function (l) {
         var item = l && findItem(l.itemId);
         if (!item || item.sizes.indexOf(l.size) === -1) return; // drop stale/invalid entries
@@ -60,8 +64,10 @@
       return lines.filter(function (l) { return l.itemId === itemId && l.size === size; })[0] || null;
     }
 
-    // Adds qty of item+size. Same item+size merges into one line; mode is updated.
+    // Adds qty of item+size. Same item+size merges into one line; the most recent
+    // mode wins for the whole line (the UI message says so).
     function add(itemId, size, mode, qty) {
+      load();
       var item = findItem(itemId);
       if (!item || item.sizes.indexOf(size) === -1) return false;
       var line = find(itemId, size);
@@ -77,6 +83,7 @@
     }
 
     function setQty(itemId, size, qty) {
+      load();
       var line = find(itemId, size);
       if (!line) return false;
       if (!(Number(qty) >= 1)) return remove(itemId, size);
@@ -86,6 +93,7 @@
     }
 
     function setMode(itemId, size, mode) {
+      load();
       var line = find(itemId, size);
       if (!line || MODES.indexOf(mode) === -1) return false;
       line.mode = mode;
@@ -94,9 +102,11 @@
     }
 
     function remove(itemId, size) {
+      load();
       var before = lines.length;
       lines = lines.filter(function (l) { return !(l.itemId === itemId && l.size === size); });
       var changed = lines.length !== before;
+      if (changed && !lines.length) coupon = null; // empty cart: drop the coupon
       if (changed) save();
       return changed;
     }
@@ -106,14 +116,16 @@
     function applyCoupon(code) {
       var c = normalizeCoupon(code);
       if (!COUPONS[c]) return false;
+      load();
       coupon = c;
       save();
       return true;
     }
 
-    function removeCoupon() { coupon = null; save(); }
+    function removeCoupon() { load(); coupon = null; save(); }
 
     function totals() {
+      load();
       var subtotal = 0;
       var subscriptionDiscount = 0;
       var detailed = lines.map(function (l) {
@@ -140,7 +152,7 @@
 
     load();
     return {
-      add: add, setQty: setQty, setMode: setMode, remove: remove, clear: clear,
+      reload: load, add: add, setQty: setQty, setMode: setMode, remove: remove, clear: clear,
       applyCoupon: applyCoupon, removeCoupon: removeCoupon, totals: totals,
     };
   }

@@ -116,10 +116,11 @@
   var cart = K.createCart(storage);
   var mode = 'avulsa';
 
-  function renderCart() {
+  function renderCart(focusId) {
     if (!cartEl) return;
     var t = cart.totals();
     clear(cartEl);
+    var toFocus = null;
     cartEl.appendChild(el('h2', null, 'Sacola (' + t.count + ')'));
     if (!t.lines.length) {
       cartEl.appendChild(el('p', 'muted', 'Sua sacola esta vazia.'));
@@ -141,7 +142,10 @@
         var b = el('button', null, a[0]);
         b.type = 'button';
         b.setAttribute('aria-label', a[1] + ' - ' + l.name + ' ' + s.name);
-        b.addEventListener('click', function () { a[2](); renderCart(); });
+        var bid = l.itemId + '|' + l.size + '|' + a[1];
+        b.dataset.fid = bid;
+        if (focusId === bid) toFocus = b;
+        b.addEventListener('click', function () { a[2](); renderCart(bid); });
         li.appendChild(b);
       });
       ul.appendChild(li);
@@ -156,18 +160,35 @@
     apply.type = 'button';
     var cmsg = el('p', 'muted');
     cmsg.setAttribute('role', 'status');
+    input.dataset.fid = 'coupon-input';
+    apply.dataset.fid = 'coupon-apply';
+    if (focusId === 'coupon-input') toFocus = input;
+    if (focusId === 'coupon-apply') toFocus = apply;
     apply.addEventListener('click', function () {
-      if (cart.applyCoupon(input.value)) renderCart();
+      if (cart.applyCoupon(input.value)) renderCart('coupon-apply');
       else cmsg.textContent = 'Cupom invalido.';
     });
     coupon.appendChild(input);
     coupon.appendChild(apply);
+    if (t.coupon) {
+      var rm = el('button', null, 'Remover cupom');
+      rm.type = 'button';
+      rm.dataset.fid = 'coupon-remove';
+      rm.addEventListener('click', function () { cart.removeCoupon(); renderCart('coupon-input'); });
+      coupon.appendChild(rm);
+    }
     cartEl.appendChild(coupon);
     cartEl.appendChild(cmsg);
     cartEl.appendChild(el('p', null, 'Subtotal: ' + C.formatBRL(t.subtotal)));
     if (t.subscriptionDiscount) cartEl.appendChild(el('p', null, 'Desconto assinatura (5%): -' + C.formatBRL(t.subscriptionDiscount)));
     if (t.couponDiscount) cartEl.appendChild(el('p', null, 'Cupom ' + t.coupon + ' (10%): -' + C.formatBRL(t.couponDiscount)));
     cartEl.appendChild(el('p', 'price', 'Total: ' + C.formatBRL(t.total)));
+    // Rebuilding the subtree destroys the focused node: restore focus.
+    if (!toFocus && focusId) {
+      toFocus = cartEl.children[0];
+      if (toFocus) toFocus.tabIndex = -1;
+    }
+    if (toFocus && toFocus.focus) toFocus.focus();
   }
 
   function renderList(route) {
@@ -275,7 +296,8 @@
     cta.addEventListener('click', function () {
       cart.add(item.id, size, mode, 1);
       renderCart();
-      msg.textContent = item.name + ' - porte ' + findSize(size).name + ' adicionado a sacola.';
+      msg.textContent = item.name + ' - porte ' + findSize(size).name + ' adicionado a sacola (' +
+        (mode === 'assinatura' ? 'assinatura mensal' : 'avulsa') + '). A modalidade vale para todas as unidades deste item e porte.';
     });
     detailView.appendChild(cta);
     detailView.appendChild(msg);
@@ -325,6 +347,12 @@
 
   renderStatic();
   renderCart();
+  // Another tab changed the cart: reload from storage and re-render.
+  root.addEventListener('storage', function (e) {
+    if (e && e.key && e.key !== K.STORAGE_KEY) return;
+    cart.reload();
+    renderCart();
+  });
   root.addEventListener('hashchange', render);
   render();
 })(typeof window !== 'undefined' ? window : this);
