@@ -561,13 +561,13 @@ test('main flow: catalog -> product -> cart -> checkout -> confirmation', functi
   const href = cards[0].href;
   t.go(href);
   assert.match(t.doc.title, /– Dan$/);
-  byClass(t, 'add-to-cart')[0].listeners.click();
+  byClass(t, 'action-button add-to-cart')[0].listeners.click();
   assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added to cart.');
   assert.equal(t.cartBadge.textContent, '1');
   t.go('#/cart');
   assert.equal(t.heading(), 'Cart');
   assert.equal(byClass(t, 'cart-item').length, 1);
-  const link = byClass(t, 'checkout-link')[0];
+  const link = byClass(t, 'action-button checkout-link')[0];
   assert.equal(link.href, '#/checkout');
   t.go(link.href);
   assert.equal(t.heading(), 'Checkout');
