@@ -80,6 +80,8 @@
     if (typeof rawCoupon === 'string' && Object.prototype.hasOwnProperty.call(COUPONS, rawCoupon)) {
       couponCode = rawCoupon;
     }
+    // Carts saved by the pre-Dan Wear catalog ({ id, qty } with no size, old
+    // product ids) are intentionally discarded: those products no longer exist.
     var raw = readKey(STORAGE_KEY);
     if (!raw) {
       return;
@@ -196,6 +198,8 @@
     return total;
   }
 
+  // A stored coupon whose minimum is no longer met stays saved but discounts
+  // nothing; it applies again if the subtotal reaches the minimum.
   function discountCents() {
     var coupon = couponCode ? COUPONS[couponCode] : null;
     var subtotal = subtotalCents();

@@ -782,3 +782,28 @@ test('index.html SEO tags are complete and match the home view', function () {
   const title = html.match(/<title>([^<]+)<\/title>/)[1];
   assert.equal(title, boot('#/').doc.title);
 });
+
+test('cart shows a saved coupon that does not apply, and DAN50 is refused below its minimum', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]), 'dan-coupon': 'DAN50' };
+  const t = boot('#/cart', { cartStorage: store });
+  assert.match(byClass(t, 'coupon-applied')[0].textContent, /does not apply/);
+  assert.equal(byClass(t, 'cart-discount').length, 0);
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 79,90');
+  const fresh = boot('#/cart', { cartStorage: { 'dan-cart': store['dan-cart'] } });
+  couponSubmit(fresh, 'DAN50');
+  assert.match(byClass(fresh, 'coupon-status')[0].textContent, /requires a subtotal/);
+});
+
+test('checkout confirms the undiscounted total for a stale fixed coupon', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]), 'dan-coupon': 'DAN50' };
+  const t = boot('#/checkout', { cartStorage: store });
+  fillCheckout(t, VALID);
+  submitForm(t);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 79,90/);
+});
+
+test('a legacy size-less cart is discarded and shows the empty state', function () {
+  const t = boot('#/cart', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }, { id: 'basic-tee', qty: 1 }]) } });
+  assert.ok(t.has('cart-empty'));
+  assert.equal(t.cartBadge.textContent, '0');
+});

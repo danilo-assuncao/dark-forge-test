@@ -212,3 +212,22 @@ test('the coupon persists with the cart, is dropped when invalid and cleared wit
   assert.equal(load(storage).coupon(), null);
   assert.equal(load(storage).discountCents(), 0);
 });
+
+test('a coupon on an empty cart is stored but discounts nothing', function () {
+  const cart = load(fakeStorage());
+  assert.ok(cart.applyCoupon('DAN10').ok);
+  assert.equal(cart.discountCents(), 0);
+  assert.equal(cart.totalCents(), 0);
+});
+
+test('a fixed coupon reactivates when the subtotal returns to its minimum', function () {
+  const cart = load(fakeStorage());
+  cart.add('denim-jacket', 1, 'M');
+  cart.add('hoodie', 1, 'M'); // 51980
+  cart.applyCoupon('DAN50');
+  cart.remove('denim-jacket', 'M'); // 21990 < 25000
+  assert.equal(cart.discountCents(), 0);
+  assert.equal(cart.coupon().code, 'DAN50');
+  cart.add('denim-jacket', 1, 'M');
+  assert.equal(cart.discountCents(), 5000);
+});
