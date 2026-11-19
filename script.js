@@ -56,14 +56,34 @@
     return marquee;
   }
 
-  // ----- Views: each returns { title, node } -----
+  // Meta description per route (SEO); the views below attach theirs.
+  var DESCRIPTIONS = {
+    home: 'Dan sells supplements and training gear. Browse the catalog and order in a few clicks.',
+    about: 'About Dan, a small single-page shop with client-side routing.',
+    catalog: 'Browse every Dan product, filter by category and add items to your cart.',
+    cart: 'Review the items in your Dan cart and adjust quantities.',
+    checkout: 'Enter your details to place a simulated Dan order.',
+    confirmed: 'Your simulated Dan order was received.',
+    product: 'Details, specifications and price for this Dan product.',
+    notFound: 'The page you are looking for does not exist.'
+  };
+
+  // ----- Views: each returns { title, description, node } -----
 
   function homeView() {
     var home = el('div', 'home');
-    home.appendChild(el('h1', 'visually-hidden', 'Dan'));
     home.appendChild(buildMarquee());
-    home.appendChild(el('button', 'action-button', 'Dan')).type = 'button';
-    return { title: 'Dan', node: home };
+    var hero = el('section', 'hero');
+    hero.setAttribute('aria-labelledby', 'hero-title');
+    var heading = el('h1', 'hero-title', 'Dan');
+    heading.id = 'hero-title';
+    hero.appendChild(heading);
+    hero.appendChild(el('p', 'hero-tagline', 'Supplements and training gear, picked for results.'));
+    var cta = el('a', 'action-button hero-cta', 'Shop the catalog');
+    cta.href = '#/catalog';
+    hero.appendChild(cta);
+    home.appendChild(hero);
+    return { title: 'Dan \u2013 Supplements and training gear', description: DESCRIPTIONS.home, node: home };
   }
 
   function contentView(title, paragraph) {
@@ -76,6 +96,7 @@
   function aboutView() {
     return {
       title: 'About \u2013 Dan',
+      description: DESCRIPTIONS.about,
       node: contentView('About', 'Dan is a small single-page app with client-side routing.')
     };
   }
@@ -85,7 +106,7 @@
     var link = el('a', 'text-link', 'Back to home');
     link.href = '#/';
     container.appendChild(link);
-    return { title: '404 \u2013 Dan', node: container };
+    return { title: '404 \u2013 Dan', description: DESCRIPTIONS.notFound, node: container };
   }
 
   // ----- Catalog -----
@@ -171,7 +192,7 @@
     }
     show(null);
     container.appendChild(grid);
-    return { title: 'Catalog \u2013 Dan', node: container };
+    return { title: 'Catalog \u2013 Dan', description: DESCRIPTIONS.catalog, node: container };
   }
 
   function nutritionTable(product) {
@@ -256,7 +277,7 @@
     var back = el('a', 'text-link', 'Back to catalog');
     back.href = '#/catalog';
     container.appendChild(back);
-    return { title: product.name + ' \u2013 Dan', node: container };
+    return { title: product.name + ' \u2013 Dan', description: product.name + ': ' + product.description, node: container };
   }
 
   // ----- Cart -----
@@ -314,7 +335,7 @@
       var shop = el('a', 'text-link', 'Browse the catalog');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Cart \u2013 Dan', node: container };
+      return { title: 'Cart \u2013 Dan', description: DESCRIPTIONS.cart, node: container };
     }
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
@@ -331,7 +352,7 @@
     var checkout = el('a', 'action-button checkout-link', 'Checkout');
     checkout.href = '#/checkout';
     container.appendChild(checkout);
-    return { title: 'Cart \u2013 Dan', node: container };
+    return { title: 'Cart \u2013 Dan', description: DESCRIPTIONS.cart, node: container };
   }
 
   // ----- Checkout (simulated: no payment, nothing is sent anywhere) -----
@@ -398,7 +419,7 @@
     var link = el('a', 'text-link', 'Back to catalog');
     link.href = '#/catalog';
     container.appendChild(link);
-    return { title: 'Order confirmed \u2013 Dan', node: container, heading: heading };
+    return { title: 'Order confirmed \u2013 Dan', description: DESCRIPTIONS.confirmed, node: container, heading: heading };
   }
 
   function checkoutView(notice) {
@@ -416,7 +437,7 @@
       var shop = el('a', 'text-link', 'Browse the catalog');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Checkout \u2013 Dan', node: container };
+      return { title: 'Checkout \u2013 Dan', description: DESCRIPTIONS.checkout, node: container };
     }
     var total = cart.totalCents();
     var count = cart.count();
@@ -481,7 +502,7 @@
         var host = document.getElementById('app');
         host.textContent = '';
         host.appendChild(fresh.node);
-        document.title = fresh.title;
+        applyMeta(fresh);
         host.focus();
         return;
       }
@@ -491,11 +512,11 @@
       var app = document.getElementById('app');
       app.textContent = '';
       app.appendChild(done.node);
-      document.title = done.title;
+      applyMeta(done);
       app.focus();
     });
     container.appendChild(form);
-    return { title: 'Checkout \u2013 Dan', node: container };
+    return { title: 'Checkout \u2013 Dan', description: DESCRIPTIONS.checkout, node: container };
   }
 
   function updateCartCount() {
@@ -558,6 +579,22 @@
 
   var hasRendered = false;
 
+  // Sets the document title and keeps the description, og:title and
+  // og:description tags in sync with the current view. Missing tags are skipped.
+  function setMeta(selector, value) {
+    var meta = document.querySelector(selector);
+    if (meta && value) {
+      meta.setAttribute('content', value);
+    }
+  }
+
+  function applyMeta(view) {
+    document.title = view.title;
+    setMeta('meta[name="description"]', view.description);
+    setMeta('meta[property="og:title"]', view.title);
+    setMeta('meta[property="og:description"]', view.description);
+  }
+
   function render() {
     var app = document.getElementById('app');
     if (!app) {
@@ -568,7 +605,7 @@
 
     app.textContent = '';
     app.appendChild(view.node);
-    document.title = view.title;
+    applyMeta(view);
 
     var links = document.querySelectorAll('.nav-link');
     for (var i = 0; i < links.length; i++) {

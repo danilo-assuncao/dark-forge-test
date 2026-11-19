@@ -48,6 +48,11 @@ function boot(hash, opts) {
     return a;
   });
   const cartBadge = makeNode('span');
+  const metas = opts.noMeta ? {} : {
+    'meta[name="description"]': makeNode('meta'),
+    'meta[property="og:title"]': makeNode('meta'),
+    'meta[property="og:description"]': makeNode('meta'),
+  };
   const win = { location: { hash: hash }, listeners: {} };
   if (opts.cartStorage) {
     win.localStorage = {
@@ -61,7 +66,10 @@ function boot(hash, opts) {
     createElement: makeNode,
     createDocumentFragment() { return makeNode('#fragment'); },
     getElementById(id) { return id === 'app' ? app : (id === 'cart-count' ? cartBadge : null); },
-    querySelector(sel) { return sel === '.skip-link' ? skip : null; },
+    querySelector(sel) {
+      if (sel === '.skip-link') { return skip; }
+      return Object.prototype.hasOwnProperty.call(metas, sel) ? metas[sel] : null;
+    },
     querySelectorAll(sel) { return sel === '.nav-link' ? navLinks : []; },
     addEventListener() {},
   };
@@ -81,6 +89,9 @@ function boot(hash, opts) {
   vm.runInContext(js, ctx);
   return {
     app, skip, navLinks, doc, win, cartBadge,
+    description() { return (metas['meta[name="description"]'] || { attrs: {} }).attrs.content; },
+    ogTitle() { return (metas['meta[property="og:title"]'] || { attrs: {} }).attrs.content; },
+    ogDescription() { return (metas['meta[property="og:description"]'] || { attrs: {} }).attrs.content; },
     go(h) { win.location.hash = h; win.listeners.hashchange(); },
     heading() {
       let found = null;
@@ -111,7 +122,7 @@ KNOWN.forEach(function (c) {
     const t = boot(c[0]);
     if (c[1] === 'home') {
       assert.ok(t.has('home'));
-      assert.equal(t.doc.title, 'Dan');
+      assert.equal(t.doc.title, 'Dan \u2013 Supplements and training gear');
     } else {
       assert.equal(t.heading(), 'About');
       assert.equal(t.doc.title, 'About – Dan');
@@ -646,4 +657,80 @@ test('catalog add button reports the maximum quantity', function () {
   add.listeners.click();
   assert.equal(t.win.DanCart.count(), max);
   assert.equal(status.textContent, 'Maximum quantity reached.');
+});
+
+test('home hero names the shop and links to the catalog', function () {
+  const t = boot('#/');
+  assert.ok(t.has('hero'));
+  assert.equal(t.heading(), 'Dan');
+  const cta = byClass(t, 'action-button hero-cta')[0];
+  assert.equal(cta.tagName, 'a');
+  assert.equal(cta.href, '#/catalog');
+});
+
+test('every route sets its own title and description, mirrored in og tags', function () {
+  const t = boot('#/');
+  const first = t.win.DanProducts.all()[0];
+  const routes = [
+    ['#/', /^Dan/],
+    ['#/about', /^About/],
+    ['#/catalog', /^Catalog/],
+    ['#/cart', /^Cart/],
+    ['#/checkout', /^Checkout/],
+    ['#/nope', /^404/],
+    ['#/produto/' + encodeURIComponent(first.id), new RegExp(first.name)],
+  ];
+  const titles = new Set();
+  const descriptions = new Set();
+  routes.forEach(function (r) {
+    t.go(r[0]);
+    assert.match(t.doc.title, r[1], r[0]);
+    assert.ok(t.description() && t.description().length > 10, r[0] + ' has a description');
+    assert.equal(t.ogTitle(), t.doc.title, r[0] + ' og:title');
+    assert.equal(t.ogDescription(), t.description(), r[0] + ' og:description');
+    titles.add(t.doc.title);
+    descriptions.add(t.description());
+  });
+  assert.equal(titles.size, routes.length);
+  assert.equal(descriptions.size, routes.length);
+  t.go('#/about');
+  assert.equal(t.description(), 'About Dan, a small single-page shop with client-side routing.');
+  t.go('#/produto/' + encodeURIComponent(first.id));
+  assert.equal(t.description(), first.name + ': ' + first.description);
+});
+
+test('navigation does not throw when the page has no meta tags', function () {
+  const t = boot('#/', { noMeta: true });
+  t.go('#/about');
+  assert.equal(t.doc.title, 'About \u2013 Dan');
+  assert.equal(t.description(), undefined);
+});
+
+test('checkout submit paths update title and meta', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) };
+  const t = boot('#/checkout', { cartStorage: store });
+  fillCheckout(t, VALID);
+  // Cart changes after render: the stale-summary path re-renders with fresh meta.
+  store['dan-cart'] = JSON.stringify([{ id: 'creatine', qty: 2 }]);
+  t.win.DanCart.reload();
+  t.doc.title = '';
+  submitForm(t);
+  assert.equal(t.doc.title, 'Checkout \u2013 Dan');
+  assert.match(t.description(), /simulated Dan order/);
+  fillCheckout(t, VALID);
+  submitForm(t);
+  assert.equal(t.doc.title, 'Order confirmed \u2013 Dan');
+  assert.equal(t.description(), 'Your simulated Dan order was received.');
+  assert.equal(t.ogTitle(), 'Order confirmed \u2013 Dan');
+});
+
+test('index.html SEO tags are complete and match the home view', function () {
+  assert.match(html, /<meta name="description" content="[^"]{20,}"/);
+  ['og:type', 'og:site_name', 'og:title', 'og:description'].forEach(function (p) {
+    assert.match(html, new RegExp('<meta property="' + p + '" content="[^"]+"'), p);
+  });
+  assert.match(html, /<meta name="twitter:card" content="[^"]+"/);
+  assert.match(html, /<meta name="viewport"/);
+  const title = html.match(/<title>([^<]+)<\/title>/)[1];
+  assert.equal(title, boot('#/').doc.title);
 });
