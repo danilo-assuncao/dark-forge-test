@@ -165,7 +165,7 @@ test('products.js holds well-formed mock data', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
   const all = ctx.window.DanProducts.all();
-  assert.ok(all.length >= 8);
+  assert.equal(all.length, 13);
   const cats = ctx.window.DanProducts.categories();
   assert.deepEqual(Array.from(cats), ['Camisetas', 'Calças', 'Casacos']);
   cats.forEach(function (c) {
@@ -235,7 +235,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
   assert.equal(cards[0].children[3].textContent, 'R$ 79,90');
 });
 
-test('category filter shows only matching products and All restores the grid', function () {
+test('category filter shows only matching products and Todas restores the grid', function () {
   const t = boot('#/catalog');
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
@@ -277,6 +277,20 @@ test('size guide table appears exactly for products with measurements', function
   const bare = boot('#/produto/x', { products: [{ id: 'x', name: 'X', description: 'd', priceCents: 100 }] });
   assert.equal(bare.has('measurements'), false);
   assert.equal(byClass(bare, 'size-button').length, 0);
+});
+
+test('catalog cards omit category and sizes rows when the data is absent', function () {
+  const cases = [
+    [{ id: 'a', name: 'A', description: 'd', priceCents: 100 }, ['product-image', 'product-name', 'product-price']],
+    [{ id: 'b', name: 'B', description: 'd', priceCents: 100, sizes: [] }, ['product-image', 'product-name', 'product-price']],
+    [{ id: 'c', name: 'C', description: 'd', priceCents: 100, category: 'X' }, ['product-image', 'product-name', 'product-category', 'product-price']],
+  ];
+  cases.forEach(function (c) {
+    const t = boot('#/catalog', { products: [c[0]] });
+    const cards = collect(t.app, function (n) { return n.className === 'product-card'; });
+    assert.equal(cards.length, 1);
+    assert.deepEqual(cards[0].children.map(function (x) { return x.className; }), c[1]);
+  });
 });
 
 test('catalog without categories() renders the grid and no filter', function () {

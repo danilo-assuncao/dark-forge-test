@@ -50,6 +50,9 @@ test('unknown products, sizes and invalid quantities are rejected', function () 
   assert.equal(cart.add('basic-tee', -3, 'M'), false);
   assert.equal(cart.add('basic-tee', NaN, 'M'), false);
   assert.equal(cart.count(), 0);
+  assert.equal(cart.add('cap', 1, 'Tamanho \u00fanico'), false, 'removed product');
+  assert.equal(cart.add('basic-tee', 1, 'Tamanho \u00fanico'), false, 'one-size sentinel is not a size');
+  assert.equal(cart.count(), 0);
   assert.ok(cart.add('hoodie', 1, 'GG'));
 });
 
