@@ -226,6 +226,12 @@
   if (typeof window !== 'undefined') {
     root.DanBooksShelf = create();
     root.DanBooksShelf.create = create;
+    // Keep tabs in sync: another tab wrote the shelf (or cleared storage, key === null).
+    if (typeof root.addEventListener === 'function') {
+      root.addEventListener('storage', function (e) {
+        if (e && (e.key === null || e.key === STORAGE_KEY)) root.DanBooksShelf.reload();
+      });
+    }
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : this);

@@ -152,3 +152,148 @@ test('exposes DanBooksShelf as a browser global using localStorage', () => {
   assert.ok(win.DanBooksShelf.add('lideranca-essencial', 'ebook'));
   assert.ok(JSON.parse(st.raw()).items.length === 1);
 });
+
+test('reload re-reads storage written elsewhere and notifies', () => {
+  const st = mem();
+  const a = make(st);
+  const b = make(st);
+  let calls = 0;
+  a.subscribe(() => { calls++; });
+  b.add('lideranca-essencial', 'ebook');
+  b.setGiftWrap(true);
+  assert.deepEqual(a.items(), []);
+  a.reload();
+  assert.equal(a.items().length, 1);
+  assert.equal(calls, 1);
+});
+
+test('quantity boundaries on add, setQty and persisted data', () => {
+  const s = make();
+  s.add('lideranca-essencial', 'ebook', 98);
+  s.add('lideranca-essencial', 'ebook', 5);
+  assert.equal(s.items()[0].qty, 99);
+  [null, true, '', '  ', 'abc'].forEach((v) => assert.equal(s.setQty('lideranca-essencial', 'ebook', v), false));
+  assert.equal(s.items()[0].qty, 99);
+  assert.ok(s.setQty('lideranca-essencial', 'ebook', 2.7));
+  assert.equal(s.items()[0].qty, 2);
+  assert.ok(s.setQty('lideranca-essencial', 'ebook', '3'));
+  assert.equal(s.items()[0].qty, 3);
+  assert.ok(s.setQty('lideranca-essencial', 'ebook', 500));
+  assert.equal(s.items()[0].qty, 99);
+  assert.ok(s.setQty('lideranca-essencial', 'ebook', -1));
+  assert.deepEqual(s.items(), []);
+  const p = make(mem({ [S.STORAGE_KEY]: JSON.stringify({ items: [
+    { id: 'lideranca-essencial', format: 'ebook', qty: 500 },
+    { id: 'lideranca-essencial', format: 'ebook', qty: 2 },
+    { id: 'lideranca-essencial', format: 'capa-dura', qty: '2' },
+    { id: 'lideranca-essencial', format: 'capa-comum', qty: 2.9 }] }) }));
+  assert.deepEqual(p.items(), [
+    { id: 'lideranca-essencial', format: 'ebook', qty: 99 },
+    { id: 'lideranca-essencial', format: 'capa-dura', qty: 2 },
+    { id: 'lideranca-essencial', format: 'capa-comum', qty: 2 },
+  ]);
+});
+
+test('coupon rounding and edge cases use literal values', () => {
+  const s = make();
+  s.add('lideranca-essencial', 'ebook'); // 3294
+  s.applyCoupon('DANBOOK10');
+  assert.equal(s.totals().discountCents, 329);
+  assert.equal(s.totals().totalCents, 2965);
+  s.add('lideranca-essencial', 'capa-comum'); // + 5490 = 8784
+  assert.equal(s.totals().discountCents, 878);
+  const e = make();
+  assert.ok(e.applyCoupon('DANBOOK10'));
+  assert.equal(e.totals().discountCents, 0);
+  assert.equal(e.totals().totalCents, 0);
+  [null, undefined, 10, 'constructor', '__proto__', 'toString', ''].forEach((v) =>
+    assert.equal(make().applyCoupon(v), false, String(v)));
+  const g = make();
+  g.add('lideranca-essencial', 'capa-dura');
+  ['true', 1, null, undefined].forEach((v) => { g.setGiftWrap(v); assert.equal(g.totals().giftWrap, false); });
+});
+
+test('empty-shelf coupon persists across reload', () => {
+  const st = mem();
+  make(st).applyCoupon('DANBOOK10');
+  assert.equal(make(st).totals().coupon, 'DANBOOK10');
+});
+
+test('subscribers: payload, isolation, no notify on failures, idempotent unsubscribe', () => {
+  const s = make();
+  let n = 0, payload = null;
+  s.subscribe(() => { throw new Error('boom'); });
+  const off = s.subscribe((t) => { n++; payload = t; });
+  assert.ok(s.add('lideranca-essencial', 'ebook'));
+  assert.equal(n, 1);
+  assert.deepEqual(payload, s.totals());
+  s.add('x', 'ebook');
+  s.remove('lideranca-essencial', 'capa-dura');
+  s.setQty('x', 'ebook', 1);
+  s.applyCoupon('NOPE');
+  assert.equal(n, 1);
+  off(); off();
+  s.add('lideranca-essencial', 'ebook');
+  assert.equal(n, 1);
+});
+
+test('throwing storage: totals work and load starts empty', () => {
+  const bad = { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } };
+  const t = S.create({ storage: bad, catalog: B });
+  assert.deepEqual(t.items(), []);
+  t.add('lideranca-essencial', 'ebook');
+  assert.equal(t.totals().subtotalCents, 3294);
+});
+
+function runBrowser(win, withBooks) {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  win.window = win;
+  const ctx = vm.createContext(win);
+  if (withBooks) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'books.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'shelf.js'), 'utf8'), ctx);
+  return win;
+}
+
+test('browser: throwing localStorage getter degrades to in-memory shelf', () => {
+  const win = {};
+  Object.defineProperty(win, 'localStorage', { get() { throw new Error('denied'); } });
+  runBrowser(win, true);
+  assert.ok(win.DanBooksShelf.add('lideranca-essencial', 'ebook'));
+  assert.equal(win.DanBooksShelf.items().length, 1);
+});
+
+test('browser: shelf loaded before books.js stays inert, then loads persisted state', () => {
+  const st = mem();
+  make(st).add('lideranca-essencial', 'ebook');
+  const win = runBrowser({ localStorage: st }, false);
+  const sh = win.DanBooksShelf;
+  let notified = 0;
+  sh.subscribe(() => { notified++; });
+  assert.equal(sh.add('lideranca-essencial', 'ebook'), false);
+  assert.equal(sh.setQty('lideranca-essencial', 'ebook', 1), false);
+  assert.equal(sh.remove('lideranca-essencial', 'ebook'), false);
+  assert.equal(sh.clear(), false);
+  assert.equal(sh.setGiftWrap(true), false);
+  assert.equal(sh.applyCoupon('DANBOOK10'), false);
+  assert.equal(sh.removeCoupon(), false);
+  assert.equal(sh.items().length, 0);
+  assert.equal(JSON.parse(st.raw()).items.length, 1); // saved shelf untouched
+  win.DanBooksCatalog = B;
+  assert.equal(sh.items().length, 1);
+  assert.equal(notified, 1);
+});
+
+test('browser: storage event from another tab reloads the shelf', () => {
+  const st = mem();
+  const handlers = [];
+  const win = runBrowser({ localStorage: st, addEventListener: (t, f) => handlers.push([t, f]) }, true);
+  assert.equal(handlers[0][0], 'storage');
+  make(st).add('lideranca-essencial', 'capa-dura');
+  assert.equal(win.DanBooksShelf.items().length, 0);
+  handlers[0][1]({ key: 'other' });
+  assert.equal(win.DanBooksShelf.items().length, 0);
+  handlers[0][1]({ key: S.STORAGE_KEY });
+  assert.equal(win.DanBooksShelf.items().length, 1);
+});
