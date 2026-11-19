@@ -3,7 +3,7 @@
  *
  * Run from the repository root:  node --test
  *
- * The site ships one light palette on a light red background. There is no dark
+ * The site ships one light palette on a editorial off-white background. There is no dark
  * mode: no theme switch, no prefers-color-scheme detection and no saved
  * choice. These checks read the static site files and fail if dark-mode
  * support comes back, if the background stops being light red, if the palette
@@ -185,21 +185,15 @@ function toHsl(hex) {
   return { hue: hue, saturation: saturation, lightness: lightness };
 }
 
-test('the page background is light red', function () {
+test('the page background is a clean, light editorial off-white', function () {
   const tokens = rootTokens();
   const hsl = toHsl(tokens['--bg']);
-  // Red sits at hue 0 (wrapping to 360). It must be saturated enough to read as
-  // red, and light enough for the dark text and controls to keep contrast.
-  assert.ok(hsl.hue <= 15 || hsl.hue >= 345,
-    '--bg should be red (hue near 0), got hue ' + hsl.hue);
-  assert.ok(hsl.saturation >= 0.5,
-    '--bg should be a saturated red, got saturation ' + hsl.saturation);
-  assert.ok(hsl.lightness >= 0.7 && hsl.lightness <= 0.9,
-    '--bg should be a light red, got lightness ' + hsl.lightness);
+  assert.ok(hsl.lightness >= 0.92, '--bg should be near-white, got lightness ' + hsl.lightness);
+  assert.ok(hsl.saturation <= 0.5, '--bg should be a muted tint, got saturation ' + hsl.saturation);
 
   const css = stripCssComments(read('styles.css'));
   assert.match(css, /body\s*\{[^}]*background-color:\s*var\(--bg\)/,
-    'body must paint the light red --bg');
+    'body must paint the --bg background');
 });
 
 test('only a light colour scheme is declared', function () {
@@ -225,7 +219,7 @@ test('the contrast ratios written in styles.css match the real colours', functio
   });
 });
 
-test('text and controls keep accessible contrast on the light red background', function () {
+test('text and controls keep accessible contrast on the editorial off-white background', function () {
   const t = rootTokens();
   CONTRAST_CHECKS.forEach(function (check) {
     const ratio = contrastRatio(t[check[0]], t[check[1]]);
