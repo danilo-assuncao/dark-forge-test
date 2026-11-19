@@ -27,6 +27,10 @@ body {
 }
 
 body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
   background-color: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -44,13 +48,130 @@ body {
   border: 0;
 }
 
-/* Marquee container fills the viewport */
+/* Shared layout: header, scrollable main, footer */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  z-index: 20;
+  padding: 0.5rem 1rem;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+.site-header,
+.site-footer {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 5;
+  background-color: var(--bg);
+}
+
+.site-header {
+  border-bottom: 2px solid var(--text);
+}
+
+.site-footer {
+  border-top: 2px solid var(--text);
+}
+
+.site-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 0.5rem 1rem;
+}
+
+.site-footer__inner {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.brand,
+.nav-link,
+.text-link {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.nav-list {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  display: inline-block;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  text-decoration: none;
+}
+
+.nav-link:hover,
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.nav-link[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 0.3em;
+}
+
+.brand:focus-visible,
+.nav-link:focus-visible,
+.text-link:focus-visible,
+.skip-link:focus-visible,
+.app:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.app {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app:focus {
+  outline: none;
+}
+
+.container {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+.page-title {
+  margin: 0 0 1rem;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+}
+
+/* Home view: marquee fills the main area */
+.home {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
 .marquee {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
   overflow: hidden;
 }
 
@@ -124,7 +245,7 @@ body {
 
 /* Accessible green action button, layered above the marquee */
 .action-button {
-  position: fixed;
+  position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);

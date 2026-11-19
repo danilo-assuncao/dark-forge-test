@@ -41,6 +41,13 @@ const REQUIRED_TOKEN_USES = [
   ['.action-button', 'color', '--button-text'],
   ['.action-button:hover', 'background-color', '--button-bg-hover'],
   ['.action-button:focus-visible', 'outline', '--focus'],
+  ['.site-header', 'border-bottom', '--text'],
+  ['.site-footer', 'border-top', '--text'],
+  ['.site-header', 'background-color', '--bg'],
+  ['.site-footer', 'background-color', '--bg'],
+  ['.nav-link', 'color', '--text'],
+  ['.nav-link:focus-visible', 'outline', '--focus'],
+  ['.skip-link:focus-visible', 'outline', '--focus'],
 ];
 
 // Properties that paint a colour. Their values may only use var(--token),
@@ -276,6 +283,9 @@ test('no colour is hardcoded outside the :root palette', function () {
         assert.ok(audited.has(token), label + ': ' + token + ' is not contrast-checked');
         return ' ';
       });
+      if (declaration.property === 'text-decoration' && declaration.value === 'underline') {
+        return;
+      }
       (rest.replace(/-?\d*\.?\d+[a-z%]*/g, ' ').match(/[a-z-]+/g) || []).forEach(function (word) {
         assert.ok(NON_COLOUR_KEYWORDS.has(word), label + ': "' + word + '" may be a named colour');
       });
