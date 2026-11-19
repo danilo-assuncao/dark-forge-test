@@ -60,11 +60,54 @@
     return DESTINATIONS.filter(function (d) { return d.category === category; });
   }
 
+  // Lowercase, accent-free, trimmed text used for searching.
+  function normalize(text) {
+    var t = String(text === undefined || text === null ? '' : text).toLowerCase();
+    if (t.normalize) { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  function searchText(d) {
+    return normalize([d.name, d.category, d.climate.summary, d.includes.join(' ')].join(' '));
+  }
+
+  // Day-by-day plan for a destination and package length. Day 1 is arrival,
+  // the last day is departure and the days in between rotate through the
+  // package inclusions (activities) with free days mixed in.
+  function buildItinerary(dest, duration) {
+    var n = Number(duration);
+    if (!dest || !dest.priceCents || dest.durations.indexOf(n) < 0) { return []; }
+    var lodging = /Hospedagem|Lodge/;
+    var activities = dest.includes.filter(function (i) { return !lodging.test(i) && !/Cafe da manha|Pensao|Seguro|Passagem/.test(i); });
+    var days = [];
+    for (var i = 1; i <= n; i++) {
+      var title;
+      var detail;
+      if (i === 1) {
+        title = 'Chegada';
+        detail = 'Chegada a ' + dest.name + ', acomodacao e passeio de reconhecimento.';
+      } else if (i === n) {
+        title = 'Despedida';
+        detail = 'Cafe da manha, ultimas compras e traslado de volta.';
+      } else if (activities.length && (i % 3 !== 0 || n <= 3)) {
+        var act = activities[(i - 2) % activities.length];
+        title = act;
+        detail = 'Dia dedicado a: ' + act + '.';
+      } else {
+        title = 'Dia livre';
+        detail = 'Tempo livre para descansar e explorar ' + dest.name + ' por conta propria.';
+      }
+      days.push({ day: i, title: title, detail: detail });
+    }
+    return days;
+  }
+
   function filterDestinations(opts) {
     opts = opts || {};
     return DESTINATIONS.filter(function (d) {
       if (opts.category && d.category !== opts.category) { return false; }
       if (opts.duration && d.durations.indexOf(Number(opts.duration)) < 0) { return false; }
+      if (opts.query && searchText(d).indexOf(normalize(opts.query)) < 0) { return false; }
       return true;
     });
   }
@@ -84,91 +127,13 @@
     durationLabel: durationLabel,
     byCategory: byCategory,
     filterDestinations: filterDestinations,
-    getDestination: getDestination
+    getDestination: getDestination,
+    normalize: normalize,
+    buildItinerary: buildItinerary
   };
-
-  // Browser rendering (DOM APIs only, no innerHTML).
-  function el(tag, text, cls) {
-    var n = document.createElement(tag);
-    if (text !== undefined) { n.textContent = text; }
-    if (cls) { n.className = cls; }
-    return n;
-  }
-
-  function render(container, state) {
-    container.textContent = '';
-    var list = filterDestinations(state);
-    if (!list.length) {
-      container.appendChild(el('p', 'Nenhum destino encontrado.', 'empty'));
-      return;
-    }
-    CATEGORIES.forEach(function (cat) {
-      var items = list.filter(function (d) { return d.category === cat; });
-      if (!items.length) { return; }
-      var section = el('section', undefined, 'category');
-      section.appendChild(el('h2', cat));
-      var grid = el('div', undefined, 'grid');
-      items.forEach(function (d) {
-        var card = el('article', undefined, 'card');
-        card.appendChild(el('h3', d.name));
-        var chips = el('p', undefined, 'chips');
-        var shown = state && state.duration ? [Number(state.duration)] : d.durations;
-        shown.forEach(function (n) {
-          chips.appendChild(el('span', durationLabel(n) + ' - ' + formatBRL(d.priceCents[n]), 'chip'));
-        });
-        card.appendChild(chips);
-        var table = el('table');
-        var rows = [
-          ['Melhor epoca', d.climate.season],
-          ['Temperatura media', d.climate.avgTempC + ' C'],
-          ['Clima', d.climate.summary],
-          ['Inclusos', d.includes.join(', ')]
-        ];
-        rows.forEach(function (r) {
-          var tr = el('tr');
-          var th = el('th', r[0]);
-          th.scope = 'row';
-          tr.appendChild(th);
-          tr.appendChild(el('td', r[1]));
-          table.appendChild(tr);
-        });
-        card.appendChild(table);
-        grid.appendChild(card);
-      });
-      section.appendChild(grid);
-      container.appendChild(section);
-    });
-  }
-
-  function init() {
-    var container = document.getElementById('catalog');
-    var catSel = document.getElementById('filter-category');
-    var durSel = document.getElementById('filter-duration');
-    if (!container || !catSel || !durSel) { return; }
-    CATEGORIES.forEach(function (c) {
-      var o = el('option', c); o.value = c; catSel.appendChild(o);
-    });
-    DURATIONS.forEach(function (d) {
-      var o = el('option', durationLabel(d)); o.value = String(d); durSel.appendChild(o);
-    });
-    function update() { render(container, { category: catSel.value, duration: durSel.value }); }
-    catSel.addEventListener('change', update);
-    durSel.addEventListener('change', update);
-    update();
-  }
-
-  api.render = render;
-  api.init = init;
 
   root.ViagensDestinations = api;
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
-  }
-  if (typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
   }
 })(typeof window !== 'undefined' ? window : this);
