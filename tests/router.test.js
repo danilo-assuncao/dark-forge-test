@@ -48,6 +48,8 @@ function boot(hash, opts) {
     return a;
   });
   const cartBadge = makeNode('span');
+  const metas = {};
+  ['meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]'].forEach(function (s) { metas[s] = makeNode('meta'); });
   const win = { location: { hash: hash }, listeners: {} };
   if (opts.cartStorage) {
     win.localStorage = {
@@ -61,7 +63,7 @@ function boot(hash, opts) {
     createElement: makeNode,
     createDocumentFragment() { return makeNode('#fragment'); },
     getElementById(id) { return id === 'app' ? app : (id === 'cart-count' ? cartBadge : null); },
-    querySelector(sel) { return sel === '.skip-link' ? skip : null; },
+    querySelector(sel) { return sel === '.skip-link' ? skip : (metas[sel] || null); },
     querySelectorAll(sel) { return sel === '.nav-link' ? navLinks : []; },
     addEventListener() {},
   };
@@ -80,7 +82,7 @@ function boot(hash, opts) {
   }
   vm.runInContext(js, ctx);
   return {
-    app, skip, navLinks, doc, win, cartBadge,
+    app, skip, navLinks, doc, win, cartBadge, metas,
     go(h) { win.location.hash = h; win.listeners.hashchange(); },
     heading() {
       let found = null;
@@ -111,7 +113,9 @@ KNOWN.forEach(function (c) {
     const t = boot(c[0]);
     if (c[1] === 'home') {
       assert.ok(t.has('home'));
-      assert.equal(t.doc.title, 'Dan');
+      assert.ok(t.has('hero'));
+      assert.equal(t.heading(), 'Dan');
+      assert.equal(t.doc.title, 'Dan \u2013 Simple, honest supplements');
     } else {
       assert.equal(t.heading(), 'About');
       assert.equal(t.doc.title, 'About – Dan');
@@ -518,4 +522,57 @@ test('confirmation updates focus, title and order id; errors clear and refocus o
   assert.equal(t.app.focusCount, before + 1);
   assert.equal(t.doc.title, 'Order confirmed – Dan');
   assert.match(byClass(t, 'order-confirmation')[0].textContent, /#[0-9A-Z]+/);
+});
+
+test('home hero links to the catalog', function () {
+  const t = boot('#/');
+  let cta = null;
+  walk(t.app, function (n) { if (/hero-cta/.test(n.className)) { cta = n; } });
+  assert.ok(cta);
+  assert.equal(cta.href, '#/catalog');
+});
+
+test('each route sets its own title, description and og meta tags', function () {
+  const t = boot('#/');
+  const seen = {};
+  ['#/', '#/catalog', '#/about', '#/cart', '#/checkout', '#/nope'].forEach(function (h) {
+    t.go(h);
+    const d = t.metas['meta[name="description"]'].attrs.content;
+    assert.ok(d && d.length > 10, h + ' needs a description');
+    assert.equal(t.metas['meta[property="og:title"]'].attrs.content, t.doc.title);
+    assert.equal(t.metas['meta[property="og:description"]'].attrs.content, d);
+    assert.ok(!seen[t.doc.title], 'titles must be unique per route: ' + t.doc.title);
+    seen[t.doc.title] = true;
+  });
+});
+
+test('index.html declares viewport, description and og meta tags', function () {
+  assert.match(html, /<meta name="viewport"/);
+  assert.match(html, /<meta name="description" content="[^"]{20,}"/);
+  assert.match(html, /<meta property="og:title"/);
+  assert.match(html, /<meta property="og:description"/);
+});
+
+test('main flow: catalog -> product -> cart -> checkout -> confirmation', function () {
+  const t = boot('#/catalog', { cartStorage: {} });
+  assert.equal(t.heading(), 'Catalog');
+  const cards = byClass(t, 'product-card');
+  assert.ok(cards.length > 0);
+  const href = cards[0].href;
+  t.go(href);
+  assert.match(t.doc.title, /– Dan$/);
+  byClass(t, 'add-to-cart')[0].listeners.click();
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added to cart.');
+  assert.equal(t.cartBadge.textContent, '1');
+  t.go('#/cart');
+  assert.equal(t.heading(), 'Cart');
+  assert.equal(byClass(t, 'cart-item').length, 1);
+  const link = byClass(t, 'checkout-link')[0];
+  assert.equal(link.href, '#/checkout');
+  t.go(link.href);
+  assert.equal(t.heading(), 'Checkout');
+  fillCheckout(t, VALID);
+  submitForm(t);
+  assert.equal(t.heading(), 'Order confirmed');
+  assert.equal(t.cartBadge.textContent, '0');
 });

@@ -60,10 +60,22 @@
 
   function homeView() {
     var home = el('div', 'home');
-    home.appendChild(el('h1', 'visually-hidden', 'Dan'));
     home.appendChild(buildMarquee());
-    home.appendChild(el('button', 'action-button', 'Dan')).type = 'button';
-    return { title: 'Dan', node: home };
+    var hero = el('section', 'hero');
+    hero.setAttribute('aria-labelledby', 'hero-title');
+    var heading = el('h1', 'hero-title', 'Dan');
+    heading.id = 'hero-title';
+    hero.appendChild(heading);
+    hero.appendChild(el('p', 'hero-tagline', 'Simple, honest supplements. Browse the catalog, fill your cart and check out in minutes.'));
+    var cta = el('a', 'action-button hero-cta', 'Shop the catalog');
+    cta.href = '#/catalog';
+    hero.appendChild(cta);
+    home.appendChild(hero);
+    return {
+      title: 'Dan \u2013 Simple, honest supplements',
+      description: 'Dan is a small online store: browse the catalog, add products to your cart and check out in minutes.',
+      node: home
+    };
   }
 
   function contentView(title, paragraph) {
@@ -76,6 +88,7 @@
   function aboutView() {
     return {
       title: 'About \u2013 Dan',
+      description: 'About Dan: a small single-page store with client-side routing.',
       node: contentView('About', 'Dan is a small single-page app with client-side routing.')
     };
   }
@@ -85,7 +98,7 @@
     var link = el('a', 'text-link', 'Back to home');
     link.href = '#/';
     container.appendChild(link);
-    return { title: '404 \u2013 Dan', node: container };
+    return { title: '404 \u2013 Dan', description: 'The page you are looking for does not exist.', node: container };
   }
 
   // ----- Catalog -----
@@ -126,7 +139,7 @@
       grid.appendChild(productCard(products[i]));
     }
     container.appendChild(grid);
-    return { title: 'Catalog \u2013 Dan', node: container };
+    return { title: 'Catalog \u2013 Dan', description: 'Browse every Dan product with prices and nutrition facts.', node: container };
   }
 
   function nutritionTable(product) {
@@ -191,7 +204,7 @@
     var back = el('a', 'text-link', 'Back to catalog');
     back.href = '#/catalog';
     container.appendChild(back);
-    return { title: product.name + ' \u2013 Dan', node: container };
+    return { title: product.name + ' \u2013 Dan', description: product.description || ('Buy ' + product.name + ' at Dan.'), node: container };
   }
 
   // ----- Cart -----
@@ -249,7 +262,7 @@
       var shop = el('a', 'text-link', 'Browse the catalog');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Cart \u2013 Dan', node: container };
+      return { title: 'Cart \u2013 Dan', description: 'Review the items in your Dan cart.', node: container };
     }
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
@@ -266,7 +279,7 @@
     var checkout = el('a', 'action-button checkout-link', 'Checkout');
     checkout.href = '#/checkout';
     container.appendChild(checkout);
-    return { title: 'Cart \u2013 Dan', node: container };
+    return { title: 'Cart \u2013 Dan', description: 'Review the items in your Dan cart.', node: container };
   }
 
   // ----- Checkout (simulated: no payment, nothing is sent anywhere) -----
@@ -333,7 +346,7 @@
     var link = el('a', 'text-link', 'Back to catalog');
     link.href = '#/catalog';
     container.appendChild(link);
-    return { title: 'Order confirmed \u2013 Dan', node: container, heading: heading };
+    return { title: 'Order confirmed \u2013 Dan', description: 'Your Dan order was received.', node: container, heading: heading };
   }
 
   function checkoutView(notice) {
@@ -351,7 +364,7 @@
       var shop = el('a', 'text-link', 'Browse the catalog');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Checkout \u2013 Dan', node: container };
+      return { title: 'Checkout \u2013 Dan', description: 'Enter your details to place your Dan order (simulated checkout).', node: container };
     }
     var total = cart.totalCents();
     var count = cart.count();
@@ -416,7 +429,7 @@
         var host = document.getElementById('app');
         host.textContent = '';
         host.appendChild(fresh.node);
-        document.title = fresh.title;
+        setMeta(fresh);
         host.focus();
         return;
       }
@@ -426,11 +439,11 @@
       var app = document.getElementById('app');
       app.textContent = '';
       app.appendChild(done.node);
-      document.title = done.title;
+      setMeta(done);
       app.focus();
     });
     container.appendChild(form);
-    return { title: 'Checkout \u2013 Dan', node: container };
+    return { title: 'Checkout \u2013 Dan', description: 'Enter your details to place your Dan order (simulated checkout).', node: container };
   }
 
   function updateCartCount() {
@@ -491,6 +504,22 @@
     return path;
   }
 
+  // Keeps the description and social meta tags in sync with the current route.
+  function setMeta(view) {
+    document.title = view.title;
+    var pairs = [
+      ['meta[name="description"]', view.description],
+      ['meta[property="og:title"]', view.title],
+      ['meta[property="og:description"]', view.description]
+    ];
+    for (var i = 0; i < pairs.length; i++) {
+      var tag = document.querySelector(pairs[i][0]);
+      if (tag && pairs[i][1]) {
+        tag.setAttribute('content', pairs[i][1]);
+      }
+    }
+  }
+
   var hasRendered = false;
 
   function render() {
@@ -503,7 +532,7 @@
 
     app.textContent = '';
     app.appendChild(view.node);
-    document.title = view.title;
+    setMeta(view);
 
     var links = document.querySelectorAll('.nav-link');
     for (var i = 0; i < links.length; i++) {
