@@ -175,8 +175,15 @@
     var status = el('p', 'cart-status');
     status.setAttribute('role', 'status');
     add.addEventListener('click', function () {
-      if (window.DanCart && window.DanCart.add(product.id, 1)) {
+      if (!window.DanCart) {
+        return;
+      }
+      // Clear first so repeated messages are announced again.
+      status.textContent = '';
+      if (window.DanCart.add(product.id, 1)) {
         status.textContent = 'Added to cart.';
+      } else {
+        status.textContent = 'Maximum quantity reached.';
       }
     });
     container.appendChild(add);
@@ -357,6 +364,8 @@
       var view = cartView();
       app.textContent = '';
       app.appendChild(view.node);
+      // The activated control was detached; keep keyboard users in the page.
+      app.focus();
     }
   }
 

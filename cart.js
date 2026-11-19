@@ -96,6 +96,8 @@
     var idx = indexOf(id);
     if (idx === -1) {
       items.push({ id: id, qty: amount });
+    } else if (items[idx].qty >= MAX_QTY) {
+      return false; // already at the cap: nothing changed
     } else {
       items[idx].qty = Math.min(items[idx].qty + amount, MAX_QTY);
     }
@@ -169,6 +171,13 @@
     listeners.push(fn);
   }
 
+  function reload() {
+    load();
+    for (var i = 0; i < listeners.length; i++) {
+      listeners[i]();
+    }
+  }
+
   load();
 
   window.DanCart = {
@@ -180,7 +189,7 @@
     totalCents: totalCents,
     count: count,
     onChange: onChange,
-    reload: load,
+    reload: reload,
     MAX_QTY: MAX_QTY
   };
 })();

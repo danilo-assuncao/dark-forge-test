@@ -21,8 +21,8 @@ function fakeStorage(initial) {
   };
 }
 
-function load(storage) {
-  const ctx = { window: { localStorage: storage } };
+function load(storage, win) {
+  const ctx = { window: win || { localStorage: storage } };
   vm.createContext(ctx);
   vm.runInContext(productsJs, ctx);
   vm.runInContext(cartJs, ctx);
@@ -117,4 +117,46 @@ test('index.html has a header cart link with a counter and loads cart.js before 
   assert.match(html, /href="#\/cart"[^>]*>Cart \(<span id="cart-count">0<\/span>\)/);
   assert.ok(html.indexOf('cart.js') > html.indexOf('products.js'));
   assert.ok(html.indexOf('cart.js') < html.indexOf('script.js'));
+});
+
+test('add caps merged quantity at the maximum and reports no change when capped', function () {
+  const cart = load(fakeStorage());
+  cart.add('creatine', 98);
+  assert.ok(cart.add('creatine', 5));
+  assert.equal(cart.count(), 99);
+  assert.equal(cart.add('creatine'), false);
+});
+
+test('fractional quantities are floored and stored quantities are capped on load', function () {
+  const cart = load(fakeStorage());
+  cart.add('creatine', 1.5);
+  assert.equal(cart.count(), 1);
+  const big = load(fakeStorage({ 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 500 }]) }));
+  assert.equal(big.count(), 99);
+});
+
+test('storage failures keep the cart working in memory', function () {
+  const throwing = {
+    getItem() { throw new Error('blocked'); },
+    setItem() { throw new Error('quota'); },
+  };
+  const cart = load(throwing);
+  assert.ok(cart.add('creatine', 2));
+  assert.equal(cart.count(), 2);
+  const win = {};
+  Object.defineProperty(win, 'localStorage', { get() { throw new Error('denied'); } });
+  const cart2 = load(null, win);
+  assert.ok(cart2.add('creatine'));
+  assert.equal(cart2.count(), 1);
+});
+
+test('reload re-reads storage and notifies listeners', function () {
+  const storage = fakeStorage();
+  const cart = load(storage);
+  let calls = 0;
+  cart.onChange(function () { calls++; });
+  storage.setItem('dan-cart', JSON.stringify([{ id: 'magnesium', qty: 2 }]));
+  cart.reload();
+  assert.equal(calls, 1);
+  assert.equal(cart.count(), 2);
 });
