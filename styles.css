@@ -829,3 +829,9 @@ body {
   font-size: 1.125rem;
   font-weight: 900;
 }
+
+.checklist { margin: 1.5rem 0; }
+.checklist-title { font-size: 1.25rem; margin: 0 0 0.5rem; }
+.bay-time { font-weight: 600; margin: 0 0 0.5rem; }
+.checklist-items { margin: 0; padding-left: 1.25rem; }
+.checklist-item { margin: 0.25rem 0; }

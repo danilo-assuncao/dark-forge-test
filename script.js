@@ -304,6 +304,25 @@
     return section;
   }
 
+  // Technical checklist of the items reviewed plus the estimated bay time.
+  function checklistSection(product) {
+    var section = el('section', 'checklist');
+    section.appendChild(el('h2', 'checklist-title', 'Technical checklist'));
+    if (product.boxTime) {
+      section.appendChild(el('p', 'bay-time', 'Estimated bay time (Hatch/Sedan): ' + product.boxTime));
+    }
+    if (!product.checklist || !product.checklist.length) {
+      section.appendChild(el('p', null, 'Checklist not available.'));
+      return section;
+    }
+    var list = el('ul', 'checklist-items');
+    for (var i = 0; i < product.checklist.length; i++) {
+      list.appendChild(el('li', 'checklist-item', product.checklist[i]));
+    }
+    section.appendChild(list);
+    return section;
+  }
+
   function productView(product) {
     var container = el('div', 'container');
     container.appendChild(el('h1', 'page-title', product.name));
@@ -311,6 +330,7 @@
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
     container.appendChild(specsSection(product));
+    container.appendChild(checklistSection(product));
     var guideRows = [];
     if (product.sizes && product.sizes.length) {
       container.appendChild(measurementsTable(product, guideRows));
@@ -344,11 +364,18 @@
       picker.appendChild(button);
     });
     var summary = el('p', 'size-selected', 'No vehicle size selected');
+    // A single-size (porte unico) service needs no choice: it is preselected.
+    if (sizeButtons.length === 1) {
+      selected = sizeButtons[0].size;
+      sizeButtons[0].node.setAttribute('aria-pressed', 'true');
+      summary.textContent = 'Selected vehicle size: ' + selected;
+    }
     function markGuideRow(size) {
       for (var r = 0; r < guideRows.length; r++) {
         guideRows[r].className = guideRows[r].getAttribute('data-size') === size ? 'is-selected' : '';
       }
     }
+    markGuideRow(selected);
     if (sizeButtons.length) {
       container.appendChild(sizeLegend);
       container.appendChild(picker);

@@ -32,7 +32,7 @@ function walk(n, fn) { fn(n); n.children.forEach(function (c) { walk(c, fn); });
 function find(app, pred) { const out = []; walk(app, function (n) { if (pred(n)) { out.push(n); } }); return out; }
 function byClass(app, cls) { return find(app, function (n) { return n.className.split(' ').indexOf(cls) !== -1; }); }
 
-function boot(hash) {
+function boot(hash, productsSrc) {
   const app = makeNode('main');
   const store = {};
   const win = { location: { hash: hash }, listeners: {},
@@ -46,8 +46,10 @@ function boot(hash) {
   };
   const ctx = { window: win, document: doc };
   vm.createContext(ctx);
-  ['products.js', 'cart.js', 'script.js'].forEach(function (f) { vm.runInContext(read(f), ctx); });
-  return { app, store };
+  ['products.js', 'cart.js', 'script.js'].forEach(function (f) {
+    vm.runInContext(f === 'products.js' && productsSrc ? productsSrc : read(f), ctx);
+  });
+  return { app, store, win };
 }
 
 const buttons = function (t) { return byClass(t.app, 'size-button'); };
@@ -140,4 +142,31 @@ test('unknown piece still renders the 404 state', function () {
   const h1 = find(t.app, function (n) { return n.tagName === 'h1'; })[0];
   assert.match(h1.textContent, /404/);
   assert.equal(buttons(t).length, 0);
+});
+
+test('detail shows the technical checklist and bay time for every service', function () {
+  ['oil-change', 'brake-pads', 'ac-service'].forEach(function (id) {
+    const t = boot('#/produto/' + id);
+    assert.ok(byClass(t.app, 'checklist-item').length >= 3, id);
+    assert.match(text(t, 'bay-time'), /^Estimated bay time \(Hatch\/Sedan\): \d/);
+  });
+  const oil = boot('#/produto/oil-change');
+  assert.equal(byClass(oil.app, 'checklist-item')[0].textContent, 'Oleo do motor');
+  assert.equal(text(oil, 'bay-time'), 'Estimated bay time (Hatch/Sedan): 1h');
+});
+
+test('a single-size service is preselected and adds without choosing', function () {
+  const src = "window.DanProducts = { all: function () { return [P]; }, categories: function () { return ['X']; }, find: function () { return P; } };" +
+    "var P = { id: 'one', name: 'One', category: 'X', priceCents: 1000, description: 'd', boxTime: '30 min', checklist: ['a'], sizes: ['Porte unico'], specs: [] };";
+  const t = boot('#/produto/one', src);
+  assert.deepEqual(pressed(t), ['Porte unico']);
+  assert.equal(text(t, 'size-selected'), 'Selected vehicle size: Porte unico');
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  assert.equal(text(t, 'cart-status'), 'Added Porte unico to cart.');
+});
+
+test('multi-size services still require a porte before adding', function () {
+  const t = boot('#/produto/oil-change');
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  assert.equal(text(t, 'cart-status'), 'Select a vehicle size first.');
 });
