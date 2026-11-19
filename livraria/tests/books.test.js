@@ -64,4 +64,60 @@ test('priceFor applies the format factor and rejects unavailable formats', () =>
 test('formatBRL formats cents', () => {
   assert.equal(B.formatBRL(5990), 'R$ 59,90');
   assert.equal(B.formatBRL(123456), 'R$ 1.234,56');
+  assert.equal(B.formatBRL(0), 'R$ 0,00');
+  assert.equal(B.formatBRL(5), 'R$ 0,05');
+  assert.equal(B.formatBRL(99), 'R$ 0,99');
+  assert.equal(B.formatBRL(100000), 'R$ 1.000,00');
+  assert.equal(B.formatBRL(123456789), 'R$ 1.234.567,89');
+});
+
+test('formatBRL returns empty string for invalid input', () => {
+  [null, undefined, NaN, Infinity, -1, '59,90'].forEach((v) => assert.equal(B.formatBRL(v), ''));
+  assert.equal(B.formatBRL(B.priceFor('cosmos-em-perspectiva', 'ebook')), '');
+});
+
+test('priceFor rounds fractional results to integer cents', () => {
+  assert.equal(B.priceFor('a-torre-dos-ventos', 'capa-dura'), 7485);
+  assert.equal(B.priceFor('inteligencia-artificial-simples', 'ebook'), 3894);
+  assert.equal(B.priceFor('financas-sem-medo', 'ebook'), 2754);
+});
+
+test('priceFor is a positive integer iff the format is listed', () => {
+  B.BOOKS.forEach((b) => B.FORMATS.forEach((f) => {
+    const p = B.priceFor(b.id, f.id);
+    if (b.formats.includes(f.id)) assert.ok(Number.isInteger(p) && p > 0, b.id + '/' + f.id);
+    else assert.equal(p, null, b.id + '/' + f.id);
+  }));
+});
+
+test('readingMinutes and formatReadingTime validate input', () => {
+  [-5, NaN, Infinity, undefined, null].forEach((v) => assert.equal(B.readingMinutes(v), null));
+  assert.equal(B.readingMinutes(0.1), 1);
+  assert.equal(B.readingMinutes(10.5), 16);
+  [-1, NaN, '5', undefined].forEach((v) => assert.equal(B.formatReadingTime(v), ''));
+});
+
+test('findBook/findFormat return null on miss and booksByGenre returns a copy', () => {
+  assert.equal(B.findBook('x'), null);
+  assert.equal(B.findFormat('x'), null);
+  assert.equal(B.findBook('vida-de-artista').id, 'vida-de-artista');
+  assert.equal(B.findFormat('ebook').name, 'E-book');
+  const all = B.booksByGenre();
+  assert.notEqual(all, B.BOOKS);
+  const n = B.BOOKS.length;
+  all.pop();
+  assert.equal(B.BOOKS.length, n);
+});
+
+test('exposes DanBooksCatalog as a browser global', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'books.js'), 'utf8');
+  const win = {};
+  vm.runInNewContext(src, { window: win });
+  assert.ok(win.DanBooksCatalog);
+  ['GENRES', 'FORMATS', 'BOOKS', 'findBook', 'findFormat', 'booksByGenre', 'readingMinutes',
+    'formatReadingTime', 'priceFor', 'metaFor', 'formatBRL'].forEach((k) =>
+    assert.ok(k in win.DanBooksCatalog, k));
 });

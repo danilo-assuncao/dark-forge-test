@@ -80,7 +80,10 @@
     return { pages: b.pages, readingMinutes: minutes, readingTime: formatReadingTime(minutes) };
   }
 
+  // Returns '' for non-numeric, non-finite or negative input so an unavailable
+  // price (priceFor -> null) is never rendered as free.
   function formatBRL(cents) {
+    if (typeof cents !== 'number' || !isFinite(cents) || cents < 0) return '';
     var v = (cents / 100).toFixed(2).replace('.', ',');
     return 'R$ ' + v.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
