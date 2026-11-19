@@ -3,7 +3,10 @@
    Totals: subtotal (BRL cents), combo protein/kcal (per-dose macros x qty) and
    an optional coupon (DANNUTRI10, DAN50). Exposed as window.DanNutriCart (and
    via module.exports in Node, where create({ storage, catalog }) can inject
-   dependencies). */
+   dependencies). Requires products.js to be loaded (the catalog is resolved
+   lazily, so load order only matters before the first cart call). Prices,
+   coupons and totals are display-only: a checkout must recompute everything
+   server-side from ids and presentations. */
 (function (root) {
   'use strict';
 
@@ -12,10 +15,15 @@
 
   // percent: value is a percentage; fixed: valueCents off.
   // minCents is the minimum subtotal required for the discount to apply.
-  var COUPONS = {
+  var COUPONS = Object.freeze({
     DANNUTRI10: { type: 'percent', value: 10, minCents: 0, label: '10% off your order' },
     DAN50: { type: 'fixed', valueCents: 5000, minCents: 25000, label: 'R$ 50,00 off orders from R$ 250,00' }
-  };
+  });
+  Object.keys(COUPONS).forEach(function (k) { Object.freeze(COUPONS[k]); });
+
+  function hasCoupon(key) {
+    return typeof key === 'string' && Object.prototype.hasOwnProperty.call(COUPONS, key);
+  }
 
   function defaultCatalog() {
     if (root.DanNutriProducts) { return root.DanNutriProducts; }
@@ -41,13 +49,15 @@
 
   function create(opts) {
     opts = opts || {};
-    var catalog = opts.catalog || defaultCatalog();
+    var loaded = false;
+    function getCatalog() { return opts.catalog || defaultCatalog(); }
     var store = opts.storage === undefined ? defaultStorage() : opts.storage;
     var items = [];
     var couponCode = null;
     var listeners = [];
 
     function validLine(id, presentation) {
+      var catalog = getCatalog();
       var p = catalog && catalog.find(id);
       return p && p.presentations.indexOf(presentation) !== -1 ? p : null;
     }
@@ -65,7 +75,23 @@
           store.setItem(STORAGE_KEY, JSON.stringify({ items: items, coupon: couponCode }));
         } catch (e) { /* storage full or blocked: keep the in-memory cart */ }
       }
-      for (var i = 0; i < listeners.length; i++) { listeners[i](api.totals()); }
+      notify();
+    }
+
+    function notify() {
+      var snapshot = listeners.slice();
+      for (var i = 0; i < snapshot.length; i++) {
+        try { snapshot[i](api.totals()); } catch (e) { /* a bad subscriber must not break the others */ }
+      }
+    }
+
+    // Loads persisted state once the catalog is available; false while it is not.
+    function ensure() {
+      if (!loaded && getCatalog()) {
+        load();
+        loaded = true;
+      }
+      return loaded;
     }
 
     function load() {
@@ -84,12 +110,13 @@
           items.push({ id: it.id, presentation: it.presentation, qty: qty });
         }
       }
-      if (typeof data.coupon === 'string' && COUPONS[data.coupon]) { couponCode = data.coupon; }
+      if (hasCoupon(data.coupon)) { couponCode = data.coupon; }
     }
 
     var api = {
       coupons: COUPONS,
       add: function (id, presentation, qty) {
+        if (!ensure()) { return false; }
         var q = normalizeQty(qty === undefined ? 1 : qty);
         if (!q || !validLine(id, presentation)) { return false; }
         var i = indexOf(id, presentation);
@@ -102,14 +129,17 @@
         return true;
       },
       setQty: function (id, presentation, qty) {
+        if (!ensure()) { return false; }
         var i = indexOf(id, presentation);
-        if (i === -1) { return false; }
-        var q = normalizeQty(qty);
+        var n = Number(qty);
+        if (i === -1 || qty === null || qty === '' || isNaN(n)) { return false; }
+        var q = normalizeQty(n);
         if (q) { items[i].qty = q; } else { items.splice(i, 1); }
         persist();
         return true;
       },
       remove: function (id, presentation) {
+        if (!ensure()) { return false; }
         var i = indexOf(id, presentation);
         if (i === -1) { return false; }
         items.splice(i, 1);
@@ -117,32 +147,39 @@
         return true;
       },
       clear: function () {
+        ensure();
         items = [];
         couponCode = null;
         persist();
       },
       items: function () {
+        ensure();
         return items.map(function (it) {
           return { id: it.id, presentation: it.presentation, qty: it.qty };
         });
       },
       applyCoupon: function (code) {
         var key = String(code || '').trim().toUpperCase();
-        if (!COUPONS[key]) { return false; }
+        if (!hasCoupon(key)) { return false; }
+        if (!ensure()) { return false; }
         couponCode = key;
         persist();
         return true;
       },
       removeCoupon: function () {
+        ensure();
         couponCode = null;
         persist();
       },
       totals: function () {
+        ensure();
+        var catalog = getCatalog();
         var subtotalCents = 0, proteinG = 0, kcal = 0, count = 0;
         var lines = [];
         for (var i = 0; i < items.length; i++) {
           var it = items[i];
-          var p = catalog.find(it.id);
+          var p = catalog && catalog.find(it.id);
+          if (!p || p.priceCents[it.presentation] === undefined) { continue; }
           var lineCents = p.priceCents[it.presentation] * it.qty;
           subtotalCents += lineCents;
           proteinG += p.macros.proteinG * it.qty;
@@ -175,10 +212,13 @@
           if (i !== -1) { listeners.splice(i, 1); }
         };
       },
-      reload: load
+      reload: function () {
+        loaded = false;
+        if (ensure()) { notify(); }
+      }
     };
 
-    load();
+    ensure();
     return api;
   }
 

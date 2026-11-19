@@ -132,3 +132,120 @@ test('exposes window.DanNutriCart in a browser-like context', () => {
   assert.ok(store.data.has('dan-nutri-cart'));
   assert.equal(win.DanNutriCart.totals().subtotalCents, 5990);
 });
+
+function stubCatalog(prices) {
+  const products = Object.keys(prices).map((id) => ({
+    id, presentations: ['300g'], priceCents: { '300g': prices[id] },
+    macros: { kcal: 1, proteinG: 1, carbsG: 0 }
+  }));
+  return { find: (id) => products.find((p) => p.id === id) || null };
+}
+
+test('prototype keys stored as coupon are rejected and COUPONS is frozen', () => {
+  for (const bad of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+    const { cart } = make({ 'dan-nutri-cart': JSON.stringify({ items: [], coupon: bad }) });
+    assert.equal(cart.totals().coupon, null, bad);
+    assert.equal(cart.applyCoupon(bad), false, bad);
+  }
+  assert.ok(Object.isFrozen(cartLib.COUPONS));
+  assert.ok(Object.isFrozen(cartLib.COUPONS.DAN50));
+});
+
+test('DAN50 boundary at 24999/25000, discount cap and 10% rounding', () => {
+  const run = (cents, code) => {
+    const cart = cartLib.create({ storage: null, catalog: stubCatalog({ a: cents }) });
+    cart.add('a', '300g');
+    cart.applyCoupon(code);
+    return cart.totals();
+  };
+  assert.equal(run(24999, 'DAN50').discountCents, 0);
+  assert.equal(run(25000, 'DAN50').discountCents, 5000);
+  assert.equal(run(25000, 'DAN50').totalCents, 20000);
+  assert.equal(run(1005, 'DANNUTRI10').discountCents, 101);
+  assert.equal(run(1004, 'DANNUTRI10').discountCents, 100);
+  const small = cartLib.create({
+    storage: null, catalog: stubCatalog({ a: 100 })
+  });
+  assert.equal(small.add('a', '300g'), true);
+});
+
+test('quantity normalisation through add and setQty', () => {
+  const { cart } = make();
+  assert.equal(cart.add('omega-3', '60 caps', NaN), false);
+  assert.equal(cart.add('omega-3', '60 caps', -1), false);
+  assert.equal(cart.add('omega-3', '60 caps', 1.9), true);
+  assert.equal(cart.items()[0].qty, 1);
+  assert.equal(cart.setQty('omega-3', '60 caps', 500), true);
+  assert.equal(cart.items()[0].qty, cartLib.MAX_QTY);
+  assert.equal(cart.setQty('omega-3', '60 caps', 2.7), true);
+  assert.equal(cart.items()[0].qty, 2);
+  for (const bad of ['', NaN, 'abc', null, undefined]) {
+    assert.equal(cart.setQty('omega-3', '60 caps', bad), false, String(bad));
+    assert.equal(cart.items()[0].qty, 2);
+  }
+  assert.equal(cart.setQty('omega-3', '60 caps', -3), true);
+  assert.equal(cart.items().length, 0);
+});
+
+test('clear resets coupon; reload re-reads storage and notifies', () => {
+  const { storage, cart } = make();
+  cart.add('omega-3', '60 caps');
+  cart.applyCoupon('DAN50');
+  cart.clear();
+  assert.equal(cart.totals().coupon, null);
+  const other = cartLib.create({ storage, catalog });
+  other.add('cafeina', '60 caps');
+  let calls = 0;
+  cart.subscribe(() => { calls++; });
+  cart.reload();
+  assert.equal(calls, 1);
+  assert.deepEqual(cart.items().map((i) => i.id), ['cafeina']);
+});
+
+test('storage failures are tolerated', () => {
+  const throwing = { getItem() { throw new Error('x'); }, setItem() { throw new Error('y'); } };
+  const cart = cartLib.create({ storage: throwing, catalog });
+  assert.equal(cart.add('omega-3', '60 caps'), true);
+  assert.equal(cart.totals().subtotalCents, 5990);
+});
+
+test('stale lines whose product left the catalog are skipped in totals', () => {
+  const live = { find: (id) => catalog.find(id) };
+  let hide = false;
+  const cat = { find: (id) => (hide && id === 'omega-3' ? null : live.find(id)) };
+  const cart = cartLib.create({ storage: null, catalog: cat });
+  cart.add('omega-3', '60 caps');
+  cart.add('cafeina', '60 caps');
+  hide = true;
+  assert.equal(cart.totals().subtotalCents, 4990);
+});
+
+test('catalog is resolved lazily when products.js loads after cart.js', () => {
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const store = memStore({ 'dan-nutri-cart': JSON.stringify({ items: [{ id: 'omega-3', presentation: '60 caps', qty: 2 }], coupon: null }) });
+  const win = { localStorage: store };
+  const ctx = vm.createContext({ window: win });
+  vm.runInContext(read('cart.js'), ctx);
+  assert.equal(win.DanNutriCart.add('omega-3', '60 caps'), false);
+  assert.ok(store.data.get('dan-nutri-cart').includes('"qty":2'), 'saved cart untouched');
+  vm.runInContext(read('products.js'), ctx);
+  assert.equal(win.DanNutriCart.items()[0].qty, 2);
+  assert.equal(win.DanNutriCart.add('omega-3', '60 caps'), true);
+  assert.equal(win.DanNutriCart.items()[0].qty, 3);
+});
+
+test('subscribers: one call per mutation, none on rejection, errors isolated', () => {
+  const { cart } = make();
+  let a = 0, b = 0;
+  cart.subscribe(() => { a++; throw new Error('boom'); });
+  cart.subscribe(() => { b++; });
+  assert.equal(cart.add('omega-3', '60 caps'), true);
+  assert.deepEqual([a, b], [1, 1]);
+  cart.add('nope', '300g');
+  cart.setQty('nope', '300g', 2);
+  cart.setQty('omega-3', '60 caps', 'abc');
+  cart.remove('nope', '300g');
+  assert.deepEqual([a, b], [1, 1]);
+  cart.setQty('omega-3', '60 caps', 3);
+  assert.deepEqual([a, b], [2, 2]);
+});
