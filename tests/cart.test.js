@@ -234,3 +234,40 @@ test('a fixed coupon reactivates when the subtotal returns to its minimum', func
   cart.add('brake-pads', 1, 'Hatch/Sedan');
   assert.equal(cart.discountCents(), 5000);
 });
+
+test('same service in different portes yields distinct lines and the same porte increments', function () {
+  const cart = load(fakeStorage());
+  cart.add('oil-change', 1, 'Hatch/Sedan');
+  cart.add('oil-change', 1, 'SUV/Picape');
+  cart.add('oil-change', 1, 'Hatch/Sedan');
+  const lines = cart.lines();
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].qty, 2);
+  assert.equal(lines[1].qty, 1);
+});
+
+test('parts and labour split sums to the subtotal and persists across reloads', function () {
+  const storage = fakeStorage();
+  const cart = load(storage);
+  cart.add('oil-change', 2, 'Hatch/Sedan'); // 40% labour
+  cart.add('wheel-alignment', 1, 'SUV/Picape'); // 100% labour
+  assert.equal(cart.laborCents(), 9996 * 2 + 14990);
+  assert.equal(cart.partsCents(), (24990 - 9996) * 2);
+  assert.equal(cart.partsCents() + cart.laborCents(), cart.subtotalCents());
+  const lineSum = cart.lines().reduce(function (n, l) { return n + l.partsCents + l.laborCents; }, 0);
+  assert.equal(lineSum, cart.subtotalCents());
+  assert.equal(JSON.parse(storage.data['dan-cart']).length, 2);
+  assert.equal(load(storage).laborCents(), cart.laborCents());
+});
+
+test('DAN10 and DAN50 discounts apply to the quote and invalid coupons are reported', function () {
+  const cart = load(fakeStorage());
+  cart.add('major-service', 1, 'Utilitario'); // 54990
+  assert.ok(cart.applyCoupon('DAN10').ok);
+  assert.equal(cart.discountCents(), 5499);
+  assert.ok(cart.applyCoupon('dan50').ok);
+  assert.equal(cart.discountCents(), 5000);
+  assert.equal(cart.totalCents(), 49990);
+  assert.equal(cart.applyCoupon('DAN99').ok, false);
+  assert.equal(cart.coupon().code, 'DAN50', 'invalid code keeps the applied coupon');
+});
