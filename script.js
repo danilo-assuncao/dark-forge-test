@@ -715,7 +715,14 @@
         return;
       }
       var quote = shippingQuote(inputs.cep.value);
-      var grandTotal = total + (quote ? quote.cents : 0);
+      if (!quote) {
+        // Never confirm an order without shipping (e.g. checkout.js missing).
+        errors.cep.textContent = 'Shipping is unavailable right now. Try again later.';
+        inputs.cep.setAttribute('aria-invalid', 'true');
+        inputs.cep.focus();
+        return;
+      }
+      var grandTotal = total + quote.cents;
       var orderId = '#' + Date.now().toString(36).toUpperCase();
       var done = confirmationView(String(inputs.name.value).trim(), orderId, grandTotal);
       cart.clear();

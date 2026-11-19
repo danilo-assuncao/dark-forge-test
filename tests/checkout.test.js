@@ -77,9 +77,19 @@ test('checkout.js quotes shipping by CEP and rejects invalid CEPs', function () 
   const ctx = { window: {} };
   vm.runInNewContext(read('checkout.js'), ctx);
   const api = ctx.window.DanCheckout;
-  assert.equal(api.quote('01310-100').cents, 1490);
+  const expected = [
+    ['Grande São Paulo', 1490], ['Interior de São Paulo', 1890], ['Rio de Janeiro e Espírito Santo', 2190],
+    ['Minas Gerais', 2290], ['Bahia e Sergipe', 2990], ['Nordeste', 3290], ['Norte e Nordeste', 3890],
+    ['Centro-Oeste', 2890], ['Paraná e Santa Catarina', 2490], ['Rio Grande do Sul', 2690],
+  ];
+  expected.forEach(function (e, d) {
+    const q = api.quote(d + '1310-100');
+    assert.equal(q.region, e[0], 'region ' + d);
+    assert.equal(q.cents, e[1], 'cents ' + d);
+  });
   assert.equal(api.quote('01310100').cep, '01310100');
-  assert.equal(api.quote('90010-000').cents, 2690);
+  assert.equal(api.quote(' 01310-100 ').cep, '01310100');
+  assert.equal(api.quote('0131010'), null);
   ['', '1234', '0131-0100', '012345678', 'abcdefgh', null, undefined].forEach(function (bad) {
     assert.equal(api.quote(bad), null, String(bad));
   });
@@ -116,11 +126,16 @@ test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confi
   assert.equal(text(t, 'cart-name'), '2 × DAN Basic Tee (size M)');
   assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 15,98');
   assert.equal(text(t, 'shipping-line'), 'Shipping: enter your CEP');
+  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 143,82 + shipping');
   typeCep(t, '01310-100');
   assert.equal(text(t, 'shipping-line'), 'Shipping to Grande São Paulo: R$ 14,90');
   assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 158,72');
   typeCep(t, '9001');
   assert.equal(text(t, 'shipping-line'), 'Shipping: enter your CEP');
+  const cepInput = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
+  cepInput.value = '90010-000';
+  cepInput.listeners.change();
+  assert.equal(text(t, 'shipping-line'), 'Shipping to Rio Grande do Sul: R$ 26,90');
 
   fill(t, VALID);
   submit(t);
@@ -139,11 +154,25 @@ test('different CEP regions change the confirmed total; invalid data keeps the c
   t.go('#/checkout');
   fill(t, Object.assign({}, VALID, { cep: '123' }));
   submit(t);
-  assert.equal(byClass(t.app, 'form-error')[3].textContent.length > 0, true);
+  const cepError = find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0];
+  assert.match(cepError.textContent, /CEP with 8 digits/);
+  assert.equal(byClass(t.app, 'order-confirmation').length, 0);
   assert.equal(t.badge.textContent, '1');
   fill(t, Object.assign({}, VALID, { cep: '90010000' }));
   submit(t);
   assert.match(text(t, 'order-confirmation'), /R\$ 246,80/);
+});
+
+test('without checkout.js a valid order is blocked instead of confirmed with no shipping', function () {
+  const t = boot('#/produto/hoodie', ['products.js', 'cart.js', 'script.js']);
+  byClass(t.app, 'size-button')[2].listeners.click();
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  t.go('#/checkout');
+  fill(t, VALID);
+  submit(t);
+  assert.equal(byClass(t.app, 'order-confirmation').length, 0);
+  assert.match(find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0].textContent, /Shipping is unavailable/);
+  assert.equal(t.badge.textContent, '1');
 });
 
 test('index.html loads checkout.js before script.js', function () {
