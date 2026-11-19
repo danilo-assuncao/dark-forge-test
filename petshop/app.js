@@ -5,6 +5,7 @@
   'use strict';
 
   var C = root.DanPetsCatalog || (typeof require === 'function' ? require('./catalog.js') : null);
+  var K = root.DanPetsCart || (typeof require === 'function' ? require('./cart.js') : null);
 
   function normalize(s) {
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -108,7 +109,87 @@
   var empty = $('empty');
   var listView = $('list-view');
   var detailView = $('detail-view');
+  var cartEl = $('cart');
   var focusSize = null;
+  var storage = null;
+  try { storage = root.localStorage || null; } catch (e) { storage = null; }
+  var cart = K.createCart(storage);
+  var mode = 'avulsa';
+
+  function renderCart(focusId) {
+    if (!cartEl) return;
+    var t = cart.totals();
+    clear(cartEl);
+    var toFocus = null;
+    cartEl.appendChild(el('h2', null, 'Sacola (' + t.count + ')'));
+    if (!t.lines.length) {
+      cartEl.appendChild(el('p', 'muted', 'Sua sacola esta vazia.'));
+      return;
+    }
+    var ul = el('ul', 'cart-lines');
+    t.lines.forEach(function (l) {
+      var li = el('li');
+      var s = findSize(l.size);
+      li.appendChild(el('span', null, l.name + ' - ' + s.name + ' x' + l.qty + ' (' +
+        (l.mode === 'assinatura' ? 'assinatura mensal' : 'avulsa') + '): ' + C.formatBRL(l.total)));
+      [['-', 'Diminuir', function () { cart.setQty(l.itemId, l.size, l.qty - 1); }],
+       ['+', 'Aumentar', function () { cart.setQty(l.itemId, l.size, l.qty + 1); }],
+       [l.mode === 'assinatura' ? 'Avulsa' : 'Assinar', 'Alterar modalidade', function () {
+         cart.setMode(l.itemId, l.size, l.mode === 'assinatura' ? 'avulsa' : 'assinatura');
+       }],
+       ['Remover', 'Remover ' + l.name, function () { cart.remove(l.itemId, l.size); }]
+      ].forEach(function (a) {
+        var b = el('button', null, a[0]);
+        b.type = 'button';
+        b.setAttribute('aria-label', a[1] + ' - ' + l.name + ' ' + s.name);
+        var bid = l.itemId + '|' + l.size + '|' + a[1];
+        b.dataset.fid = bid;
+        if (focusId === bid) toFocus = b;
+        b.addEventListener('click', function () { a[2](); renderCart(bid); });
+        li.appendChild(b);
+      });
+      ul.appendChild(li);
+    });
+    cartEl.appendChild(ul);
+    var coupon = el('div', 'coupon');
+    var input = el('input');
+    input.type = 'text';
+    input.value = t.coupon || '';
+    input.setAttribute('aria-label', 'Cupom');
+    var apply = el('button', null, 'Aplicar cupom');
+    apply.type = 'button';
+    var cmsg = el('p', 'muted');
+    cmsg.setAttribute('role', 'status');
+    input.dataset.fid = 'coupon-input';
+    apply.dataset.fid = 'coupon-apply';
+    if (focusId === 'coupon-input') toFocus = input;
+    if (focusId === 'coupon-apply') toFocus = apply;
+    apply.addEventListener('click', function () {
+      if (cart.applyCoupon(input.value)) renderCart('coupon-apply');
+      else cmsg.textContent = 'Cupom invalido.';
+    });
+    coupon.appendChild(input);
+    coupon.appendChild(apply);
+    if (t.coupon) {
+      var rm = el('button', null, 'Remover cupom');
+      rm.type = 'button';
+      rm.dataset.fid = 'coupon-remove';
+      rm.addEventListener('click', function () { cart.removeCoupon(); renderCart('coupon-input'); });
+      coupon.appendChild(rm);
+    }
+    cartEl.appendChild(coupon);
+    cartEl.appendChild(cmsg);
+    cartEl.appendChild(el('p', null, 'Subtotal: ' + C.formatBRL(t.subtotal)));
+    if (t.subscriptionDiscount) cartEl.appendChild(el('p', null, 'Desconto assinatura (5%): -' + C.formatBRL(t.subscriptionDiscount)));
+    if (t.couponDiscount) cartEl.appendChild(el('p', null, 'Cupom ' + t.coupon + ' (10%): -' + C.formatBRL(t.couponDiscount)));
+    cartEl.appendChild(el('p', 'price', 'Total: ' + C.formatBRL(t.total)));
+    // Rebuilding the subtree destroys the focused node: restore focus.
+    if (!toFocus && focusId) {
+      toFocus = cartEl.children[0];
+      if (toFocus) toFocus.tabIndex = -1;
+    }
+    if (toFocus && toFocus.focus) toFocus.focus();
+  }
 
   function renderList(route) {
     var cat = route.cat && C.CATEGORIES.some(function (c) { return c.id === route.cat; }) ? route.cat : null;
@@ -191,13 +272,32 @@
       });
       detailView.appendChild(ul);
     }
+    detailView.appendChild(el('h3', null, 'Modalidade'));
+    var modes = el('div', 'modes');
+    modes.setAttribute('role', 'group');
+    modes.setAttribute('aria-label', 'Modalidade');
+    [['avulsa', 'Compra avulsa'], ['assinatura', 'Assinatura mensal (5% off)']].forEach(function (m) {
+      var mb = el('button', null, m[1]);
+      mb.type = 'button';
+      mb.setAttribute('aria-pressed', String(mode === m[0]));
+      mb.addEventListener('click', function () {
+        mode = m[0];
+        Array.prototype.forEach.call(modes.children, function (x) { x.setAttribute('aria-pressed', 'false'); });
+        mb.setAttribute('aria-pressed', 'true');
+      });
+      modes.appendChild(mb);
+    });
+    detailView.appendChild(modes);
     var cta = el('button', 'cta', item.service ? 'Agendar' : 'Escolher');
     cta.type = 'button';
     cta.disabled = !size;
     var msg = el('p', 'muted');
     msg.setAttribute('role', 'status');
     cta.addEventListener('click', function () {
-      msg.textContent = item.name + ' - porte ' + findSize(size).name + ' selecionado.';
+      cart.add(item.id, size, mode, 1);
+      renderCart();
+      msg.textContent = item.name + ' - porte ' + findSize(size).name + ' adicionado a sacola (' +
+        (mode === 'assinatura' ? 'assinatura mensal' : 'avulsa') + '). A modalidade vale para todas as unidades deste item e porte.';
     });
     detailView.appendChild(cta);
     detailView.appendChild(msg);
@@ -246,6 +346,13 @@
   }
 
   renderStatic();
+  renderCart();
+  // Another tab changed the cart: reload from storage and re-render.
+  root.addEventListener('storage', function (e) {
+    if (e && e.key && e.key !== K.STORAGE_KEY) return;
+    cart.reload();
+    renderCart();
+  });
   root.addEventListener('hashchange', render);
   render();
 })(typeof window !== 'undefined' ? window : this);
