@@ -5,6 +5,7 @@
   'use strict';
 
   var data = root.ViagensDestinations || (typeof require !== 'undefined' ? require('./destinations.js') : null);
+  var quote = root.ViagensQuote || (typeof require !== 'undefined' ? require('./quote.js') : null);
 
   function parseHash(hash) {
     var raw = String(hash || '').replace(/^#/, '');
@@ -107,6 +108,82 @@
     });
   }
 
+  function buildAddForm(d, route) {
+    var form = el('form', undefined, 'quote-add');
+    form.setAttribute('aria-label', 'Adicionar a cotacao');
+    var tl = el('label', 'Viajantes ');
+    var tin = el('input');
+    tin.type = 'number'; tin.min = '1'; tin.max = String(quote.MAX_TRAVELERS); tin.value = '1';
+    tin.id = 'quote-travelers';
+    tl.appendChild(tin);
+    form.appendChild(tl);
+    var il = el('label', undefined, 'check');
+    var cb = el('input');
+    cb.type = 'checkbox'; cb.id = 'quote-insurance';
+    il.appendChild(cb);
+    il.appendChild(document.createTextNode('Seguro viagem (+' + data.formatBRL(quote.INSURANCE_CENTS) + ' por viajante)'));
+    form.appendChild(il);
+    var btn = el('button', 'Adicionar a cotacao');
+    btn.type = 'button';
+    btn.addEventListener('click', function () {
+      route.onAddQuote({ id: d.id, duration: route.duration, travelers: tin.value, insurance: cb.checked });
+    });
+    form.appendChild(btn);
+    return form;
+  }
+
+  function renderQuote(container, state, handlers) {
+    container.textContent = '';
+    container.appendChild(el('h2', 'Minha cotacao'));
+    var res = quote.compute(state);
+    if (!res.lines.length) {
+      container.appendChild(el('p', 'Sua cotacao esta vazia.', 'empty'));
+      return res;
+    }
+    var ul = el('ul', undefined, 'quote-lines');
+    res.lines.forEach(function (l) {
+      var li = el('li', undefined, 'quote-line');
+      li.appendChild(link(l.name + ' - ' + data.durationLabel(l.duration), buildHash({ name: 'detail', id: l.id, duration: l.duration })));
+      var tl = el('label', 'Viajantes ');
+      var tin = el('input');
+      tin.type = 'number'; tin.min = '1'; tin.max = String(quote.MAX_TRAVELERS); tin.value = String(l.travelers);
+      tin.addEventListener('change', function () { handlers.onUpdate(l.id, l.duration, { travelers: tin.value }); });
+      tl.appendChild(tin);
+      li.appendChild(tl);
+      var il = el('label', undefined, 'check');
+      var cb = el('input');
+      cb.type = 'checkbox'; cb.checked = l.insurance;
+      cb.addEventListener('change', function () { handlers.onUpdate(l.id, l.duration, { insurance: cb.checked }); });
+      il.appendChild(cb);
+      il.appendChild(document.createTextNode('Seguro viagem'));
+      li.appendChild(il);
+      li.appendChild(el('span', data.formatBRL(l.totalCents), 'line-total'));
+      var rm = el('button', 'Remover');
+      rm.type = 'button';
+      rm.addEventListener('click', function () { handlers.onRemove(l.id, l.duration); });
+      li.appendChild(rm);
+      ul.appendChild(li);
+    });
+    container.appendChild(ul);
+
+    var cl = el('label', 'Cupom ');
+    var cin = el('input');
+    cin.type = 'text'; cin.id = 'quote-coupon'; cin.value = state.coupon; cin.placeholder = 'DANTRIP10';
+    cl.appendChild(cin);
+    container.appendChild(cl);
+    var apply = el('button', 'Aplicar cupom');
+    apply.type = 'button';
+    apply.addEventListener('click', function () { handlers.onCoupon(cin.value); });
+    container.appendChild(apply);
+    if (state.coupon) {
+      container.appendChild(el('p', 'Cupom ' + state.coupon + ' aplicado (-' + quote.COUPON_PERCENT + '%).', 'coupon-ok'));
+    }
+    container.appendChild(el('p', 'Subtotal: ' + data.formatBRL(res.subtotalCents), 'subtotal'));
+    if (res.discountCents) { container.appendChild(el('p', 'Desconto: -' + data.formatBRL(res.discountCents), 'discount')); }
+    container.appendChild(el('p', 'Total: ' + data.formatBRL(res.totalCents), 'total'));
+    return res;
+  }
+
   function renderDetail(container, route) {
     container.textContent = '';
     var d = data.getDestination(route.id);
@@ -126,6 +203,8 @@
       picker.appendChild(a);
     });
     article.appendChild(picker);
+
+    if (route.onAddQuote) { article.appendChild(buildAddForm(d, route)); }
 
     article.appendChild(el('p', 'Inclusos: ' + d.includes.join(', ') + '.'));
     article.appendChild(el('h3', 'Roteiro de ' + data.durationLabel(route.duration)));
@@ -163,12 +242,35 @@
     function currentHash() { return root.location ? root.location.hash : ''; }
 
     var lastListHash = '#/';
+    var quoteBox = document.getElementById('quote');
+    var qstate = quote.load();
+
+    function commit(next) {
+      qstate = next;
+      quote.save(qstate);
+      drawQuote();
+    }
+    function drawQuote() {
+      if (!quoteBox) { return; }
+      renderQuote(quoteBox, qstate, {
+        onUpdate: function (id, dur, patch) { commit(quote.updateItem(qstate, id, dur, patch)); },
+        onRemove: function (id, dur) { commit(quote.removeItem(qstate, id, dur)); },
+        onCoupon: function (code) {
+          var next = quote.setCoupon(qstate, code);
+          commit(next);
+          if (String(code || '').trim() && !next.coupon && quoteBox) {
+            quoteBox.appendChild(el('p', 'Cupom invalido.', 'coupon-error'));
+          }
+        }
+      });
+    }
 
     function route() {
       var r = parseHash(currentHash());
       if (filters) { filters.hidden = r.name !== 'list'; }
       if (r.name === 'detail') {
         r.backHash = lastListHash;
+        if (quoteBox) { r.onAddQuote = function (item) { commit(quote.addItem(qstate, item)); }; }
         renderDetail(container, r);
         if (root.scrollTo) { root.scrollTo(0, 0); }
       } else if (r.name === 'notfound') {
@@ -202,10 +304,11 @@
     catSel.addEventListener('change', function () { fromFilters(false); });
     durSel.addEventListener('change', function () { fromFilters(false); });
     if (root.addEventListener) { root.addEventListener('hashchange', route); }
+    drawQuote();
     route();
   }
 
-  var api = { parseHash: parseHash, buildHash: buildHash, renderList: renderList, renderDetail: renderDetail, init: init };
+  var api = { parseHash: parseHash, buildHash: buildHash, renderList: renderList, renderDetail: renderDetail, renderQuote: renderQuote, init: init };
   root.ViagensApp = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
   if (typeof document !== 'undefined') {
