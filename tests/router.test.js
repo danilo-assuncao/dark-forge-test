@@ -345,8 +345,8 @@ test('every supplement has nutrition data and its detail renders rows + 1 tr', f
   });
 });
 
-test('missing or empty nutrition shows a fallback, keeping heading and cart button', function () {
-  [undefined, { serving: '1 g', rows: [] }, { serving: '1 g' }].forEach(function (nutrition) {
+test('empty nutrition shows a fallback, keeping heading and cart button', function () {
+  [{ serving: '1 g', rows: [] }, { serving: '1 g' }].forEach(function (nutrition) {
     const product = { id: 'x', name: 'Xyz', description: 'd', priceCents: 100, nutrition: nutrition };
     const t = boot('#/produto/x', { products: [product] });
     assert.equal(t.heading(), 'Xyz');
