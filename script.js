@@ -263,7 +263,174 @@
       cart.clear();
     });
     container.appendChild(clear);
+    var checkout = el('a', 'action-button checkout-link', 'Checkout');
+    checkout.href = '#/checkout';
+    container.appendChild(checkout);
     return { title: 'Cart \u2013 Dan', node: container };
+  }
+
+  // ----- Checkout (simulated: no payment, nothing is sent anywhere) -----
+
+  var CHECKOUT_FIELDS = [
+    { name: 'name', label: 'Full name', type: 'text', autocomplete: 'name' },
+    { name: 'email', label: 'Email', type: 'email', autocomplete: 'email' },
+    { name: 'phone', label: 'Phone (with area code)', type: 'tel', autocomplete: 'tel' },
+    { name: 'cep', label: 'Postal code (CEP)', type: 'text', autocomplete: 'postal-code' },
+    { name: 'address', label: 'Street address and number', type: 'text', autocomplete: 'street-address' },
+    { name: 'city', label: 'City', type: 'text', autocomplete: 'address-level2' }
+  ];
+
+  // Returns an error message, or '' when the value is valid.
+  function validateField(name, raw) {
+    var value = String(raw || '').trim();
+    if (!value) {
+      return 'This field is required.';
+    }
+    var digits = value.replace(/\D/g, '');
+    if (name === 'name' && (value.length < 3 || value.indexOf(' ') === -1)) {
+      return 'Enter your first and last name.';
+    }
+    if (name === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
+      return 'Enter a valid email, like name@example.com.';
+    }
+    if (name === 'phone' && (!/^[\d\s()+-]+$/.test(value) || digits.length < 10 || digits.length > 11)) {
+      return 'Enter a phone with area code, 10 or 11 digits.';
+    }
+    if (name === 'cep' && (!/^\d{5}-?\d{3}$/.test(value))) {
+      return 'Enter a CEP with 8 digits, like 01310-100.';
+    }
+    if (name === 'address' && value.length < 5) {
+      return 'Enter your street address.';
+    }
+    if (name === 'city' && value.length < 2) {
+      return 'Enter your city.';
+    }
+    return '';
+  }
+
+  function orderSummary(lines, total) {
+    var section = el('section', 'order-summary');
+    section.appendChild(el('h2', 'order-summary-title', 'Order summary'));
+    var list = el('ul', 'cart-list');
+    for (var i = 0; i < lines.length; i++) {
+      var item = el('li', 'cart-item');
+      item.appendChild(el('span', 'cart-name', lines[i].qty + ' \u00d7 ' + lines[i].product.name));
+      item.appendChild(el('span', 'cart-subtotal', formatPrice(lines[i].subtotalCents)));
+      list.appendChild(item);
+    }
+    section.appendChild(list);
+    section.appendChild(el('p', 'cart-total', 'Total: ' + formatPrice(total)));
+    return section;
+  }
+
+  function confirmationView(customerName, orderId, total) {
+    var container = el('div', 'container');
+    var heading = el('h1', 'page-title', 'Order confirmed');
+    container.appendChild(heading);
+    container.appendChild(el('p', 'order-confirmation', 'Thank you, ' + customerName + '! Your order ' +
+      orderId + ' totaling ' + formatPrice(total) + ' was received.'));
+    container.appendChild(el('p', null, 'This is a simulation: no payment was made.'));
+    var link = el('a', 'text-link', 'Back to catalog');
+    link.href = '#/catalog';
+    container.appendChild(link);
+    return { title: 'Order confirmed \u2013 Dan', node: container, heading: heading };
+  }
+
+  function checkoutView(notice) {
+    var cart = window.DanCart;
+    var lines = cart ? cart.lines() : [];
+    var container = el('div', 'container');
+    container.appendChild(el('h1', 'page-title', 'Checkout'));
+    if (notice) {
+      var alert = el('p', 'checkout-notice', notice);
+      alert.setAttribute('role', 'status');
+      container.appendChild(alert);
+    }
+    if (!lines.length) {
+      container.appendChild(el('p', 'cart-empty', 'Your cart is empty.'));
+      var shop = el('a', 'text-link', 'Browse the catalog');
+      shop.href = '#/catalog';
+      container.appendChild(shop);
+      return { title: 'Checkout \u2013 Dan', node: container };
+    }
+    var total = cart.totalCents();
+    var count = cart.count();
+    container.appendChild(orderSummary(lines, total));
+
+    var form = el('form', 'checkout-form');
+    form.setAttribute('novalidate', 'novalidate');
+    form.setAttribute('aria-label', 'Customer details');
+    var inputs = {};
+    var errors = {};
+    for (var i = 0; i < CHECKOUT_FIELDS.length; i++) {
+      var field = CHECKOUT_FIELDS[i];
+      var row = el('div', 'form-field');
+      var label = el('label', null, field.label);
+      label.setAttribute('for', 'checkout-' + field.name);
+      var input = el('input', 'form-input');
+      input.id = 'checkout-' + field.name;
+      input.name = field.name;
+      input.type = field.type;
+      input.setAttribute('autocomplete', field.autocomplete);
+      input.setAttribute('aria-required', 'true');
+      input.setAttribute('aria-describedby', 'checkout-' + field.name + '-error');
+      var error = el('p', 'form-error');
+      error.id = 'checkout-' + field.name + '-error';
+      row.appendChild(label);
+      row.appendChild(input);
+      row.appendChild(error);
+      form.appendChild(row);
+      inputs[field.name] = input;
+      errors[field.name] = error;
+    }
+    var submit = el('button', 'action-button checkout-submit', 'Place order');
+    submit.type = 'submit';
+    form.appendChild(submit);
+
+    form.addEventListener('submit', function (event) {
+      if (event && event.preventDefault) {
+        event.preventDefault();
+      }
+      var firstInvalid = null;
+      for (var j = 0; j < CHECKOUT_FIELDS.length; j++) {
+        var name = CHECKOUT_FIELDS[j].name;
+        var message = validateField(name, inputs[name].value);
+        errors[name].textContent = message;
+        if (message) {
+          inputs[name].setAttribute('aria-invalid', 'true');
+          if (!firstInvalid) {
+            firstInvalid = inputs[name];
+          }
+        } else {
+          inputs[name].removeAttribute('aria-invalid');
+        }
+      }
+      if (firstInvalid) {
+        firstInvalid.focus();
+        return;
+      }
+      // The cart may have changed (another tab, reload) since this view was
+      // rendered: never confirm against a stale snapshot.
+      if (cart.totalCents() !== total || cart.count() !== count) {
+        var fresh = checkoutView('Your cart changed. Review the updated summary and place the order again.');
+        var host = document.getElementById('app');
+        host.textContent = '';
+        host.appendChild(fresh.node);
+        document.title = fresh.title;
+        host.focus();
+        return;
+      }
+      var orderId = '#' + Date.now().toString(36).toUpperCase();
+      var done = confirmationView(String(inputs.name.value).trim(), orderId, total);
+      cart.clear();
+      var app = document.getElementById('app');
+      app.textContent = '';
+      app.appendChild(done.node);
+      document.title = done.title;
+      app.focus();
+    });
+    container.appendChild(form);
+    return { title: 'Checkout \u2013 Dan', node: container };
   }
 
   function updateCartCount() {
@@ -277,7 +444,8 @@
     '/': homeView,
     '/about': aboutView,
     '/catalog': catalogView,
-    '/cart': cartView
+    '/cart': cartView,
+    '/checkout': checkoutView
   };
 
   var PRODUCT_ROUTE = /^\/produto\/([^/]+)$/;
