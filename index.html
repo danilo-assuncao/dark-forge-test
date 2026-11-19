@@ -18,19 +18,23 @@
     <header class="site-header">
       <div class="site-header__inner">
         <a class="brand" href="#/">Dan Wear</a>
-        <nav aria-label="Main">
+        <nav aria-label="Main" lang="pt-BR">
           <ul class="nav-list">
-            <li><a class="nav-link" href="#/">Home</a></li>
-            <li><a class="nav-link" href="#/catalog">Catalog</a></li>
-            <li><a class="nav-link" href="#/about">About</a></li>
-            <li><a class="nav-link" href="#/cart">Cart (<span id="cart-count">0</span>)</a></li>
+            <li><a class="nav-link" href="#/">Início</a></li>
+            <li><a class="nav-link" href="#/catalog">Coleção</a></li>
+            <li><a class="nav-link" href="#/about">Sobre</a></li>
+            <li><a class="nav-link" href="#/cart">Sacola (<span id="cart-count">0</span>)</a></li>
           </ul>
         </nav>
       </div>
     </header>
     <main class="app" id="app" tabindex="-1"></main>
     <footer class="site-footer">
-      <p class="site-footer__inner">Dan Wear</p>
+      <div class="site-footer__inner">
+        <p class="site-footer__brand">Dan Wear</p>
+        <p lang="pt-BR">Loja de roupas simulada: nada é vendido e nenhum pagamento é cobrado.</p>
+        <nav aria-label="Footer" lang="pt-BR"><a class="text-link" href="#/catalog">Coleção</a> · <a class="text-link" href="#/about">Sobre</a> · <a class="text-link" href="#/cart">Sacola</a></nav>
+      </div>
     </footer>
     <noscript><p class="container">This site needs JavaScript enabled.</p></noscript>
     <script src="products.js" defer></script>

@@ -807,3 +807,24 @@ test('a legacy size-less cart is discarded and shows the empty state', function 
   assert.ok(t.has('cart-empty'));
   assert.equal(t.cartBadge.textContent, '0');
 });
+
+test('shell: language, Portuguese nav labels and footer links', function () {
+  assert.match(html, /<html lang="en">/);
+  const nav = html.match(/<nav aria-label="Main"[^>]*>([\s\S]*?)<\/nav>/)[1];
+  ['Início', 'Coleção', 'Sobre', 'Sacola'].forEach(function (label) {
+    assert.ok(nav.indexOf(label) !== -1, 'nav should list ' + label);
+  });
+  assert.match(html, /<nav aria-label="Main" lang="pt-BR">/);
+  const footer = html.match(/<footer\b[\s\S]*?<\/footer>/)[0];
+  ['#/catalog', '#/about', '#/cart'].forEach(function (href) {
+    assert.ok(footer.indexOf('href="' + href + '"') !== -1, 'footer should link ' + href);
+  });
+  assert.doesNotMatch(footer, /nav-link/, 'footer links must not get aria-current from the nav loop');
+});
+
+test('the 404 page has friendly copy and a link home', function () {
+  const t = boot('#/nope');
+  assert.match(t.heading(), /404/);
+  assert.match(t.doc.title, /^404/);
+  assert.equal(t.description(), 'The page you are looking for does not exist.');
+});

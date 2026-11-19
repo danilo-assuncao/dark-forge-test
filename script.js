@@ -138,8 +138,8 @@
   }
 
   function notFoundView() {
-    var container = contentView('Page not found (404)', 'The page you are looking for does not exist.');
-    var link = el('a', 'text-link', 'Back to home');
+    var container = contentView('Page not found (404)', 'Sorry, we could not find that page. It may have moved, or the link may be wrong.');
+    var link = el('a', 'text-link', 'Back to the home page');
     link.href = '#/';
     container.appendChild(link);
     return { title: '404 \u2013 ' + BRAND, description: DESCRIPTIONS.notFound, node: container };
