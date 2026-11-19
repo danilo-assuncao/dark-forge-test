@@ -1,0 +1,111 @@
+/* Dan Nutri calculator: BMI, BMR (Mifflin-St Jeor), daily goals per
+   objective and compatible catalog suggestions. Exposed as
+   window.DanNutriCalculator (and via module.exports in Node). */
+(function (root) {
+  'use strict';
+
+  var catalog = (typeof require === 'function' && typeof module !== 'undefined' && module.exports)
+    ? require('./products.js')
+    : root.DanNutriProducts;
+
+  var ACTIVITY = { sedentario: 1.2, leve: 1.375, moderado: 1.55, intenso: 1.725, muito_intenso: 1.9 };
+
+  // kcal factor applied to TDEE, protein g per kg of body weight
+  var GOAL_RULES = {
+    Hipertrofia: { kcalFactor: 1.15, proteinPerKg: 2.0 },
+    Emagrecimento: { kcalFactor: 0.8, proteinPerKg: 2.0 },
+    Saude: { kcalFactor: 1.0, proteinPerKg: 1.4 }
+  };
+
+  function positive(value, name) {
+    if (typeof value !== 'number' || !isFinite(value) || value <= 0) {
+      throw new RangeError(name + ' must be a positive number');
+    }
+    return value;
+  }
+
+  function round1(n) { return Math.round(n * 10) / 10; }
+
+  function bmi(weightKg, heightCm) {
+    positive(weightKg, 'weightKg');
+    var m = positive(heightCm, 'heightCm') / 100;
+    return round1(weightKg / (m * m));
+  }
+
+  function bmiCategory(value) {
+    if (value < 18.5) { return 'Abaixo do peso'; }
+    if (value < 25) { return 'Peso normal'; }
+    if (value < 30) { return 'Sobrepeso'; }
+    return 'Obesidade';
+  }
+
+  // Mifflin-St Jeor: 10w + 6.25h - 5a + 5 (male) / - 161 (female)
+  function bmr(profile) {
+    var p = profile || {};
+    positive(p.weightKg, 'weightKg');
+    positive(p.heightCm, 'heightCm');
+    positive(p.age, 'age');
+    if (p.sex !== 'M' && p.sex !== 'F') {
+      throw new RangeError("sex must be 'M' or 'F'");
+    }
+    var base = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age;
+    return Math.round(base + (p.sex === 'M' ? 5 : -161));
+  }
+
+  function tdee(profile) {
+    var level = (profile && profile.activity) || 'sedentario';
+    if (!Object.prototype.hasOwnProperty.call(ACTIVITY, level)) {
+      throw new RangeError('unknown activity level: ' + level);
+    }
+    return Math.round(bmr(profile) * ACTIVITY[level]);
+  }
+
+  function dailyTargets(profile, goal) {
+    if (!Object.prototype.hasOwnProperty.call(GOAL_RULES, goal)) {
+      throw new RangeError('unknown goal: ' + goal);
+    }
+    var rule = GOAL_RULES[goal];
+    var kcal = Math.round(tdee(profile) * rule.kcalFactor);
+    return { goal: goal, kcal: kcal, proteinG: Math.round(profile.weightKg * rule.proteinPerKg) };
+  }
+
+  // Catalog items tagged with the goal; optional category filter and
+  // optional exclusion of plans via opts.category.
+  function suggestProducts(goal, opts) {
+    if (!Object.prototype.hasOwnProperty.call(GOAL_RULES, goal)) {
+      throw new RangeError('unknown goal: ' + goal);
+    }
+    var category = opts && opts.category;
+    return catalog.byGoal(goal).filter(function (p) {
+      return !category || p.category === category;
+    });
+  }
+
+  function calculate(profile, goal) {
+    var value = bmi(profile.weightKg, profile.heightCm);
+    return {
+      bmi: value,
+      bmiCategory: bmiCategory(value),
+      bmr: bmr(profile),
+      tdee: tdee(profile),
+      targets: dailyTargets(profile, goal),
+      suggestions: suggestProducts(goal)
+    };
+  }
+
+  var api = {
+    activityLevels: ACTIVITY,
+    bmi: bmi,
+    bmiCategory: bmiCategory,
+    bmr: bmr,
+    tdee: tdee,
+    dailyTargets: dailyTargets,
+    suggestProducts: suggestProducts,
+    calculate: calculate
+  };
+
+  root.DanNutriCalculator = api;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = api;
+  }
+})(typeof window !== 'undefined' ? window : this);
