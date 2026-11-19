@@ -587,15 +587,28 @@ test('detail page shows description, specifications and price for every product'
     assert.ok(texts.indexOf('Specifications') !== -1, p.id);
     assert.ok(texts.indexOf(p.description) !== -1, p.id);
     assert.ok(texts.some(function (x) { return /^R\$ /.test(x); }), p.id + ' price');
-    p.specs.forEach(function (s) {
-      assert.ok(texts.indexOf(s.label) !== -1 && texts.indexOf(s.value) !== -1, p.id + ' ' + s.label);
+    const dl = collect(t.app, function (n) { return n.className === 'specs-list'; });
+    assert.equal(dl.length, 1, p.id);
+    assert.equal(dl[0].tagName, 'dl', p.id);
+    assert.equal(dl[0].children.length, p.specs.length * 2, p.id);
+    p.specs.forEach(function (s, i) {
+      const dt = dl[0].children[i * 2];
+      const dd = dl[0].children[i * 2 + 1];
+      assert.equal(dt.tagName, 'dt', p.id);
+      assert.equal(dt.textContent, s.label, p.id);
+      assert.equal(dd.tagName, 'dd', p.id);
+      assert.equal(dd.textContent, s.value, p.id);
+      assert.ok(typeof s.label === 'string' && s.label.trim() && typeof s.value === 'string' && s.value.trim(), p.id + ' spec shape');
     });
   });
 });
 
-test('detail page shows a specifications fallback when a product has none', function () {
-  const t = boot('#/produto/x', { products: [{ id: 'x', name: 'Xyz', description: 'd', priceCents: 100 }] });
-  const texts = [];
-  walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
-  assert.ok(texts.indexOf('Specifications not available.') !== -1);
+test('detail page shows a specifications fallback when a product has none or empty specs', function () {
+  [undefined, []].forEach(function (specs) {
+    const t = boot('#/produto/x', { products: [{ id: 'x', name: 'Xyz', description: 'd', priceCents: 100, specs: specs }] });
+    const texts = [];
+    walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+    assert.ok(texts.indexOf('Specifications not available.') !== -1);
+    assert.equal(collect(t.app, function (n) { return n.tagName === 'dl'; }).length, 0);
+  });
 });
