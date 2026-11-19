@@ -251,3 +251,47 @@ test('script.js never writes HTML strings', function () {
   walk(t.app, function (n) { if (n.tagName === 'img') { injected = true; } });
   assert.equal(injected, false);
 });
+
+test('nutrition table has caption, scoped headers and paired label/amount cells', function () {
+  const t = boot('#/produto/creatine');
+  const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
+  assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent,
+    'Per serving: 5 g (1 scoop)');
+  const ths = collect(table, function (n) { return n.tagName === 'th'; });
+  assert.deepEqual(ths.slice(0, 2).map(function (n) { return n.attrs.scope; }), ['col', 'col']);
+  ths.slice(2).forEach(function (n) { assert.equal(n.attrs.scope, 'row'); });
+  const row = collect(table, function (n) { return n.tagName === 'tr'; }).filter(function (r) {
+    return r.children[0].textContent === 'Creatine monohydrate';
+  })[0];
+  assert.ok(row, 'row for label exists');
+  assert.equal(row.children[1].tagName, 'td');
+  assert.equal(row.children[1].textContent, '5 g');
+});
+
+test('every product has nutrition data and its detail renders rows + 1 tr', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  ctx.window.DanProducts.all().forEach(function (p) {
+    assert.ok(p.nutrition && p.nutrition.serving, p.id + ' serving');
+    assert.ok(p.nutrition.rows.length > 0, p.id + ' rows');
+    p.nutrition.rows.forEach(function (r) { assert.ok(r.label && r.amount, p.id + ' row'); });
+    const t = boot('#/produto/' + p.id);
+    const trs = collect(t.app, function (n) { return n.tagName === 'tr'; });
+    assert.equal(trs.length, p.nutrition.rows.length + 1, p.id);
+  });
+});
+
+test('missing or empty nutrition shows a fallback, keeping heading and cart button', function () {
+  [undefined, { serving: '1 g', rows: [] }, { serving: '1 g' }].forEach(function (nutrition) {
+    const product = { id: 'x', name: 'Xyz', description: 'd', priceCents: 100, nutrition: nutrition };
+    const t = boot('#/produto/x', { products: [product] });
+    assert.equal(t.heading(), 'Xyz');
+    assert.equal(collect(t.app, function (n) { return n.tagName === 'table'; }).length, 0);
+    const texts = [];
+    walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+    assert.ok(texts.indexOf('Nutrition information not available.') !== -1);
+    const btn = collect(t.app, function (n) { return n.tagName === 'button'; });
+    assert.equal(btn.length, 1);
+    assert.equal(btn[0].textContent, 'Add to cart');
+  });
+});
