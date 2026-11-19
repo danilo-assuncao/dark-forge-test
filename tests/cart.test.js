@@ -305,7 +305,9 @@ test('food + packaging equals the unit price for every dish and portion', functi
     p.sizes.forEach(function (size) {
       const cart = load(fakeStorage());
       cart.add(p.id, 1, size);
-      assert.equal(cart.packagingCents(), packaging[size], p.id + size);
+      const expected = packaging[size] !== undefined ? packaging[size] : 300;
+      assert.equal(cart.packagingCents(), Math.min(expected, p.priceCents), p.id + size);
+      assert.ok(cart.foodCents() >= 0, p.id + size);
       assert.equal(cart.foodCents() + cart.packagingCents(), p.priceCents, p.id + size);
     });
   });
@@ -320,4 +322,58 @@ test('food and packaging are zero on an empty cart and ignore coupon discounts',
   assert.ok(cart.discountCents() > 0);
   assert.equal(cart.packagingCents() + cart.foodCents(), cart.subtotalCents());
   assert.notEqual(cart.packagingCents() + cart.foodCents(), cart.totalCents());
+});
+
+test('notes loaded from storage are sanitised (missing, non-string, padded and over-long)', function () {
+  const padded = '  ' + 'a  b '.repeat(100) + '  ';
+  const stored = JSON.stringify([
+    { id: 'file-parmegiana', size: 'Individual', qty: 1 },
+    { id: 'file-parmegiana', size: 'Duplo', qty: 1, note: 123 },
+    { id: 'file-parmegiana', size: 'Familia', qty: 1, note: padded },
+  ]);
+  const lines = load(fakeStorage({ 'dan-cart': stored })).lines();
+  assert.equal(lines[0].note, '');
+  assert.equal(lines[1].note, '');
+  assert.equal(lines[2].note, padded.replace(/\s+/g, ' ').trim().slice(0, 140));
+  assert.equal(lines[2].note.length, 140);
+});
+
+test('add() normalises and caps notes, keeps the old note for blank input and ignores notes at the qty cap', function () {
+  const cart = load(fakeStorage());
+  cart.add('file-parmegiana', 1, 'Individual', 'x'.repeat(500));
+  assert.equal(cart.lines()[0].note.length, 140);
+  cart.add('file-parmegiana', 1, 'Individual', 'y'.repeat(500));
+  assert.equal(cart.lines()[0].note, 'y'.repeat(140), 'merge path caps too');
+  cart.add('file-parmegiana', 1, 'Individual', '   ');
+  assert.equal(cart.lines()[0].note, 'y'.repeat(140), 'blank note keeps the existing one');
+  cart.setQty('file-parmegiana', 'Individual', cart.MAX_QTY);
+  assert.equal(cart.add('file-parmegiana', 1, 'Individual', 'novo'), false);
+  assert.equal(cart.lines()[0].note, 'y'.repeat(140), 'a capped add changes nothing, note included');
+});
+
+test('notes are kept as inert text (never interpreted as markup)', function () {
+  const storage = fakeStorage();
+  const cart = load(storage);
+  const evil = '<img src=x onerror=alert(1)>';
+  cart.add('file-parmegiana', 1, 'Individual', evil);
+  assert.equal(cart.lines()[0].note, evil);
+  assert.equal(load(storage).lines()[0].note, evil);
+});
+
+test('packaging is clamped to the price and unknown portions use the default', function () {
+  const catalogue = {
+    cheap: { id: 'cheap', priceCents: 150, sizes: ['Individual'] },
+    odd: { id: 'odd', priceCents: 2000, sizes: ['Mini'] },
+  };
+  const ctx = { window: { localStorage: fakeStorage(), DanProducts: { find(id) { return catalogue[id] || null; } } } };
+  vm.createContext(ctx);
+  vm.runInContext(cartJs, ctx);
+  const cart = ctx.window.DanCart;
+  assert.ok(cart.add('cheap', 1, 'Individual'));
+  assert.equal(cart.packagingCents(), 150);
+  assert.equal(cart.foodCents(), 0);
+  cart.clear();
+  assert.ok(cart.add('odd', 1, 'Mini'));
+  assert.equal(cart.packagingCents(), 300);
+  assert.equal(cart.foodCents(), 1700);
 });

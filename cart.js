@@ -143,7 +143,8 @@
     }
   }
 
-  // add(id, qty, size, note): the size must be a portion the dish offers. A
+  // add(id, qty, size, note): notes are backend-only until the UI passes one; render them with textContent only.
+  // add(id, qty, size, note):
   // non-empty note replaces the line's note; omitting it keeps the existing one.
   function add(id, qty, size, note) {
     var amount = clampQty(qty === undefined ? 1 : qty);
@@ -337,7 +338,7 @@
     subtotalCents: subtotalCents,
     foodCents: foodCents,
     packagingCents: packagingCents,
-    // Legacy names still read by script.js: labour = food, parts = packaging.
+    // TODO: legacy names still read by script.js (labour = food, parts = packaging); drop once the UI moves to foodCents/packagingCents.
     laborCents: foodCents,
     partsCents: packagingCents,
     setNote: setNote,
