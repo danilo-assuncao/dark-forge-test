@@ -28,6 +28,8 @@
   var MAX_DAYS_AHEAD = 60;
   var MAX_NAME = 100, MAX_EMAIL = 254, MAX_LISTING_ID = 64;
   var LISTING_ID_RE = /^[\w-]+$/;
+  var MAX_CANCELLED_KEPT = 100;
+  var UNSAFE_NAME_RE = /[\u0000-\u001f\u007f-\u009f<>\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
   var PROTOCOL_RE = /^IMOB-\d{4,}$/;
 
   function byId(list, id) {
@@ -81,7 +83,7 @@
     var errors = {};
     c = c || {};
     var name = typeof c.name === 'string' ? c.name.trim().replace(/\s+/g, ' ') : '';
-    if (name.length < 3 || name.length > MAX_NAME || name.split(' ').length < 2) errors.name = 'Informe nome e sobrenome.';
+    if (name.length < 3 || name.length > MAX_NAME || UNSAFE_NAME_RE.test(name) || name.split(' ').length < 2) errors.name = 'Informe nome e sobrenome (sem caracteres especiais).';
     var email = typeof c.email === 'string' ? c.email.trim() : '';
     if (email.length > MAX_EMAIL || !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email)) errors.email = 'E-mail inválido.';
     var phone = normalizePhone(c.phone);
@@ -106,12 +108,34 @@
     return now.getHours() + now.getMinutes() / 60 >= sh.end;
   }
 
-  function copyBooking(b) {
-    return Object.assign({}, b, { contact: Object.assign({}, b.contact) });
+  // Valid Date from the injected clock (falls back to the real time).
+  function readClock(clock) {
+    var n = clock();
+    return n instanceof Date && !isNaN(n.getTime()) ? n : new Date();
   }
 
-  function sameEmail(b, email) {
-    return typeof email === 'string' && email.trim().toLowerCase() === b.contact.email;
+  // Public copy of a booking: contact is cloned and the secret token omitted.
+  function copyBooking(b) {
+    var c = Object.assign({}, b, { contact: Object.assign({}, b.contact) });
+    delete c.token;
+    return c;
+  }
+
+  // 128-bit unguessable per-booking secret (hex).
+  function newToken() {
+    var cr = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
+    if (!cr || typeof cr.getRandomValues !== 'function') throw new Error('Secure random source unavailable');
+    var bytes = cr.getRandomValues(new Uint8Array(16));
+    var out = '';
+    for (var i = 0; i < bytes.length; i++) out += pad(bytes[i].toString(16), 2);
+    return out;
+  }
+
+  function sameToken(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return diff === 0;
   }
 
   // Least flexible brokers first, so versatile ones stay free for later requests.
@@ -144,22 +168,23 @@
     }
 
     function availableShifts(date, mode) {
-      if (validateDate(date, clock())) return [];
-      var now = clock();
+      var now = readClock(clock);
+      if (validateDate(date, now)) return [];
       return SHIFTS.filter(function (s) { return !shiftEnded(date, s.id, now) && freeBrokers(date, s.id, mode).length > 0; })
         .map(function (s) { return s.id; });
     }
 
     function schedule(req) {
       req = req || {};
+      var now = readClock(clock);
       var errors = {};
       var listingId = typeof req.listingId === 'string' ? req.listingId.trim() : '';
       if (listingId.length > MAX_LISTING_ID || !LISTING_ID_RE.test(listingId)) errors.listingId = 'Imóvel obrigatório.';
       if (!byId(MODES, req.mode)) errors.mode = 'Escolha visita presencial ou por vídeo.';
       if (!byId(SHIFTS, req.shift)) errors.shift = 'Escolha um turno válido.';
-      var dateErr = validateDate(req.date, clock());
+      var dateErr = validateDate(req.date, now);
       if (dateErr) errors.date = dateErr;
-      else if (shiftEnded(req.date, req.shift, clock())) errors.shift = 'Este turno já passou.';
+      else if (shiftEnded(req.date, req.shift, now)) errors.shift = 'Este turno já passou.';
       var c = validateContact(req.contact);
       if (!c.ok) errors.contact = c.errors;
       if (Object.keys(errors).length) return { ok: false, errors: errors };
@@ -171,6 +196,7 @@
       if (!free.length) {
         return { ok: false, errors: { slot: 'Turno indisponível para a data e modalidade escolhidas.' } };
       }
+      var token = newToken();
       counter += 1;
       var booking = {
         protocol: formatProtocol(counter),
@@ -182,27 +208,39 @@
         brokerName: free[0].name,
         contact: c.contact,
         status: 'confirmed',
+        token: token,
       };
       bookings.push(booking);
-      return { ok: true, protocol: booking.protocol, booking: copyBooking(booking) };
+      return { ok: true, protocol: booking.protocol, token: booking.token, booking: copyBooking(booking) };
     }
 
-    // Lookup and cancel need the contact email as a second factor: protocols
-    // are sequential and therefore guessable.
-    function owned(protocol, email) {
+    // Protocols are sequential and guessable, so lookup and cancel require the
+    // secret token returned by schedule(). There is no attempt throttling here:
+    // rate limiting belongs to whatever layer exposes these methods.
+    function owned(protocol, token) {
       var b = bookings.filter(function (x) { return x.protocol === protocol; })[0];
-      return b && sameEmail(b, email) ? b : null;
+      return b && sameToken(b.token, token) ? b : null;
     }
 
-    function find(protocol, email) {
-      var b = owned(protocol, email);
+    function find(protocol, token) {
+      var b = owned(protocol, token);
       return b ? copyBooking(b) : null;
     }
 
-    function cancel(protocol, email) {
-      var b = owned(protocol, email);
+    // Keep only the most recent cancelled records so memory stays bounded.
+    function pruneCancelled() {
+      var extra = bookings.filter(function (x) { return x.status === 'cancelled'; }).length - MAX_CANCELLED_KEPT;
+      bookings = bookings.filter(function (x) {
+        if (extra > 0 && x.status === 'cancelled') { extra -= 1; return false; }
+        return true;
+      });
+    }
+
+    function cancel(protocol, token) {
+      var b = owned(protocol, token);
       if (!b || b.status !== 'confirmed') return false;
       b.status = 'cancelled';
+      pruneCancelled();
       return true;
     }
 
