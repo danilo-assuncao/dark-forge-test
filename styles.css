@@ -2,13 +2,13 @@
    are noted per token as "~R:1 vs --token"; tests/theme.test.js checks both
    the WCAG thresholds and that each noted ratio matches the real colours. */
 :root {
-  color-scheme: light;
-  --bg: #faf7f2;                 /* clean editorial off-white page background */
-  --text: #171717;               /* near-black, ~16.8:1 vs --bg (AAA) */
-  --focus: #171717;              /* ~16.8:1 vs --bg (WCAG 1.4.11 needs 3:1) */
-  --button-bg: #14532d;          /* ~8.5:1 vs --bg (1.4.11); ~9.1:1 vs --button-text (AAA) */
-  --button-bg-hover: #0f3d22;    /* ~12.3:1 vs --button-text (AAA) */
-  --button-border: #052e16;      /* ~13.9:1 vs --bg (WCAG 1.4.11 needs 3:1) */
+  color-scheme: only light;
+  --bg: #faf7f2;                 /* clean workshop off-white page background */
+  --text: #1c1917;               /* near-black graphite, ~16.4:1 vs --bg (AAA) */
+  --focus: #1c1917;              /* ~16.4:1 vs --bg (WCAG 1.4.11 needs 3:1) */
+  --button-bg: #9a3412;          /* Dan Motors burnt orange, ~6.8:1 vs --bg (1.4.11); ~7.3:1 vs --button-text (AAA) */
+  --button-bg-hover: #7c2d12;    /* ~9.4:1 vs --button-text (AAA) */
+  --button-border: #431407;      /* ~14.6:1 vs --bg (WCAG 1.4.11 needs 3:1) */
   --button-text: #ffffff;        /* white button label */
 }
 
@@ -104,6 +104,11 @@ body {
   margin: 0 auto;
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
+}
+
+.brand {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .brand,

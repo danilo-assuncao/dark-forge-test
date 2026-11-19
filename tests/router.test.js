@@ -124,10 +124,10 @@ KNOWN.forEach(function (c) {
     const t = boot(c[0]);
     if (c[1] === 'home') {
       assert.ok(t.has('home'));
-      assert.equal(t.doc.title, 'Dan Wear \u2013 Clothing store');
+      assert.equal(t.doc.title, 'Dan Motors \u2013 Auto repair shop');
     } else {
       assert.equal(t.heading(), 'About');
-      assert.equal(t.doc.title, 'About – Dan Wear');
+      assert.equal(t.doc.title, 'About – Dan Motors');
     }
   });
 });
@@ -167,9 +167,9 @@ test('products.js holds well-formed mock data', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
   const all = ctx.window.DanProducts.all();
-  assert.equal(all.length, 13);
+  assert.equal(all.length, 12);
   const cats = ctx.window.DanProducts.categories();
-  assert.deepEqual(Array.from(cats), ['Camisetas', 'Calças', 'Casacos']);
+  assert.deepEqual(Array.from(cats), ['Revisao & Motor', 'Freios & Suspensao', 'Pneus & Alinhamento', 'Eletrica & Diagnostico']);
   cats.forEach(function (c) {
     assert.ok(all.filter(function (p) { return p.category === c; }).length >= 3, c);
   });
@@ -177,17 +177,20 @@ test('products.js holds well-formed mock data', function () {
   all.forEach(function (p) {
     assert.ok(p.name && p.description && Number.isInteger(p.priceCents) && p.priceCents > 0);
     assert.ok(Array.isArray(p.sizes) && p.sizes.length > 0, p.id + ' sizes');
-    assert.ok(p.color && p.fabric, p.id + ' color and fabric');
-    assert.deepEqual(Array.from(p.sizes), ['PP', 'P', 'M', 'G', 'GG'], p.id);
+    assert.ok(/^(\d+ min|\dh(\d\d)?)$/.test(p.boxTime), p.id + ' bay time');
+    assert.deepEqual(Array.from(p.sizes), ['Hatch/Sedan', 'SUV/Picape', 'Utilitario'], p.id);
+    assert.deepEqual(Array.from(p.measurements.columns), ['Tempo de box', 'Garantia', 'Intervalo recomendado'], p.id);
+    assert.equal(p.measurements.rows[0].values[0], p.boxTime, p.id + ' base bay time matches the Hatch/Sedan row');
+    assert.ok(p.specs.some(function (x) { return x.label === 'Portes atendidos' && x.value === 'Hatch/Sedan, SUV/Picape, Utilitario'; }), p.id);
     assert.deepEqual(Array.from(p.measurements.rows.map(function (r) { return r.size; })), Array.from(p.sizes), p.id);
     p.measurements.rows.forEach(function (r) {
       assert.equal(r.values.length, p.measurements.columns.length, p.id);
     });
   });
-  assert.ok(all.some(function (p) { return /tee/i.test(p.name); }));
-  assert.ok(all.some(function (p) { return /jeans/i.test(p.name); }));
+  assert.ok(all.some(function (p) { return /oleo/i.test(p.name); }));
+  assert.ok(all.some(function (p) { return /freio/i.test(p.name); }));
   assert.equal(ctx.window.DanProducts.find('nope'), null);
-  assert.equal(ctx.window.DanProducts.find('basic-tee').id, 'basic-tee');
+  assert.equal(ctx.window.DanProducts.find('oil-change').id, 'oil-change');
   const n = ctx.window.DanProducts.all().length;
   const copy = ctx.window.DanProducts.all();
   copy.push({ id: 'x' });
@@ -212,13 +215,13 @@ test('without product data the catalog is empty and details give a 404', functio
   const t = boot('#/catalog', { noProducts: true });
   assert.equal(t.heading(), 'Catalog');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 0);
-  assert.match(boot('#/produto/basic-tee', { noProducts: true }).heading(), /404/);
+  assert.match(boot('#/produto/oil-change', { noProducts: true }).heading(), /404/);
 });
 
 test('the catalog grid shows name, placeholder image and price, linking to detail', function () {
   const t = boot('#/catalog');
   assert.equal(t.heading(), 'Catalog');
-  assert.equal(t.doc.title, 'Catalog – Dan Wear');
+  assert.equal(t.doc.title, 'Catalog – Dan Motors');
   assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
   const cards = collect(t.app, function (n) { return n.className === 'product-card'; });
   const ctx = { window: {} };
@@ -228,13 +231,14 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
   cards.forEach(function (card, i) {
     assert.equal(card.href, '#/produto/' + all[i].id);
     const classes = card.children.map(function (c) { return c.className; });
-    assert.deepEqual(classes, ['product-image', 'product-name', 'product-category', 'product-price', 'product-sizes']);
+    assert.deepEqual(classes, ['product-image', 'product-name', 'product-category', 'product-price', 'product-box-time', 'product-sizes']);
     assert.equal(card.children[1].textContent, all[i].name);
     assert.equal(card.children[2].textContent, all[i].category);
-    assert.equal(card.children[4].textContent, 'Tamanhos: ' + all[i].sizes.join(', '));
+    assert.equal(card.children[4].textContent, 'Tempo de box (Hatch/Sedan): ' + all[i].boxTime);
+    assert.equal(card.children[5].textContent, 'Portes: ' + all[i].sizes.join(', '));
     assert.match(card.children[3].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
   });
-  assert.equal(cards[0].children[3].textContent, 'R$ 79,90');
+  assert.equal(cards[0].children[3].textContent, 'R$ 249,90');
 });
 
 test('category filter shows only matching products and Todas restores the grid', function () {
@@ -244,7 +248,7 @@ test('category filter shows only matching products and Todas restores the grid',
   const all = Array.from(ctx.window.DanProducts.all());
   const buttons = collect(t.app, function (n) { return n.className === 'filter-button'; });
   assert.deepEqual(buttons.map(function (b) { return b.textContent; }),
-    ['Todas', 'Camisetas', 'Calças', 'Casacos']);
+    ['Todas', 'Revisao & Motor', 'Freios & Suspensao', 'Pneus & Alinhamento', 'Eletrica & Diagnostico']);
   const cards = function () { return collect(t.app, function (n) { return n.className === 'product-card'; }); };
   assert.equal(cards().length, all.length);
   assert.equal(buttons[0].attrs['aria-pressed'], 'true');
@@ -303,20 +307,20 @@ test('catalog without categories() renders the grid and no filter', function () 
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
-  const t = boot('#/produto/basic-tee');
-  assert.match(t.heading(), /Basic Tee/);
-  assert.match(t.doc.title, /Basic Tee/);
+  const t = boot('#/produto/oil-change');
+  assert.match(t.heading(), /Troca de oleo e filtros/);
+  assert.match(t.doc.title, /Troca de oleo e filtros/);
   assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
   assert.equal(t.navLinks[0].attrs['aria-current'], undefined);
   assert.equal(t.navLinks[2].attrs['aria-current'], undefined);
   const texts = [];
   walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
-  assert.ok(texts.indexOf('R$ 79,90') !== -1, 'price shown');
-  assert.ok(texts.some(function (x) { return /crew-neck tee/.test(x); }), 'description shown');
+  assert.ok(texts.indexOf('R$ 249,90') !== -1, 'price shown');
+  assert.ok(texts.some(function (x) { return /filtro de oleo/.test(x); }), 'description shown');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-image'; }).length, 1);
   const rows = collect(t.app, function (n) { return n.tagName === 'tr'; });
-  assert.equal(rows.length, 6, 'header + 5 size rows');
-  assert.deepEqual(byClass(t, 'size-button').map(function (b) { return b.textContent; }), ['PP', 'P', 'M', 'G', 'GG']);
+  assert.equal(rows.length, 4, 'header + 3 porte rows');
+  assert.deepEqual(byClass(t, 'size-button').map(function (b) { return b.textContent; }), ['Hatch/Sedan', 'SUV/Picape', 'Utilitario']);
   const btn = collect(t.app, function (n) { return n.tagName === 'button' && n.className !== 'size-button'; });
   assert.equal(btn.length, 1);
   assert.equal(btn[0].textContent, 'Add to cart');
@@ -324,7 +328,7 @@ test('a product detail route renders the product; unknown ids give a 404', funct
   const back = collect(t.app, function (n) { return n.tagName === 'a'; })[0];
   assert.equal(back.href, '#/catalog');
   assert.equal(back.textContent, 'Back to catalog');
-  ['#/produto/nope', '#/produtos', '#/catalog/basic-tee', '#/produto/basic-tee/x', '#/produto/%E0%A4%A'].forEach(function (h) {
+  ['#/produto/nope', '#/produtos', '#/catalog/oil-change', '#/produto/oil-change/x', '#/produto/%E0%A4%A'].forEach(function (h) {
     const u = boot(h);
     assert.match(u.heading(), /404/, h);
     u.navLinks.forEach(function (l) { assert.equal(l.attrs['aria-current'], undefined, h); });
@@ -356,18 +360,18 @@ test('script.js never writes HTML strings', function () {
 });
 
 test('size guide table has caption, scoped headers and size rows', function () {
-  const t = boot('#/produto/basic-tee');
+  const t = boot('#/produto/oil-change');
   const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
   assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent,
-    'Body measurements in cm');
+    'Tempo de box por porte');
   const ths = collect(table, function (n) { return n.tagName === 'th'; });
   assert.deepEqual(ths.slice(0, 4).map(function (n) { return n.attrs.scope; }), ['col', 'col', 'col', 'col']);
   ths.slice(4).forEach(function (n) { assert.equal(n.attrs.scope, 'row'); });
   const row = collect(table, function (n) { return n.tagName === 'tr'; }).filter(function (r) {
-    return r.children[0].textContent === 'M';
+    return r.children[0].textContent === 'SUV/Picape';
   })[0];
-  assert.ok(row, 'row for size M exists');
-  assert.deepEqual(row.children.slice(1).map(function (c) { return c.textContent; }), ['100', '86', '70']);
+  assert.ok(row, 'row for SUV/Picape exists');
+  assert.deepEqual(row.children.slice(1).map(function (c) { return c.textContent; }), ['1h15', '90 dias', '10.000 km ou 12 meses']);
   assert.equal(row.children[1].tagName, 'td');
 });
 
@@ -377,42 +381,42 @@ test('size guide without data shows a fallback, keeping the cart button', functi
   assert.equal(collect(t.app, function (n) { return n.tagName === 'table'; }).length, 0);
   const texts = [];
   walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
-  assert.ok(texts.indexOf('This piece has no size chart: one size fits all.') !== -1);
+  assert.ok(texts.indexOf('This service has no technical table.') !== -1);
   assert.equal(byClass(t, 'action-button add-to-cart').length, 1);
 });
 
 test('cart view lists items with total, and the product button adds the chosen size', function () {
   const store = {};
-  const t = boot('#/produto/basic-tee', { cartStorage: store });
-  addWithSize(t, 'M');
-  addWithSize(t, 'M');
+  const t = boot('#/produto/oil-change', { cartStorage: store });
+  addWithSize(t, 'Hatch/Sedan');
+  addWithSize(t, 'Hatch/Sedan');
   t.go('#/cart');
   assert.equal(t.heading(), 'Cart');
-  assert.equal(byClass(t, 'cart-size')[0].textContent, 'Size: M');
+  assert.equal(byClass(t, 'cart-size')[0].textContent, 'Vehicle size: Hatch/Sedan');
   const total = byClass(t, 'cart-total')[0];
-  assert.equal(total.textContent, 'Total: R$ 159,80');
+  assert.equal(total.textContent, 'Total: R$ 499,80');
   const plus = byClass(t, 'qty-button')[1];
   plus.listeners.click();
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 239,70');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 749,70');
   assert.equal(t.cartBadge.textContent, '3');
-  assert.deepEqual(JSON.parse(store['dan-cart']), [{ id: 'basic-tee', size: 'M', qty: 3 }]);
+  assert.deepEqual(JSON.parse(store['dan-cart']), [{ id: 'oil-change', size: 'Hatch/Sedan', qty: 3 }]);
   byClass(t, 'text-button').filter(function (b) { return b.textContent === 'Remove'; })[0].listeners.click();
   assert.ok(t.has('cart-empty'));
   assert.equal(t.cartBadge.textContent, '0');
 });
 
 test('adding without a size asks for one; different sizes become separate lines', function () {
-  const t = boot('#/produto/basic-tee', { cartStorage: {} });
+  const t = boot('#/produto/oil-change', { cartStorage: {} });
   byClass(t, 'action-button add-to-cart')[0].listeners.click();
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Select a size first.');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Select a vehicle size first.');
   assert.equal(t.win.DanCart.count(), 0);
-  addWithSize(t, 'P');
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added size P to cart.');
+  addWithSize(t, 'Utilitario');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Utilitario to cart.');
   const pressed = byClass(t, 'size-button').filter(function (b) { return b.attrs['aria-pressed'] === 'true'; });
-  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['P']);
-  addWithSize(t, 'G');
+  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Utilitario']);
+  addWithSize(t, 'SUV/Picape');
   t.go('#/cart');
-  assert.deepEqual(byClass(t, 'cart-size').map(function (n) { return n.textContent; }), ['Size: P', 'Size: G']);
+  assert.deepEqual(byClass(t, 'cart-size').map(function (n) { return n.textContent; }), ['Vehicle size: Utilitario', 'Vehicle size: SUV/Picape']);
   assert.equal(t.cartBadge.textContent, '2');
 });
 
@@ -431,9 +435,9 @@ function addWithSize(t, size) {
 }
 
 test('minus decrements and removes the line at quantity 1; focus returns to main', function () {
-  const t = boot('#/produto/basic-tee', { cartStorage: {} });
-  addWithSize(t, 'M');
-  addWithSize(t, 'M');
+  const t = boot('#/produto/oil-change', { cartStorage: {} });
+  addWithSize(t, 'Hatch/Sedan');
+  addWithSize(t, 'Hatch/Sedan');
   t.go('#/cart');
   const before = t.app.focusCount;
   byClass(t, 'qty-button')[0].listeners.click();
@@ -445,8 +449,8 @@ test('minus decrements and removes the line at quantity 1; focus returns to main
 });
 
 test('Clear cart empties the view and resets the badge', function () {
-  const t = boot('#/produto/basic-tee', { cartStorage: {} });
-  addWithSize(t, 'M');
+  const t = boot('#/produto/oil-change', { cartStorage: {} });
+  addWithSize(t, 'Hatch/Sedan');
   t.go('#/cart');
   const buttons = byClass(t, 'text-button');
   const clear = buttons.filter(function (b) { return b.textContent === 'Clear cart'; })[0];
@@ -458,22 +462,22 @@ test('Clear cart empties the view and resets the badge', function () {
 });
 
 test('plus is disabled at max quantity and the product page reports status', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 99 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 99 }]) };
   const t = boot('#/cart', { cartStorage: store });
   assert.equal(byClass(t, 'qty-button')[1].attrs.disabled, 'disabled');
-  t.go('#/produto/basic-tee');
-  addWithSize(t, 'M');
+  t.go('#/produto/oil-change');
+  addWithSize(t, 'Hatch/Sedan');
   assert.equal(byClass(t, 'cart-status')[0].textContent, 'Maximum quantity reached.');
-  addWithSize(t, 'G');
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added size G to cart.');
-  t.go('#/produto/hoodie');
-  addWithSize(t, 'M');
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added size M to cart.');
+  addWithSize(t, 'SUV/Picape');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added SUV/Picape to cart.');
+  t.go('#/produto/brake-pads');
+  addWithSize(t, 'Hatch/Sedan');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Hatch/Sedan to cart.');
 });
 
 test('script.js degrades gracefully without cart.js', function () {
-  const t = boot('#/produto/basic-tee', { noCart: true });
-  addWithSize(t, 'M');
+  const t = boot('#/produto/oil-change', { noCart: true });
+  addWithSize(t, 'Hatch/Sedan');
   t.go('#/cart');
   assert.ok(t.has('cart-empty'));
 });
@@ -506,17 +510,17 @@ test('checkout with an empty cart shows the empty state and no form', function (
 });
 
 test('checkout summary reflects the cart and the cart view links to checkout', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
   const t = boot('#/cart', { cartStorage: store });
   const link = byClass(t, 'action-button checkout-link')[0];
   assert.equal(link.href, '#/checkout');
   t.go('#/checkout');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 159,80');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 499,80');
   assert.match(byClass(t, 'cart-name')[0].textContent, /^2 × /);
 });
 
 test('checkout validates required fields and formats, focusing the first invalid field', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   const inputs = fillCheckout(t, {});
   assert.ok(submitForm(t), 'default submit must be prevented');
@@ -543,12 +547,12 @@ test('checkout validates required fields and formats, focusing the first invalid
 });
 
 test('valid checkout shows a simulated confirmation and clears the cart', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
   assert.equal(t.heading(), 'Order confirmed');
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 174,70/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 514,70/);
   assert.equal(t.cartBadge.textContent, '0');
   assert.deepEqual(JSON.parse(store['dan-cart']), []);
   t.go('#/checkout');
@@ -558,18 +562,18 @@ test('valid checkout shows a simulated confirmation and clears the cart', functi
 // ----- Checkout review follow-ups -----
 
 test('checkout re-renders instead of confirming when the cart changed after render', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
-  store['dan-cart'] = JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 3 }]);
+  store['dan-cart'] = JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 3 }]);
   t.win.DanCart.reload();
   submitForm(t);
   assert.equal(t.heading(), 'Checkout');
   assert.equal(byClass(t, 'checkout-notice').length, 1);
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 239,70');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 749,70');
   assert.equal(t.cartBadge.textContent, '3', 'cart must not be cleared');
 
-  const t2 = boot('#/checkout', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]) } });
+  const t2 = boot('#/checkout', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) } });
   fillCheckout(t2, VALID);
   t2.win.DanCart.clear();
   submitForm(t2);
@@ -578,7 +582,7 @@ test('checkout re-renders instead of confirming when the cart changed after rend
 });
 
 test('checkout validator boundaries', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
   const cases = [
     ['phone', '1112345678', true], ['phone', '11912345678', true], ['phone', '119123456789', false],
     ['phone', '11 9123a5678', false], ['cep', '01310100', true], ['cep', '013101000', false],
@@ -601,7 +605,7 @@ test('checkout validator boundaries', function () {
 });
 
 test('confirmation updates focus, title and order id; errors clear and refocus on retry; multi-line summary', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }, { id: 'hoodie', size: 'M', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }, { id: 'brake-pads', size: 'Hatch/Sedan', qty: 2 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   assert.equal(byClass(t, 'cart-name').length, 2);
   const inputs = fillCheckout(t, Object.assign({}, VALID, { email: 'x', city: '' }));
@@ -616,7 +620,7 @@ test('confirmation updates focus, title and order id; errors clear and refocus o
   fillCheckout(t, VALID);
   submitForm(t);
   assert.equal(t.app.focusCount, before + 1);
-  assert.equal(t.doc.title, 'Order confirmed – Dan Wear');
+  assert.equal(t.doc.title, 'Order confirmed – Dan Motors');
   assert.match(byClass(t, 'order-confirmation')[0].textContent, /#[0-9A-Z]+/);
 });
 
@@ -668,12 +672,12 @@ test('catalog cards have no quick add: a size must be chosen on the product page
 });
 
 test('catalog honours ?category= from the hash and ignores unknown categories', function () {
-  const t = boot('#/catalog?category=Cal%C3%A7as');
+  const t = boot('#/catalog?category=Freios%20%26%20Suspensao');
   const hrefs = byClass(t, 'product-card').map(function (c) { return c.href; });
-  const bottoms = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Calças'; });
-  assert.deepEqual(hrefs, bottoms.map(function (p) { return '#/produto/' + p.id; }));
+  const services = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Freios & Suspensao'; });
+  assert.deepEqual(hrefs, services.map(function (p) { return '#/produto/' + p.id; }));
   const pressed = byClass(t, 'filter-button').filter(function (b) { return b.attrs['aria-pressed'] === 'true'; });
-  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Calças']);
+  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Freios & Suspensao']);
   assert.equal(byClass(boot('#/catalog?category=Nope'), 'product-card').length, t.win.DanProducts.all().length);
   assert.equal(byClass(boot('#/catalog?category=%E0%A4%A'), 'product-card').length, t.win.DanProducts.all().length);
 });
@@ -681,8 +685,8 @@ test('catalog honours ?category= from the hash and ignores unknown categories', 
 test('home shows category links and a showcase of products', function () {
   const t = boot('#/');
   const links = byClass(t, 'category-link');
-  assert.deepEqual(links.map(function (l) { return l.textContent; }), ['Camisetas', 'Calças', 'Casacos']);
-  assert.equal(links[1].href, '#/catalog?category=Cal%C3%A7as');
+  assert.deepEqual(links.map(function (l) { return l.textContent; }), ['Revisao & Motor', 'Freios & Suspensao', 'Pneus & Alinhamento', 'Eletrica & Diagnostico']);
+  assert.equal(links[1].href, '#/catalog?category=Freios%20%26%20Suspensao');
   assert.equal(byClass(t, 'product-card').length, 4);
 });
 
@@ -697,39 +701,39 @@ function couponSubmit(t, code) {
 }
 
 test('cart coupon: invalid codes show an error, DAN10 discounts the total and can be removed', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
   const t = boot('#/cart', { cartStorage: store });
   const input = couponSubmit(t, 'nope');
   assert.equal(byClass(t, 'coupon-status')[0].textContent, 'This coupon is not valid.');
   assert.equal(input.attrs['aria-invalid'], 'true');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 159,80');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 499,80');
   couponSubmit(t, ' dan10 ');
   assert.match(byClass(t, 'coupon-applied')[0].textContent, /DAN10 applied/);
-  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 159,80');
-  assert.equal(byClass(t, 'cart-discount')[0].textContent, 'Coupon DAN10: \u2212R$ 15,98');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 143,82');
+  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 499,80');
+  assert.equal(byClass(t, 'cart-discount')[0].textContent, 'Coupon DAN10: \u2212R$ 49,98');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 449,82');
   assert.equal(store['dan-coupon'], 'DAN10');
   t.go('#/checkout');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 143,82');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 449,82');
   t.go('#/cart');
   byClass(t, 'text-button').filter(function (b) { return b.textContent === 'Remove coupon'; })[0].listeners.click();
   assert.equal(byClass(t, 'cart-discount').length, 0);
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 159,80');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 499,80');
 });
 
 test('a coupon persists across reloads and checkout confirms the discounted total', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 2 }]), 'dan-coupon': 'DAN10' };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]), 'dan-coupon': 'DAN10' };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 158,72/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 464,72/);
   assert.equal(t.win.DanCart.coupon(), null, 'coupon is consumed by the order');
 });
 
 test('home hero names the shop and links to the catalog', function () {
   const t = boot('#/');
   assert.ok(t.has('hero'));
-  assert.equal(t.heading(), 'Dan Wear');
+  assert.equal(t.heading(), 'Dan Motors');
   const cta = byClass(t, 'action-button hero-cta')[0];
   assert.equal(cta.tagName, 'a');
   assert.equal(cta.href, '#/catalog');
@@ -739,7 +743,7 @@ test('every route sets its own title and description, mirrored in og tags', func
   const t = boot('#/');
   const first = t.win.DanProducts.all()[0];
   const routes = [
-    ['#/', /^Dan Wear/],
+    ['#/', /^Dan Motors/],
     ['#/about', /^About/],
     ['#/catalog', /^Catalog/],
     ['#/cart', /^Cart/],
@@ -761,7 +765,7 @@ test('every route sets its own title and description, mirrored in og tags', func
   assert.equal(titles.size, routes.length);
   assert.equal(descriptions.size, routes.length);
   t.go('#/about');
-  assert.equal(t.description(), 'About Dan Wear, a simulated online clothing store built as a small single-page app.');
+  assert.equal(t.description(), 'About Dan Motors, a simulated auto repair shop built as a small single-page app.');
   t.go('#/produto/' + encodeURIComponent(first.id));
   assert.equal(t.description(), first.name + ': ' + first.description);
 });
@@ -769,26 +773,26 @@ test('every route sets its own title and description, mirrored in og tags', func
 test('navigation does not throw when the page has no meta tags', function () {
   const t = boot('#/', { noMeta: true });
   t.go('#/about');
-  assert.equal(t.doc.title, 'About \u2013 Dan Wear');
+  assert.equal(t.doc.title, 'About \u2013 Dan Motors');
   assert.equal(t.description(), undefined);
 });
 
 test('checkout submit paths update title and meta', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   // Cart changes after render: the stale-summary path re-renders with fresh meta.
-  store['dan-cart'] = JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 2 }]);
+  store['dan-cart'] = JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]);
   t.win.DanCart.reload();
   t.doc.title = '';
   submitForm(t);
-  assert.equal(t.doc.title, 'Checkout \u2013 Dan Wear');
-  assert.match(t.description(), /simulated Dan Wear order/);
+  assert.equal(t.doc.title, 'Checkout \u2013 Dan Motors');
+  assert.match(t.description(), /simulated Dan Motors order/);
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.equal(t.doc.title, 'Order confirmed \u2013 Dan Wear');
-  assert.equal(t.description(), 'Your simulated Dan Wear order was received.');
-  assert.equal(t.ogTitle(), 'Order confirmed \u2013 Dan Wear');
+  assert.equal(t.doc.title, 'Order confirmed \u2013 Dan Motors');
+  assert.equal(t.description(), 'Your simulated Dan Motors order was received.');
+  assert.equal(t.ogTitle(), 'Order confirmed \u2013 Dan Motors');
 });
 
 test('index.html SEO tags are complete and match the home view', function () {
@@ -803,26 +807,26 @@ test('index.html SEO tags are complete and match the home view', function () {
 });
 
 test('cart shows a saved coupon that does not apply, and DAN50 is refused below its minimum', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]), 'dan-coupon': 'DAN50' };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]), 'dan-coupon': 'DAN50' };
   const t = boot('#/cart', { cartStorage: store });
   assert.match(byClass(t, 'coupon-applied')[0].textContent, /does not apply/);
   assert.equal(byClass(t, 'cart-discount').length, 0);
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 79,90');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 249,90');
   const fresh = boot('#/cart', { cartStorage: { 'dan-cart': store['dan-cart'] } });
   couponSubmit(fresh, 'DAN50');
   assert.match(byClass(fresh, 'coupon-status')[0].textContent, /requires a subtotal/);
 });
 
 test('checkout confirms the undiscounted total for a stale fixed coupon', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'basic-tee', size: 'M', qty: 1 }]), 'dan-coupon': 'DAN50' };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]), 'dan-coupon': 'DAN50' };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 94,80/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 264,80/);
 });
 
 test('a legacy size-less cart is discarded and shows the empty state', function () {
-  const t = boot('#/cart', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }, { id: 'basic-tee', qty: 1 }]) } });
+  const t = boot('#/cart', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }, { id: 'oil-change', qty: 1 }]) } });
   assert.ok(t.has('cart-empty'));
   assert.equal(t.cartBadge.textContent, '0');
 });
@@ -830,7 +834,7 @@ test('a legacy size-less cart is discarded and shows the empty state', function 
 test('shell: language, Portuguese nav labels and footer links', function () {
   assert.match(html, /<html lang="en">/);
   const nav = html.match(/<nav aria-label="Main"[^>]*>([\s\S]*?)<\/nav>/)[1];
-  ['Início', 'Coleção', 'Sobre', 'Sacola'].forEach(function (label) {
+  ['Início', 'Serviços', 'Sobre', 'Orçamento'].forEach(function (label) {
     assert.ok(nav.indexOf(label) !== -1, 'nav should list ' + label);
   });
   assert.match(html, /<nav aria-label="Main" lang="pt-BR">/);
@@ -846,4 +850,26 @@ test('the 404 page has friendly copy and a link home', function () {
   assert.match(t.heading(), /404/);
   assert.match(t.doc.title, /^404/);
   assert.equal(t.description(), 'The page you are looking for does not exist.');
+});
+
+test('bay times per porte are exact, covering rounding and zero-padding', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const times = function (id) {
+    return Array.from(ctx.window.DanProducts.find(id).measurements.rows.map(function (r) { return r.values[0]; }));
+  };
+  assert.deepEqual(times('wheel-alignment'), ['45 min', '55 min', '1h10']);
+  assert.deepEqual(times('brake-pads'), ['1h15', '1h35', '1h55']);
+  assert.deepEqual(times('tire-rotation'), ['30 min', '40 min', '45 min']);
+  assert.deepEqual(times('oil-change'), ['1h', '1h15', '1h30']);
+  assert.deepEqual(times('shock-absorbers'), ['3h30', '4h25', '5h15']);
+  assert.deepEqual(times('timing-belt'), ['4h', '5h', '6h']);
+});
+
+test('technical table caption falls back when the table has no unit', function () {
+  const product = { id: 'x', name: 'Xyz', description: 'd', priceCents: 100, sizes: ['A'],
+    measurements: { columns: ['C'], rows: [{ size: 'A', values: ['1'] }] } };
+  const t = boot('#/produto/x', { products: [product] });
+  const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
+  assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent, 'Technical specifications');
 });
