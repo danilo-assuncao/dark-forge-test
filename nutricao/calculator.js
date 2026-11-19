@@ -8,28 +8,35 @@
     ? require('./products.js')
     : root.DanNutriProducts;
 
-  var ACTIVITY = { sedentario: 1.2, leve: 1.375, moderado: 1.55, intenso: 1.725, muito_intenso: 1.9 };
+  var ACTIVITY = Object.freeze({ sedentario: 1.2, leve: 1.375, moderado: 1.55, intenso: 1.725, muito_intenso: 1.9 });
 
   // kcal factor applied to TDEE, protein g per kg of body weight
-  var GOAL_RULES = {
-    Hipertrofia: { kcalFactor: 1.15, proteinPerKg: 2.0 },
-    Emagrecimento: { kcalFactor: 0.8, proteinPerKg: 2.0 },
-    Saude: { kcalFactor: 1.0, proteinPerKg: 1.4 }
-  };
+  var GOAL_RULES = Object.freeze({
+    Hipertrofia: Object.freeze({ kcalFactor: 1.15, proteinPerKg: 2.0 }),
+    Emagrecimento: Object.freeze({ kcalFactor: 0.8, proteinPerKg: 2.0 }),
+    Saude: Object.freeze({ kcalFactor: 1.0, proteinPerKg: 1.4 })
+  });
+
+  // Plausible human limits; anything outside is rejected as invalid input.
+  var LIMITS = { weightKg: 500, heightCm: 300, age: 120 };
 
   function positive(value, name) {
-    if (typeof value !== 'number' || !isFinite(value) || value <= 0) {
-      throw new RangeError(name + ' must be a positive number');
+    if (typeof value !== 'number' || !isFinite(value) || value <= 0 || value > LIMITS[name]) {
+      throw new RangeError(name + ' must be a number between 0 (exclusive) and ' + LIMITS[name]);
     }
     return value;
   }
 
   function round1(n) { return Math.round(n * 10) / 10; }
 
-  function bmi(weightKg, heightCm) {
+  function rawBmi(weightKg, heightCm) {
     positive(weightKg, 'weightKg');
     var m = positive(heightCm, 'heightCm') / 100;
-    return round1(weightKg / (m * m));
+    return weightKg / (m * m);
+  }
+
+  function bmi(weightKg, heightCm) {
+    return round1(rawBmi(weightKg, heightCm));
   }
 
   function bmiCategory(value) {
@@ -49,11 +56,15 @@
       throw new RangeError("sex must be 'M' or 'F'");
     }
     var base = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age;
-    return Math.round(base + (p.sex === 'M' ? 5 : -161));
+    var result = Math.round(base + (p.sex === 'M' ? 5 : -161));
+    if (result <= 0) {
+      throw new RangeError('profile yields a non-positive BMR');
+    }
+    return result;
   }
 
   function tdee(profile) {
-    var level = (profile && profile.activity) || 'sedentario';
+    var level = profile && profile.activity !== undefined ? profile.activity : 'sedentario';
     if (!Object.prototype.hasOwnProperty.call(ACTIVITY, level)) {
       throw new RangeError('unknown activity level: ' + level);
     }
@@ -69,8 +80,8 @@
     return { goal: goal, kcal: kcal, proteinG: Math.round(profile.weightKg * rule.proteinPerKg) };
   }
 
-  // Catalog items tagged with the goal; optional category filter and
-  // optional exclusion of plans via opts.category.
+  // Catalog items tagged with the goal; optional category filter via
+  // opts.category.
   function suggestProducts(goal, opts) {
     if (!Object.prototype.hasOwnProperty.call(GOAL_RULES, goal)) {
       throw new RangeError('unknown goal: ' + goal);
@@ -82,13 +93,14 @@
   }
 
   function calculate(profile, goal) {
-    var value = bmi(profile.weightKg, profile.heightCm);
+    var p = profile || {};
+    var raw = rawBmi(p.weightKg, p.heightCm);
     return {
-      bmi: value,
-      bmiCategory: bmiCategory(value),
-      bmr: bmr(profile),
-      tdee: tdee(profile),
-      targets: dailyTargets(profile, goal),
+      bmi: round1(raw),
+      bmiCategory: bmiCategory(raw),
+      bmr: bmr(p),
+      tdee: tdee(p),
+      targets: dailyTargets(p, goal),
       suggestions: suggestProducts(goal)
     };
   }

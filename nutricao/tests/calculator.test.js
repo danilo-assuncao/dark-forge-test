@@ -16,6 +16,19 @@ test('computes BMI and category', () => {
   assert.equal(calc.bmiCategory(31), 'Obesidade');
 });
 
+test('bmiCategory boundaries', () => {
+  const cases = [[18.4, 'Abaixo do peso'], [18.5, 'Peso normal'], [24.9, 'Peso normal'],
+    [25, 'Sobrepeso'], [29.9, 'Sobrepeso'], [30, 'Obesidade']];
+  for (const [v, c] of cases) { assert.equal(calc.bmiCategory(v), c, String(v)); }
+});
+
+test('calculate classifies from the unrounded BMI', () => {
+  // 24.98 BMI: rounds to 25 but is still below the threshold
+  const r = calc.calculate({ sex: 'M', weightKg: 80.9, heightCm: 180, age: 30 }, 'Saude');
+  assert.equal(r.bmi, 25);
+  assert.equal(r.bmiCategory, 'Peso normal');
+});
+
 test('computes BMR with Mifflin-St Jeor', () => {
   assert.equal(calc.bmr(man), 1780);
   assert.equal(calc.bmr(woman), 1345);
@@ -23,11 +36,17 @@ test('computes BMR with Mifflin-St Jeor', () => {
   assert.equal(calc.tdee(woman), Math.round(1345 * 1.2));
 });
 
+test('tdee defaults to sedentario when activity is omitted', () => {
+  assert.equal(calc.tdee({ ...man, activity: undefined }), Math.round(1780 * 1.2));
+  assert.throws(() => calc.tdee({ ...man, activity: '' }), RangeError);
+  assert.throws(() => calc.tdee({ ...man, activity: null }), RangeError);
+});
+
 test('daily targets per goal', () => {
-  const tdee = calc.tdee(man);
-  assert.deepEqual(calc.dailyTargets(man, 'Hipertrofia'), { goal: 'Hipertrofia', kcal: Math.round(tdee * 1.15), proteinG: 160 });
-  assert.deepEqual(calc.dailyTargets(man, 'Emagrecimento'), { goal: 'Emagrecimento', kcal: Math.round(tdee * 0.8), proteinG: 160 });
-  assert.deepEqual(calc.dailyTargets(man, 'Saude'), { goal: 'Saude', kcal: tdee, proteinG: 112 });
+  assert.equal(calc.tdee(man), 2759);
+  assert.deepEqual(calc.dailyTargets(man, 'Hipertrofia'), { goal: 'Hipertrofia', kcal: 3173, proteinG: 160 });
+  assert.deepEqual(calc.dailyTargets(man, 'Emagrecimento'), { goal: 'Emagrecimento', kcal: 2207, proteinG: 160 });
+  assert.deepEqual(calc.dailyTargets(man, 'Saude'), { goal: 'Saude', kcal: 2759, proteinG: 112 });
 });
 
 test('suggests compatible catalog items', () => {
@@ -37,15 +56,40 @@ test('suggests compatible catalog items', () => {
     assert.ok(items.every((p) => p.goals.includes(goal)));
   }
   const prot = calc.suggestProducts('Hipertrofia', { category: 'Proteinas' });
-  assert.deepEqual(prot.map((p) => p.id), ['whey-concentrado', 'whey-isolado']);
+  assert.ok(prot.length > 0);
+  assert.ok(prot.every((p) => p.category === 'Proteinas' && p.goals.includes('Hipertrofia')));
+  assert.deepEqual(calc.suggestProducts('Saude', { category: 'Inexistente' }), []);
+  assert.deepEqual(calc.suggestProducts('Emagrecimento', { category: 'Vitaminas & Longevidade' }).map((p) => p.id), ['omega-3']);
 });
 
 test('rejects invalid input', () => {
-  assert.throws(() => calc.bmi(0, 180), RangeError);
+  const bad = [0, -1, NaN, Infinity, '80', null, undefined];
+  for (const v of bad) {
+    assert.throws(() => calc.bmi(v, 180), RangeError, 'weight ' + String(v));
+    assert.throws(() => calc.bmi(80, v), RangeError, 'height ' + String(v));
+    assert.throws(() => calc.bmr({ ...man, weightKg: v }), RangeError);
+    assert.throws(() => calc.bmr({ ...man, heightCm: v }), RangeError);
+    assert.throws(() => calc.bmr({ ...man, age: v }), RangeError);
+  }
+  assert.throws(() => calc.bmr({ ...man, age: 121 }), RangeError);
+  assert.throws(() => calc.bmr({ ...man, weightKg: 501 }), RangeError);
+  assert.throws(() => calc.bmr({ ...man, heightCm: 301 }), RangeError);
+  assert.throws(() => calc.bmr({ sex: 'F', weightKg: 1, heightCm: 1, age: 120 }), RangeError);
+  for (const p of [undefined, null, {}]) {
+    assert.throws(() => calc.bmr(p), RangeError);
+    assert.throws(() => calc.tdee(p), RangeError);
+    assert.throws(() => calc.dailyTargets(p, 'Saude'), RangeError);
+    assert.throws(() => calc.calculate(p, 'Saude'), RangeError);
+  }
   assert.throws(() => calc.bmr({ ...man, sex: 'X' }), RangeError);
   assert.throws(() => calc.tdee({ ...man, activity: 'x' }), RangeError);
   assert.throws(() => calc.dailyTargets(man, 'Nope'), RangeError);
+  assert.throws(() => calc.calculate(man, 'Nope'), RangeError);
   assert.throws(() => calc.suggestProducts('Nope'), RangeError);
+});
+
+test('activity levels table is frozen', () => {
+  assert.ok(Object.isFrozen(calc.activityLevels));
 });
 
 test('calculate aggregates everything', () => {
