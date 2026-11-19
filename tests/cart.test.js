@@ -124,7 +124,7 @@ test('works without storage and listeners fire on change', function () {
 });
 
 test('index.html has a header cart link with a counter and loads cart.js before script.js', function () {
-  assert.match(html, /href="#\/cart"[^>]*>Orçamento \(<span id="cart-count">0<\/span>\)/);
+  assert.match(html, /href="#\/cart"[^>]*>Sacola \(<span id="cart-count">0<\/span>\)/);
   assert.ok(html.indexOf('cart.js') > html.indexOf('products.js'));
   assert.ok(html.indexOf('cart.js') < html.indexOf('script.js'));
 });

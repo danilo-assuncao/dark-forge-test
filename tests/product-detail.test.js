@@ -78,12 +78,12 @@ test('size buttons are real buttons with aria-pressed; selection is exclusive', 
   const t = boot('#/produto/file-parmegiana');
   buttons(t).forEach(function (b) { assert.equal(b.tagName, 'button'); assert.equal(b.type, 'button'); });
   assert.deepEqual(pressed(t), []);
-  assert.equal(text(t, 'size-selected'), 'No vehicle size selected');
+  assert.equal(text(t, 'size-selected'), 'Nenhuma porção selecionada');
   buttons(t)[0].listeners.click();
   assert.deepEqual(pressed(t), ['Individual']);
   buttons(t)[1].listeners.click();
   assert.deepEqual(pressed(t), ['Duplo']);
-  assert.equal(text(t, 'size-selected'), 'Selected vehicle size: Duplo');
+  assert.equal(text(t, 'size-selected'), 'Porção selecionada: Duplo');
 });
 
 test('selecting a size highlights its row in the size guide', function () {
@@ -102,7 +102,7 @@ test('add without a size shows an error, flags the picker and focuses it; nothin
   const t = boot('#/produto/file-parmegiana');
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   const status = byClass(t.app, 'cart-status')[0];
-  assert.equal(status.textContent, 'Select a vehicle size first.');
+  assert.equal(status.textContent, 'Escolha uma porção primeiro.');
   assert.match(status.className, /is-error/);
   assert.match(byClass(t.app, 'size-picker')[0].className, /needs-size/);
   assert.equal(buttons(t)[0].focusCount, 1);
@@ -123,7 +123,7 @@ test('max quantity shows an error status', function () {
   assert.match(byClass(t.app, 'cart-status')[0].className, /is-success/);
   add.listeners.click();
   const status = byClass(t.app, 'cart-status')[0];
-  assert.equal(status.textContent, 'Maximum quantity reached.');
+  assert.equal(status.textContent, 'Quantidade máxima atingida.');
   assert.match(status.className, /is-error/);
 });
 
@@ -132,7 +132,7 @@ test('add with a size confirms with a success state and stores the size', functi
   buttons(t)[1].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   const status = byClass(t.app, 'cart-status')[0];
-  assert.equal(status.textContent, 'Added Duplo to cart.');
+  assert.equal(status.textContent, 'Adicionado: Duplo na sacola.');
   assert.match(status.className, /is-success/);
   assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'frango-grelhado', size: 'Duplo', qty: 1, note: '' }]);
 });
@@ -148,25 +148,35 @@ test('detail shows the technical checklist and bay time for every service', func
   ['file-parmegiana', 'frango-grelhado', 'risoto-cogumelos'].forEach(function (id) {
     const t = boot('#/produto/' + id);
     assert.ok(byClass(t.app, 'checklist-item').length >= 3, id);
-    assert.match(text(t, 'bay-time'), /^Estimated bay time \(Hatch\/Sedan\): \d/);
+    assert.match(text(t, 'bay-time'), /^Tempo de preparo estimado: \d/);
   });
   const oil = boot('#/produto/file-parmegiana');
   assert.equal(byClass(oil.app, 'checklist-item')[0].textContent, 'File de carne');
-  assert.equal(text(oil, 'bay-time'), 'Estimated bay time (Hatch/Sedan): 30 min');
+  assert.equal(text(oil, 'bay-time'), 'Tempo de preparo estimado: 30 min');
 });
 
 test('a single-size service is preselected and adds without choosing', function () {
   const src = "window.DanProducts = { all: function () { return [P]; }, categories: function () { return ['X']; }, find: function () { return P; } };" +
-    "var P = { id: 'one', name: 'One', category: 'X', priceCents: 1000, description: 'd', boxTime: '30 min', checklist: ['a'], sizes: ['Porte unico'], specs: [] };";
+    "var P = { id: 'one', name: 'One', category: 'X', priceCents: 1000, description: 'd', boxTime: '30 min', checklist: ['a'], sizes: ['Porcao unica'], specs: [] };";
   const t = boot('#/produto/one', src);
-  assert.deepEqual(pressed(t), ['Porte unico']);
-  assert.equal(text(t, 'size-selected'), 'Selected vehicle size: Porte unico');
+  assert.deepEqual(pressed(t), ['Porcao unica']);
+  assert.equal(text(t, 'size-selected'), 'Porção selecionada: Porcao unica');
   byClass(t.app, 'add-to-cart')[0].listeners.click();
-  assert.equal(text(t, 'cart-status'), 'Added Porte unico to cart.');
+  assert.equal(text(t, 'cart-status'), 'Adicionado: Porcao unica na sacola.');
 });
 
 test('multi-size services still require a porte before adding', function () {
   const t = boot('#/produto/file-parmegiana');
   byClass(t.app, 'add-to-cart')[0].listeners.click();
-  assert.equal(text(t, 'cart-status'), 'Select a vehicle size first.');
+  assert.equal(text(t, 'cart-status'), 'Escolha uma porção primeiro.');
+});
+
+test('the dish note is stored as plain text with the line and cleaned', function () {
+  const t = boot('#/produto/file-parmegiana');
+  buttons(t).filter(function (b) { return b.textContent === 'Duplo'; })[0].listeners.click();
+  const input = byClass(t.app, 'dish-note')[0];
+  assert.equal(input.maxLength, 140);
+  input.value = '  sem   cebola <b>x</b>  ';
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'file-parmegiana', size: 'Duplo', qty: 1, note: 'sem cebola <b>x</b>' }]);
 });
