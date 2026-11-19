@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Viagens - Destinos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Viagens</h1>
+    <p>Praias, serra, mundo afora e natureza: pacotes de 3, 7 ou 12 dias.</p>
+  </header>
+  <main>
+    <form class="filters" aria-label="Filtros" onsubmit="return false">
+      <label>Categoria
+        <select id="filter-category"><option value="">Todas</option></select>
+      </label>
+      <label>Duracao
+        <select id="filter-duration"><option value="">Todas</option></select>
+      </label>
+    </form>
+    <div id="catalog" aria-live="polite"><noscript>Ative o JavaScript para ver os destinos.</noscript></div>
+  </main>
+  <footer class="foot">Precos por pessoa, simulados, apenas para demonstracao.</footer>
+  <script src="destinations.js"></script>
+</body>
+</html>
