@@ -43,8 +43,8 @@
 
   function normalizeQty(qty) {
     var n = Math.floor(Number(qty));
-    if (!isFinite(n) || n < 1) { return 0; }
-    return n > MAX_QTY ? MAX_QTY : n;
+    if (isNaN(n) || n < 1) { return 0; }
+    return n > MAX_QTY ? MAX_QTY : n; // +Infinity clamps to MAX_QTY like any huge value
   }
 
   function create(opts) {
@@ -90,6 +90,7 @@
       if (!loaded && getCatalog()) {
         load();
         loaded = true;
+        notify(); // subscribers registered before the catalog arrived see the saved cart
       }
       return loaded;
     }
@@ -132,7 +133,7 @@
         if (!ensure()) { return false; }
         var i = indexOf(id, presentation);
         var n = Number(qty);
-        if (i === -1 || qty === null || qty === '' || isNaN(n)) { return false; }
+        if (i === -1 || qty === null || typeof qty === 'boolean' || String(qty).trim() === '' || isNaN(n)) { return false; }
         var q = normalizeQty(n);
         if (q) { items[i].qty = q; } else { items.splice(i, 1); }
         persist();
@@ -147,10 +148,11 @@
         return true;
       },
       clear: function () {
-        ensure();
+        if (!ensure()) { return false; } // never overwrite a saved cart that was not loaded
         items = [];
         couponCode = null;
         persist();
+        return true;
       },
       items: function () {
         ensure();
@@ -167,9 +169,10 @@
         return true;
       },
       removeCoupon: function () {
-        ensure();
+        if (!ensure()) { return false; }
         couponCode = null;
         persist();
+        return true;
       },
       totals: function () {
         ensure();
@@ -214,7 +217,7 @@
       },
       reload: function () {
         loaded = false;
-        if (ensure()) { notify(); }
+        ensure(); // notifies subscribers when the cart is (re)loaded
       }
     };
 
