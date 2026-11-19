@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Dan Nutri</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#app">Pular para o conteudo</a>
+  <header class="top">
+    <a class="brand" href="#/">Dan Nutri</a>
+    <nav aria-label="Principal">
+      <a href="#/" data-route="home">Inicio</a>
+      <a href="#/catalogo" data-route="catalogo">Catalogo</a>
+      <a href="#/calculadora" data-route="calculadora">Calculadora</a>
+      <a href="#/checkout" data-route="checkout">Cesta <span id="cart-count" class="badge" aria-live="polite">0</span></a>
+    </nav>
+  </header>
+  <main id="app" tabindex="-1"><noscript>Ative o JavaScript para usar a loja.</noscript></main>
+  <footer class="foot">Precos e frete simulados, apenas para demonstracao.</footer>
+  <script src="products.js"></script>
+  <script src="calculator.js"></script>
+  <script src="cart.js"></script>
+  <script src="shipping.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
