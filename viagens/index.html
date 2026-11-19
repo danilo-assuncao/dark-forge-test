@@ -13,7 +13,10 @@
     <p>Praias, serra, mundo afora e natureza: pacotes de 3, 7 ou 12 dias.</p>
   </header>
   <main>
-    <form class="filters" aria-label="Filtros" onsubmit="return false">
+    <form class="filters" id="filters" aria-label="Filtros" onsubmit="return false">
+      <label>Buscar
+        <input id="filter-search" type="search" placeholder="Destino, clima ou item incluso">
+      </label>
       <label>Categoria
         <select id="filter-category"><option value="">Todas</option></select>
       </label>
@@ -25,5 +28,6 @@
   </main>
   <footer class="foot">Precos por pessoa, simulados, apenas para demonstracao.</footer>
   <script src="destinations.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
