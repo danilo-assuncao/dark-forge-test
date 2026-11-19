@@ -12,6 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const js = fs.readFileSync(path.join(ROOT, 'script.js'), 'utf8');
 const productsJs = fs.readFileSync(path.join(ROOT, 'products.js'), 'utf8');
+const cartJs = fs.readFileSync(path.join(ROOT, 'cart.js'), 'utf8');
 
 function makeNode(tag) {
   const node = {
@@ -46,13 +47,20 @@ function boot(hash, opts) {
     a.href = href;
     return a;
   });
+  const cartBadge = makeNode('span');
   const win = { location: { hash: hash }, listeners: {} };
+  if (opts.cartStorage) {
+    win.localStorage = {
+      getItem(k) { return k in opts.cartStorage ? opts.cartStorage[k] : null; },
+      setItem(k, v) { opts.cartStorage[k] = String(v); },
+    };
+  }
   win.addEventListener = function (type, fn) { win.listeners[type] = fn; };
   const doc = {
     readyState: 'complete', title: '',
     createElement: makeNode,
     createDocumentFragment() { return makeNode('#fragment'); },
-    getElementById(id) { return id === 'app' ? app : null; },
+    getElementById(id) { return id === 'app' ? app : (id === 'cart-count' ? cartBadge : null); },
     querySelector(sel) { return sel === '.skip-link' ? skip : null; },
     querySelectorAll(sel) { return sel === '.nav-link' ? navLinks : []; },
     addEventListener() {},
@@ -66,10 +74,11 @@ function boot(hash, opts) {
     };
   } else if (!opts.noProducts) {
     vm.runInContext(productsJs, ctx);
+    vm.runInContext(cartJs, ctx);
   }
   vm.runInContext(js, ctx);
   return {
-    app, skip, navLinks, doc, win,
+    app, skip, navLinks, doc, win, cartBadge,
     go(h) { win.location.hash = h; win.listeners.hashchange(); },
     heading() {
       let found = null;
@@ -294,4 +303,24 @@ test('missing or empty nutrition shows a fallback, keeping heading and cart butt
     assert.equal(btn.length, 1);
     assert.equal(btn[0].textContent, 'Add to cart');
   });
+});
+
+test('cart view lists items with total, and the product button adds to the cart', function () {
+  const store = {};
+  const t = boot('#/produto/creatine', { cartStorage: store });
+  const add = collect(t.app, function (n) { return n.className === 'action-button add-to-cart'; })[0];
+  add.listeners.click();
+  add.listeners.click();
+  t.go('#/cart');
+  assert.equal(t.heading(), 'Cart');
+  const total = collect(t.app, function (n) { return n.className === 'cart-total'; })[0];
+  assert.equal(total.textContent, 'Total: R$ 179,80');
+  const plus = collect(t.app, function (n) { return n.className === 'qty-button'; })[1];
+  plus.listeners.click();
+  const total2 = collect(t.app, function (n) { return n.className === 'cart-total'; })[0];
+  assert.equal(total2.textContent, 'Total: R$ 269,70');
+  assert.equal(t.cartBadge.textContent, '3');
+  collect(t.app, function (n) { return n.className === 'text-button'; })[0].listeners.click();
+  assert.ok(t.has('cart-empty'));
+  assert.equal(t.cartBadge.textContent, '0');
 });

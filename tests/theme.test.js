@@ -309,7 +309,7 @@ test('no dark-mode styles, system detection or saved preference remain', functio
   const forbidden = [
     [/data-theme/i, 'data-theme attribute'],
     [/prefers-color-scheme/i, 'prefers-color-scheme detection'],
-    [/localStorage/, 'localStorage persistence'],
+    [/localStorage/, 'localStorage persistence (only cart.js may persist the cart)'],
     [/matchMedia/, 'matchMedia lookups'],
     [/theme-toggle/i, 'theme switch'],
     [/color-scheme:[^;]*\bdark\b/i, 'dark colour scheme'],
@@ -317,6 +317,9 @@ test('no dark-mode styles, system detection or saved preference remain', functio
   ];
   siteFiles().forEach(function (file) {
     forbidden.forEach(function (rule) {
+      if (file.name === 'cart.js' && /localStorage/.test(rule[0].source)) {
+        return;
+      }
       assert.doesNotMatch(file.text, rule[0], file.name + ' still contains ' + rule[1]);
     });
   });
