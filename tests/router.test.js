@@ -12,6 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const js = fs.readFileSync(path.join(ROOT, 'script.js'), 'utf8');
 const productsJs = fs.readFileSync(path.join(ROOT, 'products.js'), 'utf8');
+const cartJs = fs.readFileSync(path.join(ROOT, 'cart.js'), 'utf8');
 
 function makeNode(tag) {
   const node = {
@@ -46,13 +47,20 @@ function boot(hash, opts) {
     a.href = href;
     return a;
   });
+  const cartBadge = makeNode('span');
   const win = { location: { hash: hash }, listeners: {} };
+  if (opts.cartStorage) {
+    win.localStorage = {
+      getItem(k) { return k in opts.cartStorage ? opts.cartStorage[k] : null; },
+      setItem(k, v) { opts.cartStorage[k] = String(v); },
+    };
+  }
   win.addEventListener = function (type, fn) { win.listeners[type] = fn; };
   const doc = {
     readyState: 'complete', title: '',
     createElement: makeNode,
     createDocumentFragment() { return makeNode('#fragment'); },
-    getElementById(id) { return id === 'app' ? app : null; },
+    getElementById(id) { return id === 'app' ? app : (id === 'cart-count' ? cartBadge : null); },
     querySelector(sel) { return sel === '.skip-link' ? skip : null; },
     querySelectorAll(sel) { return sel === '.nav-link' ? navLinks : []; },
     addEventListener() {},
@@ -66,10 +74,13 @@ function boot(hash, opts) {
     };
   } else if (!opts.noProducts) {
     vm.runInContext(productsJs, ctx);
+    if (!opts.noCart) {
+      vm.runInContext(cartJs, ctx);
+    }
   }
   vm.runInContext(js, ctx);
   return {
-    app, skip, navLinks, doc, win,
+    app, skip, navLinks, doc, win, cartBadge,
     go(h) { win.location.hash = h; win.listeners.hashchange(); },
     heading() {
       let found = null;
@@ -294,4 +305,75 @@ test('missing or empty nutrition shows a fallback, keeping heading and cart butt
     assert.equal(btn.length, 1);
     assert.equal(btn[0].textContent, 'Add to cart');
   });
+});
+
+test('cart view lists items with total, and the product button adds to the cart', function () {
+  const store = {};
+  const t = boot('#/produto/creatine', { cartStorage: store });
+  const add = collect(t.app, function (n) { return n.className === 'action-button add-to-cart'; })[0];
+  add.listeners.click();
+  add.listeners.click();
+  t.go('#/cart');
+  assert.equal(t.heading(), 'Cart');
+  const total = collect(t.app, function (n) { return n.className === 'cart-total'; })[0];
+  assert.equal(total.textContent, 'Total: R$ 179,80');
+  const plus = collect(t.app, function (n) { return n.className === 'qty-button'; })[1];
+  plus.listeners.click();
+  const total2 = collect(t.app, function (n) { return n.className === 'cart-total'; })[0];
+  assert.equal(total2.textContent, 'Total: R$ 269,70');
+  assert.equal(t.cartBadge.textContent, '3');
+  collect(t.app, function (n) { return n.className === 'text-button'; })[0].listeners.click();
+  assert.ok(t.has('cart-empty'));
+  assert.equal(t.cartBadge.textContent, '0');
+});
+
+function byClass(t, cls) {
+  return collect(t.app, function (n) { return n.className === cls; });
+}
+
+test('minus decrements and removes the line at quantity 1; focus returns to main', function () {
+  const t = boot('#/produto/creatine', { cartStorage: {} });
+  byClass(t, 'action-button add-to-cart')[0].listeners.click();
+  byClass(t, 'action-button add-to-cart')[0].listeners.click();
+  t.go('#/cart');
+  const before = t.app.focusCount;
+  byClass(t, 'qty-button')[0].listeners.click();
+  assert.equal(t.cartBadge.textContent, '1');
+  assert.equal(t.app.focusCount, before + 1);
+  byClass(t, 'qty-button')[0].listeners.click();
+  assert.ok(t.has('cart-empty'));
+  assert.equal(t.cartBadge.textContent, '0');
+});
+
+test('Clear cart empties the view and resets the badge', function () {
+  const t = boot('#/produto/creatine', { cartStorage: {} });
+  byClass(t, 'action-button add-to-cart')[0].listeners.click();
+  t.go('#/cart');
+  const buttons = byClass(t, 'text-button');
+  const clear = buttons.filter(function (b) { return b.textContent === 'Clear cart'; })[0];
+  clear.listeners.click();
+  assert.ok(t.has('cart-empty'));
+  assert.equal(t.cartBadge.textContent, '0');
+  const link = collect(t.app, function (n) { return n.className === 'text-link'; })[0];
+  assert.equal(link.href, '#/catalog');
+});
+
+test('plus is disabled at max quantity and the product page reports status', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 99 }]) };
+  const t = boot('#/cart', { cartStorage: store });
+  assert.equal(byClass(t, 'qty-button')[1].attrs.disabled, 'disabled');
+  t.go('#/produto/creatine');
+  const add = byClass(t, 'action-button add-to-cart')[0];
+  add.listeners.click();
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Maximum quantity reached.');
+  t.go('#/produto/magnesium');
+  byClass(t, 'action-button add-to-cart')[0].listeners.click();
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added to cart.');
+});
+
+test('script.js degrades gracefully without cart.js', function () {
+  const t = boot('#/produto/creatine', { noCart: true });
+  byClass(t, 'action-button add-to-cart')[0].listeners.click();
+  t.go('#/cart');
+  assert.ok(t.has('cart-empty'));
 });

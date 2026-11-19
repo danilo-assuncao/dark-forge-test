@@ -172,17 +172,112 @@
     container.appendChild(nutritionTable(product));
     var add = el('button', 'action-button add-to-cart', 'Add to cart');
     add.type = 'button';
+    var status = el('p', 'cart-status');
+    status.setAttribute('role', 'status');
+    add.addEventListener('click', function () {
+      if (!window.DanCart) {
+        return;
+      }
+      // Clear first so repeated messages are announced again.
+      status.textContent = '';
+      if (window.DanCart.add(product.id, 1)) {
+        status.textContent = 'Added to cart.';
+      } else {
+        status.textContent = 'Maximum quantity reached.';
+      }
+    });
     container.appendChild(add);
+    container.appendChild(status);
     var back = el('a', 'text-link', 'Back to catalog');
     back.href = '#/catalog';
     container.appendChild(back);
     return { title: product.name + ' \u2013 Dan', node: container };
   }
 
+  // ----- Cart -----
+
+  function qtyButton(label, ariaLabel, onClick) {
+    var button = el('button', 'qty-button', label);
+    button.type = 'button';
+    button.setAttribute('aria-label', ariaLabel);
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function cartLine(line) {
+    var cart = window.DanCart;
+    var item = el('li', 'cart-item');
+    var name = el('a', 'cart-name', line.product.name);
+    name.href = '#/produto/' + encodeURIComponent(line.id);
+    item.appendChild(name);
+    item.appendChild(el('span', 'cart-unit', formatPrice(line.product.priceCents)));
+
+    var qty = el('span', 'cart-qty');
+    qty.appendChild(qtyButton('\u2212', 'Decrease quantity of ' + line.product.name, function () {
+      cart.setQty(line.id, line.qty - 1);
+    }));
+    var value = el('span', 'cart-qty-value', String(line.qty));
+    value.setAttribute('aria-label', 'Quantity: ' + line.qty);
+    qty.appendChild(value);
+    var plus = qtyButton('+', 'Increase quantity of ' + line.product.name, function () {
+      cart.setQty(line.id, line.qty + 1);
+    });
+    if (line.qty >= cart.MAX_QTY) {
+      plus.setAttribute('disabled', 'disabled');
+    }
+    qty.appendChild(plus);
+    item.appendChild(qty);
+
+    item.appendChild(el('span', 'cart-subtotal', formatPrice(line.subtotalCents)));
+    var remove = el('button', 'text-button', 'Remove');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', 'Remove ' + line.product.name + ' from cart');
+    remove.addEventListener('click', function () {
+      cart.remove(line.id);
+    });
+    item.appendChild(remove);
+    return item;
+  }
+
+  function cartView() {
+    var container = el('div', 'container');
+    container.appendChild(el('h1', 'page-title', 'Cart'));
+    var cart = window.DanCart;
+    var lines = cart ? cart.lines() : [];
+    if (!lines.length) {
+      container.appendChild(el('p', 'cart-empty', 'Your cart is empty.'));
+      var shop = el('a', 'text-link', 'Browse the catalog');
+      shop.href = '#/catalog';
+      container.appendChild(shop);
+      return { title: 'Cart \u2013 Dan', node: container };
+    }
+    var list = el('ul', 'cart-list');
+    for (var i = 0; i < lines.length; i++) {
+      list.appendChild(cartLine(lines[i]));
+    }
+    container.appendChild(list);
+    container.appendChild(el('p', 'cart-total', 'Total: ' + formatPrice(cart.totalCents())));
+    var clear = el('button', 'text-button', 'Clear cart');
+    clear.type = 'button';
+    clear.addEventListener('click', function () {
+      cart.clear();
+    });
+    container.appendChild(clear);
+    return { title: 'Cart \u2013 Dan', node: container };
+  }
+
+  function updateCartCount() {
+    var badge = document.getElementById('cart-count');
+    if (badge && window.DanCart) {
+      badge.textContent = String(window.DanCart.count());
+    }
+  }
+
   var ROUTES = {
     '/': homeView,
     '/about': aboutView,
-    '/catalog': catalogView
+    '/catalog': catalogView,
+    '/cart': cartView
   };
 
   var PRODUCT_ROUTE = /^\/produto\/([^/]+)$/;
@@ -257,6 +352,21 @@
       app.focus();
     }
     hasRendered = true;
+    updateCartCount();
+  }
+
+  // Cart changes re-render the cart view in place (keeping focus on main) and
+  // refresh the header counter everywhere else.
+  function onCartChange() {
+    updateCartCount();
+    if (currentPath() === '/cart') {
+      var app = document.getElementById('app');
+      var view = cartView();
+      app.textContent = '';
+      app.appendChild(view.node);
+      // The activated control was detached; keep keyboard users in the page.
+      app.focus();
+    }
   }
 
   // The skip link must not touch location.hash (that would route to a 404).
@@ -275,6 +385,9 @@
   function start() {
     bindSkipLink();
     window.addEventListener('hashchange', render);
+    if (window.DanCart) {
+      window.DanCart.onChange(onCartChange);
+    }
     render();
   }
 
