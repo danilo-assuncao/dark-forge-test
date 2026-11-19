@@ -1,7 +1,8 @@
 /* Imóveis visit scheduler: books in-person (presencial) or video visits for a
    listing in a date + shift (turno) slot with a broker (corretor), validates
    the prospect's contact data and issues a sequential IMOB-XXXX protocol.
-   Each broker holds at most one visit per date+shift. Dates are YYYY-MM-DD
+   Values are stored as given (length-capped); consumers must escape them on
+   output (use textContent, never innerHTML). Each broker holds at most one visit per date+shift. Dates are YYYY-MM-DD
    (calendar days, no timezone math). Exposed as window.ImoveisVisits in the
    browser and via module.exports in Node. */
 (function (root) {
@@ -13,8 +14,8 @@
   ];
 
   var SHIFTS = [
-    { id: 'manha', name: 'Manhã', hours: '09:00–12:00' },
-    { id: 'tarde', name: 'Tarde', hours: '13:00–18:00' },
+    { id: 'manha', name: 'Manhã', hours: '09:00–12:00', end: 12 },
+    { id: 'tarde', name: 'Tarde', hours: '13:00–18:00', end: 18 },
   ];
 
   // days: weekday numbers (0 = Sunday); modes: visit modes the broker serves.
@@ -25,6 +26,8 @@
   ];
 
   var MAX_DAYS_AHEAD = 60;
+  var MAX_NAME = 100, MAX_EMAIL = 254, MAX_LISTING_ID = 64;
+  var LISTING_ID_RE = /^[\w-]+$/;
   var PROTOCOL_RE = /^IMOB-\d{4,}$/;
 
   function byId(list, id) {
@@ -78,9 +81,9 @@
     var errors = {};
     c = c || {};
     var name = typeof c.name === 'string' ? c.name.trim().replace(/\s+/g, ' ') : '';
-    if (name.length < 3 || name.split(' ').length < 2) errors.name = 'Informe nome e sobrenome.';
+    if (name.length < 3 || name.length > MAX_NAME || name.split(' ').length < 2) errors.name = 'Informe nome e sobrenome.';
     var email = typeof c.email === 'string' ? c.email.trim() : '';
-    if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email)) errors.email = 'E-mail inválido.';
+    if (email.length > MAX_EMAIL || !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email)) errors.email = 'E-mail inválido.';
     var phone = normalizePhone(c.phone);
     if (!phone) errors.phone = 'Telefone inválido (use DDD + número).';
     var ok = Object.keys(errors).length === 0;
@@ -94,6 +97,27 @@
     if (dt < t) return 'A data não pode estar no passado.';
     if ((dt - t) / 86400000 > MAX_DAYS_AHEAD) return 'Agendamento permitido em até ' + MAX_DAYS_AHEAD + ' dias.';
     return null;
+  }
+
+  // True when the shift on `date` has already ended at the clock time `now`.
+  function shiftEnded(date, shiftId, now) {
+    var sh = byId(SHIFTS, shiftId);
+    if (!sh || date !== toISODate(now)) return false;
+    return now.getHours() + now.getMinutes() / 60 >= sh.end;
+  }
+
+  function copyBooking(b) {
+    return Object.assign({}, b, { contact: Object.assign({}, b.contact) });
+  }
+
+  function sameEmail(b, email) {
+    return typeof email === 'string' && email.trim().toLowerCase() === b.contact.email;
+  }
+
+  // Least flexible brokers first, so versatile ones stay free for later requests.
+  function byFlexibility(a, b) {
+    return (a.modes.length - b.modes.length) ||
+      (a.days.length * a.shifts.length - b.days.length * b.shifts.length);
   }
 
   function createScheduler(opts) {
@@ -121,23 +145,26 @@
 
     function availableShifts(date, mode) {
       if (validateDate(date, clock())) return [];
-      return SHIFTS.filter(function (s) { return freeBrokers(date, s.id, mode).length > 0; })
+      var now = clock();
+      return SHIFTS.filter(function (s) { return !shiftEnded(date, s.id, now) && freeBrokers(date, s.id, mode).length > 0; })
         .map(function (s) { return s.id; });
     }
 
     function schedule(req) {
       req = req || {};
       var errors = {};
-      if (typeof req.listingId !== 'string' || !req.listingId.trim()) errors.listingId = 'Imóvel obrigatório.';
+      var listingId = typeof req.listingId === 'string' ? req.listingId.trim() : '';
+      if (listingId.length > MAX_LISTING_ID || !LISTING_ID_RE.test(listingId)) errors.listingId = 'Imóvel obrigatório.';
       if (!byId(MODES, req.mode)) errors.mode = 'Escolha visita presencial ou por vídeo.';
       if (!byId(SHIFTS, req.shift)) errors.shift = 'Escolha um turno válido.';
       var dateErr = validateDate(req.date, clock());
       if (dateErr) errors.date = dateErr;
+      else if (shiftEnded(req.date, req.shift, clock())) errors.shift = 'Este turno já passou.';
       var c = validateContact(req.contact);
       if (!c.ok) errors.contact = c.errors;
       if (Object.keys(errors).length) return { ok: false, errors: errors };
 
-      var free = freeBrokers(req.date, req.shift, req.mode);
+      var free = freeBrokers(req.date, req.shift, req.mode).sort(byFlexibility);
       if (req.brokerId != null) {
         free = free.filter(function (b) { return b.id === req.brokerId; });
       }
@@ -147,7 +174,7 @@
       counter += 1;
       var booking = {
         protocol: formatProtocol(counter),
-        listingId: req.listingId.trim(),
+        listingId: listingId,
         mode: req.mode,
         date: req.date,
         shift: req.shift,
@@ -157,16 +184,23 @@
         status: 'confirmed',
       };
       bookings.push(booking);
-      return { ok: true, protocol: booking.protocol, booking: Object.assign({}, booking) };
+      return { ok: true, protocol: booking.protocol, booking: copyBooking(booking) };
     }
 
-    function find(protocol) {
+    // Lookup and cancel need the contact email as a second factor: protocols
+    // are sequential and therefore guessable.
+    function owned(protocol, email) {
       var b = bookings.filter(function (x) { return x.protocol === protocol; })[0];
-      return b ? Object.assign({}, b) : null;
+      return b && sameEmail(b, email) ? b : null;
     }
 
-    function cancel(protocol) {
-      var b = bookings.filter(function (x) { return x.protocol === protocol; })[0];
+    function find(protocol, email) {
+      var b = owned(protocol, email);
+      return b ? copyBooking(b) : null;
+    }
+
+    function cancel(protocol, email) {
+      var b = owned(protocol, email);
       if (!b || b.status !== 'confirmed') return false;
       b.status = 'cancelled';
       return true;
