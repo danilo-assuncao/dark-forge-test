@@ -169,7 +169,7 @@ test('products.js holds well-formed mock data', function () {
   const all = ctx.window.DanProducts.all();
   assert.equal(all.length, 12);
   const cats = ctx.window.DanProducts.categories();
-  assert.deepEqual(Array.from(cats), ['Revisao & Motor', 'Freios & Suspensao', 'Pneus & Alinhamento', 'Eletrica & Diagnostico']);
+  assert.deepEqual(Array.from(cats), ['Pratos Executivos', 'Massas & Risotos', 'Burgers Artesanais', 'Sobremesas & Bebidas']);
   cats.forEach(function (c) {
     assert.ok(all.filter(function (p) { return p.category === c; }).length >= 3, c);
   });
@@ -178,19 +178,25 @@ test('products.js holds well-formed mock data', function () {
     assert.ok(p.name && p.description && Number.isInteger(p.priceCents) && p.priceCents > 0);
     assert.ok(Array.isArray(p.sizes) && p.sizes.length > 0, p.id + ' sizes');
     assert.ok(/^(\d+ min|\dh(\d\d)?)$/.test(p.boxTime), p.id + ' bay time');
-    assert.deepEqual(Array.from(p.sizes), ['Hatch/Sedan', 'SUV/Picape', 'Utilitario'], p.id);
-    assert.deepEqual(Array.from(p.measurements.columns), ['Tempo de box', 'Garantia', 'Intervalo recomendado'], p.id);
-    assert.equal(p.measurements.rows[0].values[0], p.boxTime, p.id + ' base bay time matches the Hatch/Sedan row');
-    assert.ok(p.specs.some(function (x) { return x.label === 'Portes atendidos' && x.value === 'Hatch/Sedan, SUV/Picape, Utilitario'; }), p.id);
+    p.sizes.forEach(function (sz) { assert.ok(['Individual', 'Duplo', 'Familia', 'Porcao unica'].indexOf(sz) !== -1, p.id + ' ' + sz); });
+    assert.deepEqual(Array.from(p.measurements.columns), ['Tempo de preparo', 'Calorias', 'Carboidratos', 'Proteinas', 'Gorduras', 'Sodio'], p.id);
+    assert.equal(p.measurements.rows[0].values[0], p.boxTime, p.id + ' base prep time matches the first portion row');
+    assert.ok(p.specs.some(function (x) { return x.label === 'Porcoes' && x.value === p.sizes.join(', '); }), p.id);
+    assert.ok(Array.isArray(p.checklist) && p.checklist.length > 0, p.id + ' ingredients');
+    p.measurements.rows.forEach(function (r) {
+      assert.match(r.values[1], /^\d+ kcal$/, p.id);
+      r.values.slice(2, 5).forEach(function (v) { assert.match(v, /^\d+ g$/, p.id); });
+      assert.match(r.values[5], /^\d+ mg$/, p.id);
+    });
     assert.deepEqual(Array.from(p.measurements.rows.map(function (r) { return r.size; })), Array.from(p.sizes), p.id);
     p.measurements.rows.forEach(function (r) {
       assert.equal(r.values.length, p.measurements.columns.length, p.id);
     });
   });
-  assert.ok(all.some(function (p) { return /oleo/i.test(p.name); }));
-  assert.ok(all.some(function (p) { return /freio/i.test(p.name); }));
+  assert.ok(all.some(function (p) { return /burger/i.test(p.name); }));
+  assert.ok(all.some(function (p) { return p.sizes.length === 1; }), 'has a single-portion dish');
   assert.equal(ctx.window.DanProducts.find('nope'), null);
-  assert.equal(ctx.window.DanProducts.find('oil-change').id, 'oil-change');
+  assert.equal(ctx.window.DanProducts.find('file-parmegiana').id, 'file-parmegiana');
   const n = ctx.window.DanProducts.all().length;
   const copy = ctx.window.DanProducts.all();
   copy.push({ id: 'x' });
@@ -215,7 +221,7 @@ test('without product data the catalog is empty and details give a 404', functio
   const t = boot('#/catalog', { noProducts: true });
   assert.equal(t.heading(), 'Catalog');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 0);
-  assert.match(boot('#/produto/oil-change', { noProducts: true }).heading(), /404/);
+  assert.match(boot('#/produto/file-parmegiana', { noProducts: true }).heading(), /404/);
 });
 
 test('the catalog grid shows name, placeholder image and price, linking to detail', function () {
@@ -238,7 +244,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
     assert.equal(card.children[5].textContent, 'Portes: ' + all[i].sizes.join(', '));
     assert.match(card.children[3].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
   });
-  assert.equal(cards[0].children[3].textContent, 'R$ 249,90');
+  assert.equal(cards[0].children[3].textContent, 'R$ 39,90');
 });
 
 test('category filter shows only matching products and Todas restores the grid', function () {
@@ -248,7 +254,7 @@ test('category filter shows only matching products and Todas restores the grid',
   const all = Array.from(ctx.window.DanProducts.all());
   const buttons = collect(t.app, function (n) { return n.className === 'filter-button'; });
   assert.deepEqual(buttons.map(function (b) { return b.textContent; }),
-    ['Todas', 'Revisao & Motor', 'Freios & Suspensao', 'Pneus & Alinhamento', 'Eletrica & Diagnostico']);
+    ['Todas', 'Pratos Executivos', 'Massas & Risotos', 'Burgers Artesanais', 'Sobremesas & Bebidas']);
   const cards = function () { return collect(t.app, function (n) { return n.className === 'product-card'; }); };
   assert.equal(cards().length, all.length);
   assert.equal(buttons[0].attrs['aria-pressed'], 'true');
@@ -307,20 +313,20 @@ test('catalog without categories() renders the grid and no filter', function () 
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
-  const t = boot('#/produto/oil-change');
-  assert.match(t.heading(), /Troca de oleo e filtros/);
-  assert.match(t.doc.title, /Troca de oleo e filtros/);
+  const t = boot('#/produto/file-parmegiana');
+  assert.match(t.heading(), /File a parmegiana/);
+  assert.match(t.doc.title, /File a parmegiana/);
   assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
   assert.equal(t.navLinks[0].attrs['aria-current'], undefined);
   assert.equal(t.navLinks[2].attrs['aria-current'], undefined);
   const texts = [];
   walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
-  assert.ok(texts.indexOf('R$ 249,90') !== -1, 'price shown');
-  assert.ok(texts.some(function (x) { return /filtro de oleo/.test(x); }), 'description shown');
+  assert.ok(texts.indexOf('R$ 39,90') !== -1, 'price shown');
+  assert.ok(texts.some(function (x) { return /molho de tomate/.test(x); }), 'description shown');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-image'; }).length, 1);
   const rows = collect(t.app, function (n) { return n.tagName === 'tr'; });
   assert.equal(rows.length, 4, 'header + 3 porte rows');
-  assert.deepEqual(byClass(t, 'size-button').map(function (b) { return b.textContent; }), ['Hatch/Sedan', 'SUV/Picape', 'Utilitario']);
+  assert.deepEqual(byClass(t, 'size-button').map(function (b) { return b.textContent; }), ['Individual', 'Duplo', 'Familia']);
   const btn = collect(t.app, function (n) { return n.tagName === 'button' && n.className !== 'size-button'; });
   assert.equal(btn.length, 1);
   assert.equal(btn[0].textContent, 'Add to cart');
@@ -328,7 +334,7 @@ test('a product detail route renders the product; unknown ids give a 404', funct
   const back = collect(t.app, function (n) { return n.tagName === 'a'; })[0];
   assert.equal(back.href, '#/catalog');
   assert.equal(back.textContent, 'Back to catalog');
-  ['#/produto/nope', '#/produtos', '#/catalog/oil-change', '#/produto/oil-change/x', '#/produto/%E0%A4%A'].forEach(function (h) {
+  ['#/produto/nope', '#/produtos', '#/catalog/file-parmegiana', '#/produto/file-parmegiana/x', '#/produto/%E0%A4%A'].forEach(function (h) {
     const u = boot(h);
     assert.match(u.heading(), /404/, h);
     u.navLinks.forEach(function (l) { assert.equal(l.attrs['aria-current'], undefined, h); });
@@ -360,18 +366,18 @@ test('script.js never writes HTML strings', function () {
 });
 
 test('size guide table has caption, scoped headers and size rows', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
   assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent,
-    'Tempo de box por porte');
+    'Informacao nutricional por porcao');
   const ths = collect(table, function (n) { return n.tagName === 'th'; });
-  assert.deepEqual(ths.slice(0, 4).map(function (n) { return n.attrs.scope; }), ['col', 'col', 'col', 'col']);
-  ths.slice(4).forEach(function (n) { assert.equal(n.attrs.scope, 'row'); });
+  assert.deepEqual(ths.slice(0, 7).map(function (n) { return n.attrs.scope; }), ['col', 'col', 'col', 'col', 'col', 'col', 'col']);
+  ths.slice(7).forEach(function (n) { assert.equal(n.attrs.scope, 'row'); });
   const row = collect(table, function (n) { return n.tagName === 'tr'; }).filter(function (r) {
-    return r.children[0].textContent === 'SUV/Picape';
+    return r.children[0].textContent === 'Duplo';
   })[0];
-  assert.ok(row, 'row for SUV/Picape exists');
-  assert.deepEqual(row.children.slice(1).map(function (c) { return c.textContent; }), ['1h15', '90 dias', '10.000 km ou 12 meses']);
+  assert.ok(row, 'row for Duplo exists');
+  assert.deepEqual(row.children.slice(1).map(function (c) { return c.textContent; }), ['40 min', '1560 kcal', '124 g', '92 g', '76 g', '2500 mg']);
   assert.equal(row.children[1].tagName, 'td');
 });
 
@@ -387,36 +393,36 @@ test('size guide without data shows a fallback, keeping the cart button', functi
 
 test('cart view lists items with total, and the product button adds the chosen size', function () {
   const store = {};
-  const t = boot('#/produto/oil-change', { cartStorage: store });
-  addWithSize(t, 'Hatch/Sedan');
-  addWithSize(t, 'Hatch/Sedan');
+  const t = boot('#/produto/file-parmegiana', { cartStorage: store });
+  addWithSize(t, 'Individual');
+  addWithSize(t, 'Individual');
   t.go('#/cart');
   assert.equal(t.heading(), 'Cart');
-  assert.equal(byClass(t, 'cart-size')[0].textContent, 'Vehicle size: Hatch/Sedan');
+  assert.equal(byClass(t, 'cart-size')[0].textContent, 'Vehicle size: Individual');
   const total = byClass(t, 'cart-total')[0];
-  assert.equal(total.textContent, 'Total: R$ 499,80');
+  assert.equal(total.textContent, 'Total: R$ 79,80');
   const plus = byClass(t, 'qty-button')[1];
   plus.listeners.click();
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 749,70');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 119,70');
   assert.equal(t.cartBadge.textContent, '3');
-  assert.deepEqual(JSON.parse(store['dan-cart']), [{ id: 'oil-change', size: 'Hatch/Sedan', qty: 3 }]);
+  assert.deepEqual(JSON.parse(store['dan-cart']), [{ id: 'file-parmegiana', size: 'Individual', qty: 3 }]);
   byClass(t, 'text-button').filter(function (b) { return b.textContent === 'Remove'; })[0].listeners.click();
   assert.ok(t.has('cart-empty'));
   assert.equal(t.cartBadge.textContent, '0');
 });
 
 test('adding without a size asks for one; different sizes become separate lines', function () {
-  const t = boot('#/produto/oil-change', { cartStorage: {} });
+  const t = boot('#/produto/file-parmegiana', { cartStorage: {} });
   byClass(t, 'action-button add-to-cart')[0].listeners.click();
   assert.equal(byClass(t, 'cart-status')[0].textContent, 'Select a vehicle size first.');
   assert.equal(t.win.DanCart.count(), 0);
-  addWithSize(t, 'Utilitario');
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Utilitario to cart.');
+  addWithSize(t, 'Familia');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Familia to cart.');
   const pressed = byClass(t, 'size-button').filter(function (b) { return b.attrs['aria-pressed'] === 'true'; });
-  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Utilitario']);
-  addWithSize(t, 'SUV/Picape');
+  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Familia']);
+  addWithSize(t, 'Duplo');
   t.go('#/cart');
-  assert.deepEqual(byClass(t, 'cart-size').map(function (n) { return n.textContent; }), ['Vehicle size: Utilitario', 'Vehicle size: SUV/Picape']);
+  assert.deepEqual(byClass(t, 'cart-size').map(function (n) { return n.textContent; }), ['Vehicle size: Familia', 'Vehicle size: Duplo']);
   assert.equal(t.cartBadge.textContent, '2');
 });
 
@@ -435,9 +441,9 @@ function addWithSize(t, size) {
 }
 
 test('minus decrements and removes the line at quantity 1; focus returns to main', function () {
-  const t = boot('#/produto/oil-change', { cartStorage: {} });
-  addWithSize(t, 'Hatch/Sedan');
-  addWithSize(t, 'Hatch/Sedan');
+  const t = boot('#/produto/file-parmegiana', { cartStorage: {} });
+  addWithSize(t, 'Individual');
+  addWithSize(t, 'Individual');
   t.go('#/cart');
   const before = t.app.focusCount;
   byClass(t, 'qty-button')[0].listeners.click();
@@ -449,8 +455,8 @@ test('minus decrements and removes the line at quantity 1; focus returns to main
 });
 
 test('Clear cart empties the view and resets the badge', function () {
-  const t = boot('#/produto/oil-change', { cartStorage: {} });
-  addWithSize(t, 'Hatch/Sedan');
+  const t = boot('#/produto/file-parmegiana', { cartStorage: {} });
+  addWithSize(t, 'Individual');
   t.go('#/cart');
   const buttons = byClass(t, 'text-button');
   const clear = buttons.filter(function (b) { return b.textContent === 'Clear cart'; })[0];
@@ -462,22 +468,22 @@ test('Clear cart empties the view and resets the badge', function () {
 });
 
 test('plus is disabled at max quantity and the product page reports status', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 99 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 99 }]) };
   const t = boot('#/cart', { cartStorage: store });
   assert.equal(byClass(t, 'qty-button')[1].attrs.disabled, 'disabled');
-  t.go('#/produto/oil-change');
-  addWithSize(t, 'Hatch/Sedan');
+  t.go('#/produto/file-parmegiana');
+  addWithSize(t, 'Individual');
   assert.equal(byClass(t, 'cart-status')[0].textContent, 'Maximum quantity reached.');
-  addWithSize(t, 'SUV/Picape');
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added SUV/Picape to cart.');
-  t.go('#/produto/brake-pads');
-  addWithSize(t, 'Hatch/Sedan');
-  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Hatch/Sedan to cart.');
+  addWithSize(t, 'Duplo');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Duplo to cart.');
+  t.go('#/produto/frango-grelhado');
+  addWithSize(t, 'Individual');
+  assert.equal(byClass(t, 'cart-status')[0].textContent, 'Added Individual to cart.');
 });
 
 test('script.js degrades gracefully without cart.js', function () {
-  const t = boot('#/produto/oil-change', { noCart: true });
-  addWithSize(t, 'Hatch/Sedan');
+  const t = boot('#/produto/file-parmegiana', { noCart: true });
+  addWithSize(t, 'Individual');
   t.go('#/cart');
   assert.ok(t.has('cart-empty'));
 });
@@ -507,17 +513,17 @@ test('checkout with an empty cart shows the empty state and no form', function (
 });
 
 test('checkout summary reflects the cart and the cart view links to checkout', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]) };
   const t = boot('#/cart', { cartStorage: store });
   const link = byClass(t, 'action-button checkout-link')[0];
   assert.equal(link.href, '#/checkout');
   t.go('#/checkout');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 499,80');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 79,80');
   assert.match(byClass(t, 'cart-name')[0].textContent, /^2 × /);
 });
 
 test('checkout validates required fields and formats, focusing the first invalid field', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   const inputs = fillCheckout(t, {});
   assert.ok(submitForm(t), 'default submit must be prevented');
@@ -540,12 +546,12 @@ test('checkout validates required fields and formats, focusing the first invalid
 });
 
 test('valid checkout opens the OS with a protocol and clears the cart', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
   assert.equal(t.heading(), 'OS confirmada');
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 514,70/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 94,70/);
   assert.match(byClass(t, 'order-protocol')[0].textContent, /^Protocolo: OS-[0-9A-Z]+$/);
   assert.equal(byClass(t, 'order-plate')[0].textContent, 'Placa: ABC1D23');
   assert.equal(t.cartBadge.textContent, '0');
@@ -557,18 +563,18 @@ test('valid checkout opens the OS with a protocol and clears the cart', function
 // ----- Checkout review follow-ups -----
 
 test('checkout re-renders instead of confirming when the cart changed after render', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
-  store['dan-cart'] = JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 3 }]);
+  store['dan-cart'] = JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 3 }]);
   t.win.DanCart.reload();
   submitForm(t);
   assert.equal(t.heading(), 'Agendamento de box');
   assert.equal(byClass(t, 'checkout-notice').length, 1);
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 749,70');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 119,70');
   assert.equal(t.cartBadge.textContent, '3', 'cart must not be cleared');
 
-  const t2 = boot('#/checkout', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) } });
+  const t2 = boot('#/checkout', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]) } });
   fillCheckout(t2, VALID);
   t2.win.DanCart.clear();
   submitForm(t2);
@@ -577,7 +583,7 @@ test('checkout re-renders instead of confirming when the cart changed after rend
 });
 
 test('checkout validator boundaries for plate, shift, CEP and name', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]) };
   const cases = [
     ['plate', 'ABC1D23', true], ['plate', 'abc1d23', true], ['plate', 'ABC-1234', true], ['plate', 'ABC1234', true],
     ['plate', ' abc-1234 ', true], ['plate', 'AB1D234', false], ['plate', 'ABC-1D23', false], ['plate', 'ABCD123', false],
@@ -601,7 +607,7 @@ test('checkout validator boundaries for plate, shift, CEP and name', function ()
 });
 
 test('confirmation updates focus, title and protocol; errors clear and refocus on retry; multi-line summary', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }, { id: 'brake-pads', size: 'Hatch/Sedan', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }, { id: 'frango-grelhado', size: 'Individual', qty: 2 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   assert.equal(byClass(t, 'cart-name').length, 2);
   const inputs = fillCheckout(t, Object.assign({}, VALID, { plate: 'x', cep: '' }));
@@ -668,12 +674,12 @@ test('catalog cards have no quick add: a size must be chosen on the product page
 });
 
 test('catalog honours ?category= from the hash and ignores unknown categories', function () {
-  const t = boot('#/catalog?category=Freios%20%26%20Suspensao');
+  const t = boot('#/catalog?category=Massas%20%26%20Risotos');
   const hrefs = byClass(t, 'product-card').map(function (c) { return c.href; });
-  const services = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Freios & Suspensao'; });
+  const services = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Massas & Risotos'; });
   assert.deepEqual(hrefs, services.map(function (p) { return '#/produto/' + p.id; }));
   const pressed = byClass(t, 'filter-button').filter(function (b) { return b.attrs['aria-pressed'] === 'true'; });
-  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Freios & Suspensao']);
+  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Massas & Risotos']);
   assert.equal(byClass(boot('#/catalog?category=Nope'), 'product-card').length, t.win.DanProducts.all().length);
   assert.equal(byClass(boot('#/catalog?category=%E0%A4%A'), 'product-card').length, t.win.DanProducts.all().length);
 });
@@ -681,8 +687,8 @@ test('catalog honours ?category= from the hash and ignores unknown categories', 
 test('home shows category links and a showcase of products', function () {
   const t = boot('#/');
   const links = byClass(t, 'category-link');
-  assert.deepEqual(links.map(function (l) { return l.textContent; }), ['Revisao & Motor', 'Freios & Suspensao', 'Pneus & Alinhamento', 'Eletrica & Diagnostico']);
-  assert.equal(links[1].href, '#/catalog?category=Freios%20%26%20Suspensao');
+  assert.deepEqual(links.map(function (l) { return l.textContent; }), ['Pratos Executivos', 'Massas & Risotos', 'Burgers Artesanais', 'Sobremesas & Bebidas']);
+  assert.equal(links[1].href, '#/catalog?category=Massas%20%26%20Risotos');
   assert.equal(byClass(t, 'product-card').length, 4);
 });
 
@@ -697,32 +703,32 @@ function couponSubmit(t, code) {
 }
 
 test('cart coupon: invalid codes show an error, DAN10 discounts the total and can be removed', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]) };
   const t = boot('#/cart', { cartStorage: store });
   const input = couponSubmit(t, 'nope');
   assert.equal(byClass(t, 'coupon-status')[0].textContent, 'This coupon is not valid.');
   assert.equal(input.attrs['aria-invalid'], 'true');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 499,80');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 79,80');
   couponSubmit(t, ' dan10 ');
   assert.match(byClass(t, 'coupon-applied')[0].textContent, /DAN10 applied/);
-  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 499,80');
-  assert.equal(byClass(t, 'cart-discount')[0].textContent, 'Coupon DAN10: \u2212R$ 49,98');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 449,82');
+  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 79,80');
+  assert.equal(byClass(t, 'cart-discount')[0].textContent, 'Coupon DAN10: \u2212R$ 7,98');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 71,82');
   assert.equal(store['dan-coupon'], 'DAN10');
   t.go('#/checkout');
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 449,82');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 71,82');
   t.go('#/cart');
   byClass(t, 'text-button').filter(function (b) { return b.textContent === 'Remove coupon'; })[0].listeners.click();
   assert.equal(byClass(t, 'cart-discount').length, 0);
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 499,80');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 79,80');
 });
 
 test('a coupon persists across reloads and checkout confirms the discounted total', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]), 'dan-coupon': 'DAN10' };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]), 'dan-coupon': 'DAN10' };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 464,72/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 86,72/);
   assert.equal(t.win.DanCart.coupon(), null, 'coupon is consumed by the order');
 });
 
@@ -774,11 +780,11 @@ test('navigation does not throw when the page has no meta tags', function () {
 });
 
 test('checkout submit paths update title and meta', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   // Cart changes after render: the stale-summary path re-renders with fresh meta.
-  store['dan-cart'] = JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]);
+  store['dan-cart'] = JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]);
   t.win.DanCart.reload();
   t.doc.title = '';
   submitForm(t);
@@ -803,26 +809,26 @@ test('index.html SEO tags are complete and match the home view', function () {
 });
 
 test('cart shows a saved coupon that does not apply, and DAN50 is refused below its minimum', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]), 'dan-coupon': 'DAN50' };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]), 'dan-coupon': 'DAN50' };
   const t = boot('#/cart', { cartStorage: store });
   assert.match(byClass(t, 'coupon-applied')[0].textContent, /does not apply/);
   assert.equal(byClass(t, 'cart-discount').length, 0);
-  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 249,90');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 39,90');
   const fresh = boot('#/cart', { cartStorage: { 'dan-cart': store['dan-cart'] } });
   couponSubmit(fresh, 'DAN50');
   assert.match(byClass(fresh, 'coupon-status')[0].textContent, /requires a subtotal/);
 });
 
 test('checkout confirms the undiscounted total for a stale fixed coupon', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]), 'dan-coupon': 'DAN50' };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]), 'dan-coupon': 'DAN50' };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 264,80/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 54,80/);
 });
 
 test('a legacy size-less cart is discarded and shows the empty state', function () {
-  const t = boot('#/cart', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }, { id: 'oil-change', qty: 1 }]) } });
+  const t = boot('#/cart', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }, { id: 'file-parmegiana', qty: 1 }]) } });
   assert.ok(t.has('cart-empty'));
   assert.equal(t.cartBadge.textContent, '0');
 });
@@ -848,18 +854,18 @@ test('the 404 page has friendly copy and a link home', function () {
   assert.equal(t.description(), 'The page you are looking for does not exist.');
 });
 
-test('bay times per porte are exact, covering rounding and zero-padding', function () {
+test('prep times per portion are exact, covering rounding and zero-padding', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
   const times = function (id) {
     return Array.from(ctx.window.DanProducts.find(id).measurements.rows.map(function (r) { return r.values[0]; }));
   };
-  assert.deepEqual(times('wheel-alignment'), ['45 min', '55 min', '1h10']);
-  assert.deepEqual(times('brake-pads'), ['1h15', '1h35', '1h55']);
-  assert.deepEqual(times('tire-rotation'), ['30 min', '40 min', '45 min']);
-  assert.deepEqual(times('oil-change'), ['1h', '1h15', '1h30']);
-  assert.deepEqual(times('shock-absorbers'), ['3h30', '4h25', '5h15']);
-  assert.deepEqual(times('timing-belt'), ['4h', '5h', '6h']);
+  assert.deepEqual(times('pudim-leite'), ['10 min', '15 min']);
+  assert.deepEqual(times('frango-grelhado'), ['25 min', '30 min', '40 min']);
+  assert.deepEqual(times('suco-natural'), ['5 min', '5 min']);
+  assert.deepEqual(times('file-parmegiana'), ['30 min', '40 min', '45 min']);
+  assert.deepEqual(times('feijoada-completa'), ['50 min', '1h05', '1h15']);
+  assert.deepEqual(times('burger-classico'), ['20 min', '25 min', '30 min']);
 });
 
 test('technical table caption falls back when the table has no unit', function () {
@@ -871,9 +877,9 @@ test('technical table caption falls back when the table has no unit', function (
 });
 
 test('every service has a technical checklist and the detail route renders it', function () {
-  const t = boot('#/produto/brake-pads');
+  const t = boot('#/produto/frango-grelhado');
   const items = byClass(t, 'checklist-item').map(function (n) { return n.textContent; });
-  const product = t.win.DanProducts.find('brake-pads');
+  const product = t.win.DanProducts.find('frango-grelhado');
   assert.deepEqual(items, Array.from(product.checklist));
   Array.from(t.win.DanProducts.all()).forEach(function (p) {
     assert.ok(p.checklist.length >= 3, p.id);
@@ -882,11 +888,11 @@ test('every service has a technical checklist and the detail route renders it', 
 });
 
 test('cart summary shows parts and labour before the subtotal and discount', function () {
-  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
+  const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]) };
   const t = boot('#/cart', { cartStorage: store });
-  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 299,88');
-  assert.equal(byClass(t, 'cart-labor')[0].textContent, 'Mão de obra: R$ 199,92');
+  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 47,88');
+  assert.equal(byClass(t, 'cart-labor')[0].textContent, 'Mão de obra: R$ 31,92');
   couponSubmit(t, 'DAN10');
-  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 299,88');
-  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 499,80');
+  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 47,88');
+  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 79,80');
 });

@@ -57,49 +57,49 @@ const pressed = function (t) { return buttons(t).filter(function (b) { return b.
 const text = function (t, cls) { return byClass(t.app, cls)[0].textContent; };
 
 test('detail shows description, specialty, bay time and BRL price', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   const all = [];
   walk(t.app, function (n) { if (n.textContent) { all.push(n.textContent); } });
-  ['R$ 249,90', 'Revisao & Motor', '1h', 'Hatch/Sedan, SUV/Picape, Utilitario', 'Oleo do motor, filtro de oleo e filtro de ar com checklist de 20 itens.'].forEach(function (s) {
+  ['R$ 39,90', 'Pratos Executivos', '30 min', 'Individual, Duplo, Familia', 'File de carne empanado com molho de tomate, queijo gratinado, arroz e batata frita.'].forEach(function (s) {
     assert.ok(all.indexOf(s) !== -1, s);
   });
 });
 
 test('technical table lists a row per porte with bay time', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   const rows = find(t.app, function (n) { return n.tagName === 'tr' && n.attrs['data-size']; });
   const sizes = rows.map(function (r) { return r.attrs['data-size']; });
-  ['Hatch/Sedan', 'SUV/Picape', 'Utilitario'].forEach(function (s) { assert.ok(sizes.indexOf(s) !== -1, s); });
-  const m = rows.filter(function (r) { return r.attrs['data-size'] === 'SUV/Picape'; })[0];
-  assert.deepEqual(m.children.map(function (c) { return c.textContent; }), ['SUV/Picape', '1h15', '90 dias', '10.000 km ou 12 meses']);
+  ['Individual', 'Duplo', 'Familia'].forEach(function (s) { assert.ok(sizes.indexOf(s) !== -1, s); });
+  const m = rows.filter(function (r) { return r.attrs['data-size'] === 'Duplo'; })[0];
+  assert.deepEqual(m.children.map(function (c) { return c.textContent; }), ['Duplo', '40 min', '1560 kcal', '124 g', '92 g', '76 g', '2500 mg']);
 });
 
 test('size buttons are real buttons with aria-pressed; selection is exclusive', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   buttons(t).forEach(function (b) { assert.equal(b.tagName, 'button'); assert.equal(b.type, 'button'); });
   assert.deepEqual(pressed(t), []);
   assert.equal(text(t, 'size-selected'), 'No vehicle size selected');
   buttons(t)[0].listeners.click();
-  assert.deepEqual(pressed(t), ['Hatch/Sedan']);
+  assert.deepEqual(pressed(t), ['Individual']);
   buttons(t)[1].listeners.click();
-  assert.deepEqual(pressed(t), ['SUV/Picape']);
-  assert.equal(text(t, 'size-selected'), 'Selected vehicle size: SUV/Picape');
+  assert.deepEqual(pressed(t), ['Duplo']);
+  assert.equal(text(t, 'size-selected'), 'Selected vehicle size: Duplo');
 });
 
 test('selecting a size highlights its row in the size guide', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   buttons(t)[0].listeners.click();
   let marked = byClass(t.app, 'is-selected');
   assert.equal(marked.length, 1);
-  assert.equal(marked[0].attrs['data-size'], 'Hatch/Sedan');
+  assert.equal(marked[0].attrs['data-size'], 'Individual');
   buttons(t)[1].listeners.click();
   marked = byClass(t.app, 'is-selected');
   assert.equal(marked.length, 1);
-  assert.equal(marked[0].attrs['data-size'], 'SUV/Picape');
+  assert.equal(marked[0].attrs['data-size'], 'Duplo');
 });
 
 test('add without a size shows an error, flags the picker and focuses it; nothing is added', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   const status = byClass(t.app, 'cart-status')[0];
   assert.equal(status.textContent, 'Select a vehicle size first.');
@@ -116,7 +116,7 @@ test('add without a size shows an error, flags the picker and focuses it; nothin
 });
 
 test('max quantity shows an error status', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   buttons(t)[0].listeners.click();
   const add = byClass(t.app, 'add-to-cart')[0];
   for (let i = 0; i < 99; i++) { add.listeners.click(); }
@@ -128,13 +128,13 @@ test('max quantity shows an error status', function () {
 });
 
 test('add with a size confirms with a success state and stores the size', function () {
-  const t = boot('#/produto/brake-pads');
+  const t = boot('#/produto/frango-grelhado');
   buttons(t)[1].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   const status = byClass(t.app, 'cart-status')[0];
-  assert.equal(status.textContent, 'Added SUV/Picape to cart.');
+  assert.equal(status.textContent, 'Added Duplo to cart.');
   assert.match(status.className, /is-success/);
-  assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'brake-pads', size: 'SUV/Picape', qty: 1 }]);
+  assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'frango-grelhado', size: 'Duplo', qty: 1 }]);
 });
 
 test('unknown piece still renders the 404 state', function () {
@@ -145,14 +145,14 @@ test('unknown piece still renders the 404 state', function () {
 });
 
 test('detail shows the technical checklist and bay time for every service', function () {
-  ['oil-change', 'brake-pads', 'ac-service'].forEach(function (id) {
+  ['file-parmegiana', 'frango-grelhado', 'risoto-cogumelos'].forEach(function (id) {
     const t = boot('#/produto/' + id);
     assert.ok(byClass(t.app, 'checklist-item').length >= 3, id);
     assert.match(text(t, 'bay-time'), /^Estimated bay time \(Hatch\/Sedan\): \d/);
   });
-  const oil = boot('#/produto/oil-change');
-  assert.equal(byClass(oil.app, 'checklist-item')[0].textContent, 'Oleo do motor');
-  assert.equal(text(oil, 'bay-time'), 'Estimated bay time (Hatch/Sedan): 1h');
+  const oil = boot('#/produto/file-parmegiana');
+  assert.equal(byClass(oil.app, 'checklist-item')[0].textContent, 'File de carne');
+  assert.equal(text(oil, 'bay-time'), 'Estimated bay time (Hatch/Sedan): 30 min');
 });
 
 test('a single-size service is preselected and adds without choosing', function () {
@@ -166,7 +166,7 @@ test('a single-size service is preselected and adds without choosing', function 
 });
 
 test('multi-size services still require a porte before adding', function () {
-  const t = boot('#/produto/oil-change');
+  const t = boot('#/produto/file-parmegiana');
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   assert.equal(text(t, 'cart-status'), 'Select a vehicle size first.');
 });
