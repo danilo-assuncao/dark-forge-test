@@ -71,6 +71,7 @@ function boot(opts = {}) {
   const winListeners = {};
   const win = {
     DanPetsCatalog: C,
+    DanPetsCart: require('../cart.js'),
     counts: { push: 0, replace: 0, locationReplace: 0 },
     location: {
       _hash: '',
