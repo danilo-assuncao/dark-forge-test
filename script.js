@@ -120,11 +120,40 @@
   function catalogView() {
     var container = el('div', 'container');
     container.appendChild(el('h1', 'page-title', 'Catalog'));
-    var grid = el('ul', 'product-grid');
     var products = window.DanProducts ? window.DanProducts.all() : [];
-    for (var i = 0; i < products.length; i++) {
-      grid.appendChild(productCard(products[i]));
+    var categories = window.DanProducts && window.DanProducts.categories ? window.DanProducts.categories() : [];
+    var grid = el('ul', 'product-grid');
+    var buttons = [];
+
+    function show(category) {
+      grid.textContent = '';
+      for (var i = 0; i < products.length; i++) {
+        if (category === null || products[i].category === category) {
+          grid.appendChild(productCard(products[i]));
+        }
+      }
+      for (var b = 0; b < buttons.length; b++) {
+        buttons[b].node.setAttribute('aria-pressed', buttons[b].category === category ? 'true' : 'false');
+      }
     }
+
+    if (categories.length) {
+      var filter = el('div', 'category-filter');
+      filter.setAttribute('role', 'group');
+      filter.setAttribute('aria-label', 'Filter by category');
+      var labels = [null].concat(categories);
+      labels.forEach(function (category) {
+        var button = el('button', 'filter-button', category === null ? 'All' : category);
+        button.type = 'button';
+        button.addEventListener('click', function () {
+          show(category);
+        });
+        buttons.push({ category: category, node: button });
+        filter.appendChild(button);
+      });
+      container.appendChild(filter);
+    }
+    show(null);
     container.appendChild(grid);
     return { title: 'Catalog \u2013 Dan', node: container };
   }
@@ -169,7 +198,10 @@
     container.appendChild(productImage(product));
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
-    container.appendChild(nutritionTable(product));
+    // Only products that carry nutrition data (supplements) show the table.
+    if (product.nutrition) {
+      container.appendChild(nutritionTable(product));
+    }
     var add = el('button', 'action-button add-to-cart', 'Add to cart');
     add.type = 'button';
     var status = el('p', 'cart-status');

@@ -154,7 +154,12 @@ test('products.js holds well-formed mock data', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
   const all = ctx.window.DanProducts.all();
-  assert.ok(all.length >= 6);
+  assert.ok(all.length >= 12);
+  const cats = ctx.window.DanProducts.categories();
+  assert.deepEqual(Array.from(cats), ['Supplements', 'Accessories', 'Equipment']);
+  cats.forEach(function (c) {
+    assert.ok(all.filter(function (p) { return p.category === c; }).length >= 3, c);
+  });
   assert.equal(new Set(all.map(function (p) { return p.id; })).size, all.length);
   all.forEach(function (p) {
     assert.ok(p.name && p.description && Number.isInteger(p.priceCents) && p.priceCents > 0);
@@ -208,6 +213,54 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
     assert.match(card.children[2].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
   });
   assert.equal(cards[0].children[2].textContent, 'R$ 159,90');
+});
+
+test('category filter shows only matching products and All restores the grid', function () {
+  const t = boot('#/catalog');
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const all = Array.from(ctx.window.DanProducts.all());
+  const buttons = collect(t.app, function (n) { return n.className === 'filter-button'; });
+  assert.deepEqual(buttons.map(function (b) { return b.textContent; }),
+    ['All', 'Supplements', 'Accessories', 'Equipment']);
+  const cards = function () { return collect(t.app, function (n) { return n.className === 'product-card'; }); };
+  assert.equal(cards().length, all.length);
+  assert.equal(buttons[0].attrs['aria-pressed'], 'true');
+  buttons.slice(1).forEach(function (b) {
+    b.listeners.click();
+    const expected = all.filter(function (p) { return p.category === b.textContent; });
+    assert.deepEqual(cards().map(function (c) { return c.href; }),
+      expected.map(function (p) { return '#/produto/' + p.id; }));
+    assert.equal(b.attrs['aria-pressed'], 'true');
+    assert.equal(buttons[0].attrs['aria-pressed'], 'false');
+  });
+  buttons[0].listeners.click();
+  assert.equal(cards().length, all.length);
+});
+
+test('nutrition section appears exactly for products with nutrition data', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  Array.from(ctx.window.DanProducts.all()).forEach(function (p) {
+    const t = boot('#/produto/' + p.id);
+    const tables = collect(t.app, function (n) { return n.tagName === 'table'; }).length;
+    if (p.category === 'Supplements') {
+      assert.equal(tables, 1, p.id);
+      assert.equal(t.has('nutrition'), true, p.id);
+    } else {
+      assert.equal(tables, 0, p.id);
+      assert.equal(t.has('nutrition'), false, p.id);
+    }
+  });
+  const bare = boot('#/produto/x', { products: [{ id: 'x', name: 'X', description: 'd', priceCents: 100 }] });
+  assert.equal(bare.has('nutrition'), false);
+});
+
+test('catalog without categories() renders the grid and no filter', function () {
+  const products = [{ id: 'a', name: 'A', description: 'd', priceCents: 100, category: 'C' }];
+  const t = boot('#/catalog', { products: products });
+  assert.equal(collect(t.app, function (n) { return n.className === 'filter-button'; }).length, 0);
+  assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 1);
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
@@ -279,10 +332,10 @@ test('nutrition table has caption, scoped headers and paired label/amount cells'
   assert.equal(row.children[1].textContent, '5 g');
 });
 
-test('every product has nutrition data and its detail renders rows + 1 tr', function () {
+test('every supplement has nutrition data and its detail renders rows + 1 tr', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
-  ctx.window.DanProducts.all().forEach(function (p) {
+  ctx.window.DanProducts.all().filter(function (p) { return p.category === 'Supplements'; }).forEach(function (p) {
     assert.ok(p.nutrition && p.nutrition.serving, p.id + ' serving');
     assert.ok(p.nutrition.rows.length > 0, p.id + ' rows');
     p.nutrition.rows.forEach(function (r) { assert.ok(r.label && r.amount, p.id + ' row'); });
@@ -292,8 +345,8 @@ test('every product has nutrition data and its detail renders rows + 1 tr', func
   });
 });
 
-test('missing or empty nutrition shows a fallback, keeping heading and cart button', function () {
-  [undefined, { serving: '1 g', rows: [] }, { serving: '1 g' }].forEach(function (nutrition) {
+test('empty nutrition shows a fallback, keeping heading and cart button', function () {
+  [{ serving: '1 g', rows: [] }, { serving: '1 g' }].forEach(function (nutrition) {
     const product = { id: 'x', name: 'Xyz', description: 'd', priceCents: 100, nutrition: nutrition };
     const t = boot('#/produto/x', { products: [product] });
     assert.equal(t.heading(), 'Xyz');

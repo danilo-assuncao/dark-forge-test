@@ -293,6 +293,35 @@ body {
   }
 }
 
+/* Category filter */
+.category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.filter-button {
+  padding: 0.4em 0.9em;
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-button[aria-pressed="true"] {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+}
+
+.filter-button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
 /* Catalog grid */
 .product-grid {
   display: grid;
