@@ -415,7 +415,11 @@ test('adding without a size asks for one; different sizes become separate lines'
 });
 
 function byClass(t, cls) {
-  return collect(t.app, function (n) { return n.className === cls; });
+  const want = cls.split(' ');
+  return collect(t.app, function (n) {
+    const have = n.className.split(' ');
+    return want.every(function (w) { return have.indexOf(w) !== -1; });
+  });
 }
 
 // Picks a size on the product page (by label) and clicks Add to cart.

@@ -239,7 +239,7 @@
     return { title: 'Catalog \u2013 ' + BRAND, description: DESCRIPTIONS.catalog, node: container };
   }
 
-  function measurementsTable(product) {
+  function measurementsTable(product, rowNodes) {
     var section = el('section', 'measurements');
     section.appendChild(el('h2', 'measurements-title', 'Size guide'));
     var data = product.measurements;
@@ -266,6 +266,10 @@
       var row = el('tr');
       var label = el('th', null, entry.size);
       label.setAttribute('scope', 'row');
+      row.setAttribute('data-size', entry.size);
+      if (rowNodes) {
+        rowNodes.push(row);
+      }
       row.appendChild(label);
       entry.values.forEach(function (value) {
         row.appendChild(el('td', null, value));
@@ -300,8 +304,9 @@
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
     container.appendChild(specsSection(product));
+    var guideRows = [];
     if (product.sizes && product.sizes.length) {
-      container.appendChild(measurementsTable(product));
+      container.appendChild(measurementsTable(product, guideRows));
     }
 
     // Size picker: nothing is preselected, so the shopper must choose.
@@ -318,22 +323,35 @@
       button.setAttribute('aria-pressed', 'false');
       button.addEventListener('click', function () {
         selected = size;
+        picker.className = 'size-picker';
+        picker.removeAttribute('aria-describedby');
+        summary.textContent = 'Selected size: ' + size;
+        markGuideRow(size);
         for (var b = 0; b < sizeButtons.length; b++) {
           sizeButtons[b].node.setAttribute('aria-pressed', sizeButtons[b].size === size ? 'true' : 'false');
         }
         status.textContent = '';
+        status.className = 'cart-status';
       });
       sizeButtons.push({ size: size, node: button });
       picker.appendChild(button);
     });
+    var summary = el('p', 'size-selected', 'No size selected');
+    function markGuideRow(size) {
+      for (var r = 0; r < guideRows.length; r++) {
+        guideRows[r].className = guideRows[r].getAttribute('data-size') === size ? 'is-selected' : '';
+      }
+    }
     if (sizeButtons.length) {
       container.appendChild(sizeLegend);
       container.appendChild(picker);
+      container.appendChild(summary);
     }
 
     var add = el('button', 'action-button add-to-cart', 'Add to cart');
     add.type = 'button';
     var status = el('p', 'cart-status');
+    status.id = 'cart-status';
     status.setAttribute('role', 'status');
     add.addEventListener('click', function () {
       if (!window.DanCart) {
@@ -341,12 +359,21 @@
       }
       // Clear first so repeated messages are announced again.
       status.textContent = '';
+      status.className = 'cart-status';
       if (!selected) {
         status.textContent = 'Select a size first.';
+        status.className = 'cart-status is-error';
+        picker.className = 'size-picker needs-size';
+        picker.setAttribute('aria-describedby', 'cart-status');
+        if (sizeButtons.length) {
+          sizeButtons[0].node.focus();
+        }
       } else if (window.DanCart.add(product.id, 1, selected)) {
         status.textContent = 'Added size ' + selected + ' to cart.';
+        status.className = 'cart-status is-success';
       } else {
         status.textContent = 'Maximum quantity reached.';
+        status.className = 'cart-status is-error';
       }
     });
     container.appendChild(add);

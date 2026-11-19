@@ -763,3 +763,35 @@ body {
   margin: 0.25rem 0;
   font-weight: 700;
 }
+
+/* Product detail feedback (existing palette tokens only) */
+.size-selected {
+  margin: 0 0 1rem;
+  font-weight: 700;
+}
+
+.size-picker.needs-size {
+  outline: 3px dashed var(--text);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+}
+
+.measurements-table tr.is-selected th,
+.measurements-table tr.is-selected td {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  font-weight: 700;
+}
+
+.cart-status.is-error,
+.cart-status.is-success {
+  font-weight: 700;
+}
+
+.cart-status.is-error::before {
+  content: "\26A0\FE0F  ";
+}
+
+.cart-status.is-success::before {
+  content: "\2713  ";
+}
