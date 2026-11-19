@@ -28,12 +28,11 @@
   });
 
   // DANFIT10: 10% off the cycle price. Only valid on Semestral and Anual
-  // (never stacks on Mensal) and cannot be combined with other coupons.
+  // (never on Mensal). Only one coupon code is accepted per purchase.
   var COUPON = Object.freeze({
     code: 'DANFIT10',
     discountPct: 10,
-    validCycles: Object.freeze(['semestral', 'anual']),
-    stackable: false
+    validCycles: Object.freeze(['semestral', 'anual'])
   });
 
   function lookup(table, id) {
@@ -48,7 +47,7 @@
     return String(code == null ? '' : code).trim().toUpperCase();
   }
 
-  // Integer percent discount, rounded half up, never negative.
+  // Integer percent of a non-negative cents amount, rounded half up.
   function pct(cents, p) { return Math.round((cents * p) / 100); }
 
   // Validates a coupon for a cycle: { valid, reason? }.
@@ -102,6 +101,7 @@
     listCycles: function () { return Object.keys(CYCLES).map(function (k) { return CYCLES[k]; }); },
     normalizeCoupon: normalizeCoupon,
     validateCoupon: validateCoupon,
+    percentOf: pct,
     price: price
   };
 
