@@ -176,7 +176,7 @@ test('without product data the catalog is empty and details give a 404', functio
   const t = boot('#/catalog', { noProducts: true });
   assert.equal(t.heading(), 'Catalog');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 0);
-  assert.match(boot('#/catalog/creatine', { noProducts: true }).heading(), /404/);
+  assert.match(boot('#/produto/creatine', { noProducts: true }).heading(), /404/);
 });
 
 test('the catalog grid shows name, placeholder image and price, linking to detail', function () {
@@ -190,7 +190,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
   const all = ctx.window.DanProducts.all();
   assert.equal(cards.length, all.length);
   cards.forEach(function (card, i) {
-    assert.equal(card.href, '#/catalog/' + all[i].id);
+    assert.equal(card.href, '#/produto/' + all[i].id);
     const classes = card.children.map(function (c) { return c.className; });
     assert.deepEqual(classes, ['product-image', 'product-name', 'product-price']);
     assert.equal(card.children[1].textContent, all[i].name);
@@ -200,7 +200,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
-  const t = boot('#/catalog/creatine');
+  const t = boot('#/produto/creatine');
   assert.match(t.heading(), /Creatine/);
   assert.match(t.doc.title, /Creatine/);
   assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
@@ -211,15 +211,22 @@ test('a product detail route renders the product; unknown ids give a 404', funct
   assert.ok(texts.indexOf('R$ 89,90') !== -1, 'price shown');
   assert.ok(texts.some(function (x) { return /micronized creatine/.test(x); }), 'description shown');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-image'; }).length, 1);
+  const rows = collect(t.app, function (n) { return n.tagName === 'tr'; });
+  assert.equal(rows.length, 6, 'header + 5 nutrient rows');
+  assert.ok(texts.indexOf('Creatine monohydrate') !== -1 && texts.indexOf('5 g') !== -1, 'nutrition shown');
+  const btn = collect(t.app, function (n) { return n.tagName === 'button'; });
+  assert.equal(btn.length, 1);
+  assert.equal(btn[0].textContent, 'Add to cart');
+  assert.equal(btn[0].type, 'button');
   const back = collect(t.app, function (n) { return n.tagName === 'a'; })[0];
   assert.equal(back.href, '#/catalog');
   assert.equal(back.textContent, 'Back to catalog');
-  ['#/catalog/nope', '#/catalogue', '#/catalog/creatine/x', '#/catalog/%E0%A4%A'].forEach(function (h) {
+  ['#/produto/nope', '#/produtos', '#/catalog/creatine', '#/produto/creatine/x', '#/produto/%E0%A4%A'].forEach(function (h) {
     const u = boot(h);
     assert.match(u.heading(), /404/, h);
     u.navLinks.forEach(function (l) { assert.equal(l.attrs['aria-current'], undefined, h); });
   });
-  ['#/catalog/nope', '#/catalog/%E0%A4%A', '#/catalog/constructor', '#/catalog/creatine/x'].forEach(function (h) {
+  ['#/produto/nope', '#/produto/%E0%A4%A', '#/produto/constructor', '#/produto/creatine/x'].forEach(function (h) {
     assert.match(boot(h).heading(), /404/, h);
   });
 });
@@ -243,4 +250,48 @@ test('script.js never writes HTML strings', function () {
   let injected = false;
   walk(t.app, function (n) { if (n.tagName === 'img') { injected = true; } });
   assert.equal(injected, false);
+});
+
+test('nutrition table has caption, scoped headers and paired label/amount cells', function () {
+  const t = boot('#/produto/creatine');
+  const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
+  assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent,
+    'Per serving: 5 g (1 scoop)');
+  const ths = collect(table, function (n) { return n.tagName === 'th'; });
+  assert.deepEqual(ths.slice(0, 2).map(function (n) { return n.attrs.scope; }), ['col', 'col']);
+  ths.slice(2).forEach(function (n) { assert.equal(n.attrs.scope, 'row'); });
+  const row = collect(table, function (n) { return n.tagName === 'tr'; }).filter(function (r) {
+    return r.children[0].textContent === 'Creatine monohydrate';
+  })[0];
+  assert.ok(row, 'row for label exists');
+  assert.equal(row.children[1].tagName, 'td');
+  assert.equal(row.children[1].textContent, '5 g');
+});
+
+test('every product has nutrition data and its detail renders rows + 1 tr', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  ctx.window.DanProducts.all().forEach(function (p) {
+    assert.ok(p.nutrition && p.nutrition.serving, p.id + ' serving');
+    assert.ok(p.nutrition.rows.length > 0, p.id + ' rows');
+    p.nutrition.rows.forEach(function (r) { assert.ok(r.label && r.amount, p.id + ' row'); });
+    const t = boot('#/produto/' + p.id);
+    const trs = collect(t.app, function (n) { return n.tagName === 'tr'; });
+    assert.equal(trs.length, p.nutrition.rows.length + 1, p.id);
+  });
+});
+
+test('missing or empty nutrition shows a fallback, keeping heading and cart button', function () {
+  [undefined, { serving: '1 g', rows: [] }, { serving: '1 g' }].forEach(function (nutrition) {
+    const product = { id: 'x', name: 'Xyz', description: 'd', priceCents: 100, nutrition: nutrition };
+    const t = boot('#/produto/x', { products: [product] });
+    assert.equal(t.heading(), 'Xyz');
+    assert.equal(collect(t.app, function (n) { return n.tagName === 'table'; }).length, 0);
+    const texts = [];
+    walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+    assert.ok(texts.indexOf('Nutrition information not available.') !== -1);
+    const btn = collect(t.app, function (n) { return n.tagName === 'button'; });
+    assert.equal(btn.length, 1);
+    assert.equal(btn[0].textContent, 'Add to cart');
+  });
 });
