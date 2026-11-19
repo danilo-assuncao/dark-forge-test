@@ -97,10 +97,11 @@
   ];
 
   // Showcase of promotional prices on the Home (percent off the catalog price).
+  // Only bookable services: the discount is applied in the booking flow (#/agendar).
   var PROMOS = [
     { itemId: 'banho-e-tosa', percent: 15 },
     { itemId: 'banho-simples', percent: 10 },
-    { itemId: 'racao-caes-adultos', percent: 5 },
+    { itemId: 'tosa-higienica', percent: 5 },
   ];
 
   function promoPrice(cents, percent) {
@@ -129,17 +130,20 @@
     return dt;
   }
 
-  // Mon-Fri 09-17h, Sat 09-12h, Sun closed. Some slots are "taken" (simulated).
-  function availableSlots(dateStr) {
+  // Mon-Fri 09-17h, Sat 09-12h, Sun closed; the last slot starts one hour before
+  // closing. Some slots are "taken" (simulated) and booked ones are excluded.
+  function availableSlots(dateStr, bookings) {
     var dt = parseDate(dateStr);
     if (!dt) return [];
     var dow = dt.getUTCDay();
     if (dow === 0) return [];
     var last = dow === 6 ? 12 : 17;
     var out = [];
-    for (var h = 9; h <= last; h++) {
+    for (var h = 9; h < last; h++) {
       if ((dt.getUTCDate() + h) % 5 === 0) continue;
-      out.push((h < 10 ? '0' : '') + h + ':00');
+      var t = (h < 10 ? '0' : '') + h + ':00';
+      var booked = (bookings || []).some(function (b) { return b && b.date === dateStr && b.time === t; });
+      if (!booked) out.push(t);
     }
     return out;
   }
@@ -160,7 +164,20 @@
 
   // input: { petName, species, size, notes, serviceId, date, time, mode, cep }
   // -> { ok, errors } or { ok, booking } with price breakdown and protocol.
-  function validateBooking(input) {
+  function localDateStr(d) {
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  // Earliest bookable date: tomorrow in local time (now is injectable for tests).
+  function minBookingDate(now) {
+    var d = new Date(now == null ? Date.now() : now);
+    d.setDate(d.getDate() + 1);
+    return localDateStr(d);
+  }
+
+  // ctx: { now, bookings } (both optional).
+  function validateBooking(input, ctx) {
+    ctx = ctx || {};
     var errors = {};
     var inp = input || {};
     var name = String(inp.petName == null ? '' : inp.petName).trim();
@@ -172,16 +189,17 @@
     if (!svc || !svc.service) errors.serviceId = 'Escolha o servico.';
     else if (findSize(inp.size) && svc.sizes.indexOf(inp.size) === -1) errors.size = 'Servico indisponivel para este porte.';
     if (!parseDate(inp.date)) errors.date = 'Escolha a data.';
-    else if (availableSlots(inp.date).indexOf(inp.time) === -1) errors.time = 'Escolha um horario disponivel.';
+    else if (inp.date < minBookingDate(ctx.now)) errors.date = 'Escolha uma data a partir de amanha.';
+    else if (availableSlots(inp.date, ctx.bookings).indexOf(inp.time) === -1) errors.time = 'Escolha um horario disponivel.';
     if (!DELIVERY_MODES.some(function (m) { return m.id === inp.mode; })) errors.mode = 'Escolha a forma de atendimento.';
     else if (inp.mode !== 'loja' && !deliveryQuote(inp.cep, inp.mode)) errors.cep = 'CEP invalido (8 digitos).';
     return errors;
   }
 
-  function createBooking(input, storage, rng) {
-    var errors = validateBooking(input);
-    if (Object.keys(errors).length) return { ok: false, errors: errors };
+  function createBooking(input, storage, rng, now) {
     var list = loadBookings(storage);
+    var errors = validateBooking(input, { now: now, bookings: list });
+    if (Object.keys(errors).length) return { ok: false, errors: errors };
     var protocol = nextProtocol(rng, list.map(function (b) { return b.protocol; }));
     if (!protocol) return { ok: false, errors: { protocol: 'Nao foi possivel gerar o protocolo.' } };
     var svc = findItem(input.serviceId);
@@ -205,13 +223,13 @@
   function loadBookings(storage) {
     try {
       var v = JSON.parse(storage && storage.getItem(BOOKING_KEY));
-      return Array.isArray(v) ? v : [];
+      return Array.isArray(v) ? v.filter(function (b) { return b && typeof b.protocol === 'string'; }) : [];
     } catch (e) { return []; }
   }
 
   var api = {
     SPECIES: SPECIES, DELIVERY_MODES: DELIVERY_MODES, PROMOS: PROMOS, BOOKING_KEY: BOOKING_KEY,
-    promoPrice: promoPrice, deliveryQuote: deliveryQuote, availableSlots: availableSlots,
+    promoPrice: promoPrice, minBookingDate: minBookingDate, deliveryQuote: deliveryQuote, availableSlots: availableSlots,
     nextProtocol: nextProtocol, validateBooking: validateBooking, createBooking: createBooking,
     loadBookings: loadBookings, bookingServices: bookingServices,
     normalize: normalize, parseHash: parseHash, listHash: listHash, detailHash: detailHash,
@@ -454,11 +472,12 @@
       card.appendChild(el('span', 'badge', p.percent + '% OFF'));
       var h3 = el('h3');
       var a = el('a', null, it.name);
-      a.href = it.service ? '#/agendar?service=' + encodeURIComponent(it.id) : detailHash(it.id, sid);
+      a.href = '#/agendar?service=' + encodeURIComponent(it.id);
       h3.appendChild(a);
       card.appendChild(h3);
       card.appendChild(el('p', 'muted', 'Porte ' + findSize(sid).name + ' - de ' + C.formatBRL(base)));
       card.appendChild(el('p', 'price', 'por ' + C.formatBRL(promoPrice(base, p.percent))));
+      card.appendChild(el('p', 'muted', 'Desconto aplicado no agendamento.'));
       g.appendChild(card);
     });
     box.appendChild(g);
@@ -532,9 +551,7 @@
     var dateIn = el('input');
     dateIn.type = 'date';
     dateIn.dataset.field = 'date';
-    var d0 = new Date();
-    d0.setDate(d0.getDate() + 1);
-    dateIn.min = d0.getFullYear() + '-' + ('0' + (d0.getMonth() + 1)).slice(-2) + '-' + ('0' + d0.getDate()).slice(-2);
+    dateIn.min = minBookingDate();
     dateIn.addEventListener('change', function () { st.date = dateIn.value; st.time = ''; renderSlots(); refresh(); });
     field('date', 'Data', dateIn);
     form.appendChild(slotsBox);
@@ -556,7 +573,7 @@
     function renderSlots() {
       clear(slotsBox);
       if (!st.date) { slotsBox.appendChild(el('p', 'muted', 'Escolha uma data para ver os horarios.')); return; }
-      var slots = availableSlots(st.date);
+      var slots = availableSlots(st.date, loadBookings(storage));
       if (!slots.length) { slotsBox.appendChild(el('p', 'muted', 'Sem horarios nesta data (domingo ou lotado).')); return; }
       slots.forEach(function (t) {
         var b = el('button', null, t);
@@ -607,7 +624,7 @@
       Object.keys(errEls).forEach(function (k) { errEls[k].textContent = (r.errors && r.errors[k]) || ''; });
       clear(result);
       if (!r.ok) {
-        result.appendChild(el('p', 'error', 'Revise os campos destacados.'));
+        result.appendChild(el('p', 'error', r.errors.protocol || 'Revise os campos destacados.'));
         return;
       }
       var b = r.booking;
