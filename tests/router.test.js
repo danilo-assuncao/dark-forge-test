@@ -572,3 +572,30 @@ test('confirmation updates focus, title and order id; errors clear and refocus o
   assert.equal(t.doc.title, 'Order confirmed – Dan');
   assert.match(byClass(t, 'order-confirmation')[0].textContent, /#[0-9A-Z]+/);
 });
+
+test('detail page shows description, specifications and price for every product', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const all = ctx.window.DanProducts.all();
+  assert.ok(all.length > 0);
+  all.forEach(function (p) {
+    assert.ok(p.specs && p.specs.length > 0, p.id + ' specs');
+    const t = boot('#/produto/' + p.id);
+    assert.equal(t.has('specs'), true, p.id);
+    const texts = [];
+    walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+    assert.ok(texts.indexOf('Specifications') !== -1, p.id);
+    assert.ok(texts.indexOf(p.description) !== -1, p.id);
+    assert.ok(texts.some(function (x) { return /^R\$ /.test(x); }), p.id + ' price');
+    p.specs.forEach(function (s) {
+      assert.ok(texts.indexOf(s.label) !== -1 && texts.indexOf(s.value) !== -1, p.id + ' ' + s.label);
+    });
+  });
+});
+
+test('detail page shows a specifications fallback when a product has none', function () {
+  const t = boot('#/produto/x', { products: [{ id: 'x', name: 'Xyz', description: 'd', priceCents: 100 }] });
+  const texts = [];
+  walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+  assert.ok(texts.indexOf('Specifications not available.') !== -1);
+});
