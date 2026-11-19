@@ -579,13 +579,20 @@
 
   var hasRendered = false;
 
-  // Sets the document title and the meta description for the current view.
+  // Sets the document title and keeps the description, og:title and
+  // og:description tags in sync with the current view. Missing tags are skipped.
+  function setMeta(selector, value) {
+    var meta = document.querySelector(selector);
+    if (meta && value) {
+      meta.setAttribute('content', value);
+    }
+  }
+
   function applyMeta(view) {
     document.title = view.title;
-    var meta = document.querySelector('meta[name="description"]');
-    if (meta && view.description) {
-      meta.setAttribute('content', view.description);
-    }
+    setMeta('meta[name="description"]', view.description);
+    setMeta('meta[property="og:title"]', view.title);
+    setMeta('meta[property="og:description"]', view.description);
   }
 
   function render() {
