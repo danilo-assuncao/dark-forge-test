@@ -56,19 +56,20 @@
     return marquee;
   }
 
-  var BRAND = 'Dan Motors';
+  var BRAND = 'Dan Food';
 
   // Meta description per route (SEO); the views below attach theirs.
   var DESCRIPTIONS = {
-    home: 'Dan Motors is a simulated auto repair shop: servicing, brakes, tires and diagnostics for every vehicle size.',
-    about: 'About Dan Motors, a simulated auto repair shop built as a small single-page app.',
-    catalog: 'Browse every Dan Motors service, filter by specialty and pick your vehicle size.',
-    cart: 'Review the services in your Dan Motors cart, adjust quantities and apply a coupon.',
-    checkout: 'Agende o box da Dan Motors com nome, placa, turno e CEP para leva-e-traz simulado.',
-    confirmed: 'Sua OS simulada da Dan Motors foi aberta.',
-    product: 'Details, vehicle sizes, bay time and price for this Dan Motors service.',
+    home: 'Dan Food: combos do dia, pratos executivos, massas, burgers e sobremesas com delivery por CEP ou retirada no balcao.',
+    about: 'Sobre o Dan Food, um restaurante simulado construido como uma pequena aplicacao de pagina unica.',
+    catalog: 'Explore o cardapio do Dan Food e filtre por categoria culinaria.',
+    cart: 'Revise os pratos da sua sacola Dan Food e ajuste quantidades ou aplique um cupom.',
+    checkout: 'Feche seu pedido Dan Food com Delivery por CEP ou Retirada no Balcao.',
+    confirmed: 'Seu pedido simulado do Dan Food foi confirmado.',
+    product: 'Detalhes, porcoes, tempo de preparo e informacao nutricional deste prato Dan Food.',
     notFound: 'The page you are looking for does not exist.'
   };
+
 
   // ----- Views: each returns { title, description, node } -----
 
@@ -77,27 +78,39 @@
     return all.slice(0, 4);
   }
 
-  // Preventive-review packages: the first services of the "Revisao & Motor" specialty.
-  var REVISION_CATEGORY = 'Revisao & Motor';
-
-  function revisionProducts() {
-    var all = window.DanProducts ? window.DanProducts.all() : [];
-    return all.filter(function (p) { return p.category === REVISION_CATEGORY; }).slice(0, 3);
-  }
-
-  function revisionCard(product) {
-    var item = el('li', 'revision-item');
-    var link = el('a', 'revision-card');
-    link.href = '#/produto/' + encodeURIComponent(product.id);
-    link.appendChild(el('span', 'product-name', product.name));
-    link.appendChild(el('span', 'product-price', 'A partir de ' + formatPrice(product.priceCents)));
-    if (product.boxTime) {
-      link.appendChild(el('span', 'product-box-time', 'Tempo de box: ' + product.boxTime));
-    }
-    if (product.checklist && product.checklist.length) {
-      link.appendChild(el('span', 'revision-checklist', 'Checklist: ' + product.checklist.slice(0, 3).join(', ')));
-    }
-    item.appendChild(link);
+  // Combos of the day: each card lists its dishes and adds them to the bag together.
+  function comboCard(combo) {
+    var item = el('li', 'combo-item');
+    var card = el('div', 'combo-card');
+    card.appendChild(el('h3', 'product-name', combo.name));
+    card.appendChild(el('p', 'combo-description', combo.description));
+    var list = el('ul', 'combo-dishes');
+    combo.dishes.forEach(function (dish) {
+      var li = el('li');
+      var link = el('a', 'text-link', dish.name + ' (' + dish.sizes[0] + ')');
+      link.href = '#/produto/' + encodeURIComponent(dish.id);
+      li.appendChild(link);
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+    card.appendChild(el('p', 'product-price', formatPrice(combo.priceCents)));
+    var status = el('p', 'cart-status combo-status');
+    status.setAttribute('role', 'status');
+    var add = el('button', 'action-button combo-add', 'Adicionar combo \u00e0 sacola');
+    add.type = 'button';
+    add.addEventListener('click', function () {
+      status.textContent = '';
+      var ok = !!window.DanCart;
+      combo.dishes.forEach(function (dish) {
+        if (ok && !window.DanCart.add(dish.id, 1, dish.sizes[0])) {
+          ok = false;
+        }
+      });
+      status.textContent = ok ? combo.name + ' adicionado \u00e0 sacola.' : 'Quantidade m\u00e1xima atingida.';
+    });
+    card.appendChild(add);
+    card.appendChild(status);
+    item.appendChild(card);
     return item;
   }
 
@@ -110,9 +123,9 @@
     var heading = el('h1', 'hero-title', BRAND);
     heading.id = 'hero-title';
     hero.appendChild(heading);
-    hero.appendChild(el('p', 'hero-eyebrow', 'Dan Motors workshop'));
-    hero.appendChild(el('p', 'hero-tagline', 'Servicing, brakes, tires and diagnostics for hatchbacks, SUVs and utility vehicles.'));
-    var cta = el('a', 'action-button hero-cta', 'Browse the services');
+    hero.appendChild(el('p', 'hero-eyebrow', 'Cozinha Dan Food'));
+    hero.appendChild(el('p', 'hero-tagline', 'Executivos, massas, burgers e sobremesas com delivery por CEP ou retirada no balc\u00e3o.'));
+    var cta = el('a', 'action-button hero-cta', 'Ver o card\u00e1pio');
     cta.href = '#/catalog';
     hero.appendChild(cta);
     stage.appendChild(hero);
@@ -121,7 +134,7 @@
     var categories = window.DanProducts && window.DanProducts.categories ? window.DanProducts.categories() : [];
     if (categories.length) {
       var nav = el('nav', 'home-categories container');
-      nav.setAttribute('aria-label', 'Browse by specialty');
+      nav.setAttribute('aria-label', 'Navegar por categoria');
       categories.forEach(function (category) {
         var link = el('a', 'category-link', category);
         link.href = '#/catalog?category=' + encodeURIComponent(category);
@@ -130,11 +143,27 @@
       home.appendChild(nav);
     }
 
+    var combos = window.DanProducts && window.DanProducts.combos ? window.DanProducts.combos() : [];
+    if (combos.length) {
+      var deals = el('section', 'combos-showcase container');
+      deals.setAttribute('aria-labelledby', 'combos-title');
+      var dealsTitle = el('h2', 'showcase-title', 'Combos do dia');
+      dealsTitle.id = 'combos-title';
+      deals.appendChild(dealsTitle);
+      deals.appendChild(el('p', 'revision-intro', 'Prato principal e acompanhamento escolhidos para hoje, na por\u00e7\u00e3o individual.'));
+      var comboGrid = el('ul', 'revision-grid combo-grid');
+      combos.forEach(function (combo) {
+        comboGrid.appendChild(comboCard(combo));
+      });
+      deals.appendChild(comboGrid);
+      home.appendChild(deals);
+    }
+
     var featured = featuredProducts();
     if (featured.length) {
       var showcase = el('section', 'showcase container');
       showcase.setAttribute('aria-labelledby', 'showcase-title');
-      var showcaseTitle = el('h2', 'showcase-title', 'Popular services');
+      var showcaseTitle = el('h2', 'showcase-title', 'Pratos populares');
       showcaseTitle.id = 'showcase-title';
       showcase.appendChild(showcaseTitle);
       var grid = el('ul', 'product-grid');
@@ -142,30 +171,12 @@
         grid.appendChild(productCard(product));
       });
       showcase.appendChild(grid);
-      var all = el('a', 'text-link showcase-link', 'See the full catalog');
+      var all = el('a', 'text-link showcase-link', 'Ver o card\u00e1pio completo');
       all.href = '#/catalog';
       showcase.appendChild(all);
       home.appendChild(showcase);
     }
-    var revisions = revisionProducts();
-    if (revisions.length) {
-      var revision = el('section', 'revision-showcase container');
-      revision.setAttribute('aria-labelledby', 'revision-title');
-      var revisionTitle = el('h2', 'showcase-title', 'Pacotes de revis\u00e3o preventiva');
-      revisionTitle.id = 'revision-title';
-      revision.appendChild(revisionTitle);
-      revision.appendChild(el('p', 'revision-intro', 'Mantenha o carro em dia com revis\u00f5es que seguem um checklist t\u00e9cnico.'));
-      var revisionGrid = el('ul', 'revision-grid');
-      revisions.forEach(function (product) {
-        revisionGrid.appendChild(revisionCard(product));
-      });
-      revision.appendChild(revisionGrid);
-      var catalogLink = el('a', 'action-button revision-cta', 'Ver todos os servi\u00e7os no cat\u00e1logo');
-      catalogLink.href = '#/catalog';
-      revision.appendChild(catalogLink);
-      home.appendChild(revision);
-    }
-    return { title: BRAND + ' \u2013 Auto repair shop', description: DESCRIPTIONS.home, node: home };
+    return { title: BRAND + ' \u2013 Restaurante delivery', description: DESCRIPTIONS.home, node: home };
   }
 
   function contentView(title, paragraph) {
@@ -177,9 +188,9 @@
 
   function aboutView() {
     return {
-      title: 'About \u2013 ' + BRAND,
+      title: 'Sobre \u2013 ' + BRAND,
       description: DESCRIPTIONS.about,
-      node: contentView('About', 'Dan Motors is a simulated auto repair shop: no service is performed and no payment is taken.')
+      node: contentView('Sobre', 'O Dan Food \u00e9 um restaurante simulado: nenhum prato \u00e9 preparado e nenhum pagamento \u00e9 cobrado.')
     };
   }
 
@@ -220,10 +231,10 @@
     }
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
     if (product.boxTime) {
-      link.appendChild(el('span', 'product-box-time', 'Tempo de box (Hatch/Sedan): ' + product.boxTime));
+      link.appendChild(el('span', 'product-box-time', 'Tempo de preparo: ' + product.boxTime));
     }
     if (product.sizes && product.sizes.length) {
-      link.appendChild(el('span', 'product-sizes', 'Portes: ' + product.sizes.join(', ')));
+      link.appendChild(el('span', 'product-sizes', 'Por\u00e7\u00f5es: ' + product.sizes.join(', ')));
     }
     item.appendChild(link);
     return item;
@@ -248,7 +259,7 @@
 
   function catalogView() {
     var container = el('div', 'container');
-    container.appendChild(el('h1', 'page-title', 'Catalog'));
+    container.appendChild(el('h1', 'page-title', 'Card\u00e1pio'));
     var products = window.DanProducts ? window.DanProducts.all() : [];
     var categories = window.DanProducts && window.DanProducts.categories ? window.DanProducts.categories() : [];
     var grid = el('ul', 'product-grid');
@@ -269,7 +280,7 @@
     if (categories.length) {
       var filter = el('div', 'category-filter');
       filter.setAttribute('role', 'group');
-      filter.setAttribute('aria-label', 'Filter by category');
+      filter.setAttribute('aria-label', 'Filtrar por categoria');
       var labels = [null].concat(categories);
       labels.forEach(function (category) {
         var button = el('button', 'filter-button', category === null ? 'Todas' : category);
@@ -285,22 +296,22 @@
     var initial = categoryFromHash();
     show(categories.indexOf(initial) === -1 ? null : initial);
     container.appendChild(grid);
-    return { title: 'Catalog \u2013 ' + BRAND, description: DESCRIPTIONS.catalog, node: container };
+    return { title: 'Card\u00e1pio \u2013 ' + BRAND, description: DESCRIPTIONS.catalog, node: container };
   }
 
   function measurementsTable(product, rowNodes) {
     var section = el('section', 'measurements');
-    section.appendChild(el('h2', 'measurements-title', 'Technical table'));
+    section.appendChild(el('h2', 'measurements-title', 'Informa\u00e7\u00e3o nutricional'));
     var data = product.measurements;
     if (!data || !data.rows || !data.rows.length || !data.columns) {
-      section.appendChild(el('p', null, 'This service has no technical table.'));
+      section.appendChild(el('p', null, 'Este prato n\u00e3o tem tabela nutricional.'));
       return section;
     }
     var table = el('table', 'measurements-table');
-    table.appendChild(el('caption', null, (data.unit || 'Technical specifications')));
+    table.appendChild(el('caption', null, (data.unit || 'Informa\u00e7\u00e3o nutricional')));
     var head = el('thead');
     var headRow = el('tr');
-    var corner = el('th', null, 'Vehicle size');
+    var corner = el('th', null, 'Por\u00e7\u00e3o');
     corner.setAttribute('scope', 'col');
     headRow.appendChild(corner);
     data.columns.forEach(function (column) {
@@ -332,9 +343,9 @@
 
   function specsSection(product) {
     var section = el('section', 'specs');
-    section.appendChild(el('h2', 'specs-title', 'Specifications'));
+    section.appendChild(el('h2', 'specs-title', 'Detalhes do prato'));
     if (!product.specs || !product.specs.length) {
-      section.appendChild(el('p', null, 'Specifications not available.'));
+      section.appendChild(el('p', null, 'Detalhes indispon\u00edveis.'));
       return section;
     }
     var list = el('dl', 'specs-list');
@@ -349,12 +360,12 @@
   // Technical checklist of the items reviewed plus the estimated bay time.
   function checklistSection(product) {
     var section = el('section', 'checklist');
-    section.appendChild(el('h2', 'checklist-title', 'Technical checklist'));
+    section.appendChild(el('h2', 'checklist-title', 'Ingredientes'));
     if (product.boxTime) {
-      section.appendChild(el('p', 'bay-time', 'Estimated bay time (Hatch/Sedan): ' + product.boxTime));
+      section.appendChild(el('p', 'bay-time', 'Tempo de preparo estimado: ' + product.boxTime));
     }
     if (!product.checklist || !product.checklist.length) {
-      section.appendChild(el('p', null, 'Checklist not available.'));
+      section.appendChild(el('p', null, 'Ingredientes indispon\u00edveis.'));
       return section;
     }
     var list = el('ul', 'checklist-items');
@@ -382,7 +393,7 @@
     var selected = null;
     var sizeButtons = [];
     var picker = el('div', 'size-picker');
-    var sizeLegend = el('p', 'size-label', 'Vehicle size');
+    var sizeLegend = el('p', 'size-label', 'Por\u00e7\u00e3o');
     sizeLegend.id = 'size-label';
     picker.setAttribute('role', 'group');
     picker.setAttribute('aria-labelledby', 'size-label');
@@ -394,7 +405,7 @@
         selected = size;
         picker.className = 'size-picker';
         picker.removeAttribute('aria-describedby');
-        summary.textContent = 'Selected vehicle size: ' + size;
+        summary.textContent = 'Por\u00e7\u00e3o selecionada: ' + size;
         markGuideRow(size);
         for (var b = 0; b < sizeButtons.length; b++) {
           sizeButtons[b].node.setAttribute('aria-pressed', sizeButtons[b].size === size ? 'true' : 'false');
@@ -405,12 +416,12 @@
       sizeButtons.push({ size: size, node: button });
       picker.appendChild(button);
     });
-    var summary = el('p', 'size-selected', 'No vehicle size selected');
-    // A single-size (porte unico) service needs no choice: it is preselected.
+    var summary = el('p', 'size-selected', 'Nenhuma por\u00e7\u00e3o selecionada');
+    // A single-portion dish needs no choice: it is preselected.
     if (sizeButtons.length === 1) {
       selected = sizeButtons[0].size;
       sizeButtons[0].node.setAttribute('aria-pressed', 'true');
-      summary.textContent = 'Selected vehicle size: ' + selected;
+      summary.textContent = 'Por\u00e7\u00e3o selecionada: ' + selected;
     }
     function markGuideRow(size) {
       for (var r = 0; r < guideRows.length; r++) {
@@ -424,7 +435,17 @@
       container.appendChild(summary);
     }
 
-    var add = el('button', 'action-button add-to-cart', 'Add to cart');
+    var noteLabel = el('label', 'size-label', 'Observa\u00e7\u00f5es para a cozinha (opcional)');
+    noteLabel.setAttribute('for', 'dish-note');
+    var noteInput = el('input', 'form-input dish-note');
+    noteInput.id = 'dish-note';
+    noteInput.type = 'text';
+    noteInput.maxLength = 140;
+    noteInput.setAttribute('autocomplete', 'off');
+    container.appendChild(noteLabel);
+    container.appendChild(noteInput);
+
+    var add = el('button', 'action-button add-to-cart', 'Adicionar \u00e0 sacola');
     add.type = 'button';
     var status = el('p', 'cart-status');
     status.id = 'cart-status';
@@ -437,24 +458,24 @@
       status.textContent = '';
       status.className = 'cart-status';
       if (!selected) {
-        status.textContent = 'Select a vehicle size first.';
+        status.textContent = 'Escolha uma por\u00e7\u00e3o primeiro.';
         status.className = 'cart-status is-error';
         picker.className = 'size-picker needs-size';
         picker.setAttribute('aria-describedby', 'cart-status');
         if (sizeButtons.length) {
           sizeButtons[0].node.focus();
         }
-      } else if (window.DanCart.add(product.id, 1, selected)) {
-        status.textContent = 'Added ' + selected + ' to cart.';
+      } else if (window.DanCart.add(product.id, 1, selected, noteInput.value)) {
+        status.textContent = 'Adicionado: ' + selected + ' na sacola.';
         status.className = 'cart-status is-success';
       } else {
-        status.textContent = 'Maximum quantity reached.';
+        status.textContent = 'Quantidade m\u00e1xima atingida.';
         status.className = 'cart-status is-error';
       }
     });
     container.appendChild(add);
     container.appendChild(status);
-    var back = el('a', 'text-link', 'Back to catalog');
+    var back = el('a', 'text-link', 'Voltar ao card\u00e1pio');
     back.href = '#/catalog';
     container.appendChild(back);
     return { title: product.name + ' \u2013 ' + BRAND, description: product.name + ': ' + product.description, node: container };
@@ -480,17 +501,20 @@
     var name = el('a', 'cart-name', line.product.name);
     name.href = '#/produto/' + encodeURIComponent(line.id);
     item.appendChild(name);
-    item.appendChild(el('span', 'cart-size', 'Vehicle size: ' + line.size));
+    item.appendChild(el('span', 'cart-size', 'Por\u00e7\u00e3o: ' + line.size));
     item.appendChild(el('span', 'cart-unit', formatPrice(line.product.priceCents)));
+    if (line.note) {
+      item.appendChild(el('span', 'cart-note', 'Obs.: ' + line.note));
+    }
 
     var qty = el('span', 'cart-qty');
-    qty.appendChild(qtyButton('\u2212', 'Decrease quantity of ' + lineLabel(line), function () {
+    qty.appendChild(qtyButton('\u2212', 'Diminuir quantidade de ' + lineLabel(line), function () {
       cart.setQty(line.id, line.size, line.qty - 1);
     }));
     var value = el('span', 'cart-qty-value', String(line.qty));
-    value.setAttribute('aria-label', 'Quantity: ' + line.qty);
+    value.setAttribute('aria-label', 'Quantidade: ' + line.qty);
     qty.appendChild(value);
-    var plus = qtyButton('+', 'Increase quantity of ' + lineLabel(line), function () {
+    var plus = qtyButton('+', 'Aumentar quantidade de ' + lineLabel(line), function () {
       cart.setQty(line.id, line.size, line.qty + 1);
     });
     if (line.qty >= cart.MAX_QTY) {
@@ -500,9 +524,9 @@
     item.appendChild(qty);
 
     item.appendChild(el('span', 'cart-subtotal', formatPrice(line.subtotalCents)));
-    var remove = el('button', 'text-button', 'Remove');
+    var remove = el('button', 'text-button', 'Remover');
     remove.type = 'button';
-    remove.setAttribute('aria-label', 'Remove ' + lineLabel(line) + ' from cart');
+    remove.setAttribute('aria-label', 'Remover ' + lineLabel(line) + ' da sacola');
     remove.addEventListener('click', function () {
       cart.remove(line.id, line.size);
     });
@@ -514,12 +538,12 @@
   function totalsBlock(cart) {
     var block = el('div', 'cart-totals');
     var discount = cart.discountCents();
-    block.appendChild(el('p', 'cart-parts', 'Pe\u00e7as: ' + formatPrice(cart.partsCents())));
-    block.appendChild(el('p', 'cart-labor', 'M\u00e3o de obra: ' + formatPrice(cart.laborCents())));
+    block.appendChild(el('p', 'cart-parts', 'Embalagem t\u00e9rmica: ' + formatPrice(cart.packagingCents())));
+    block.appendChild(el('p', 'cart-labor', 'Alimentos: ' + formatPrice(cart.foodCents())));
     if (discount > 0) {
       block.appendChild(el('p', 'cart-subtotal-line', 'Subtotal: ' + formatPrice(cart.subtotalCents())));
       var coupon = cart.coupon();
-      block.appendChild(el('p', 'cart-discount', 'Coupon ' + (coupon ? coupon.code : '') + ': \u2212' + formatPrice(discount)));
+      block.appendChild(el('p', 'cart-discount', 'Cupom ' + (coupon ? coupon.code : '') + ': \u2212' + formatPrice(discount)));
     }
     block.appendChild(el('p', 'cart-total', 'Total: ' + formatPrice(cart.totalCents())));
     return block;
@@ -532,10 +556,10 @@
     status.setAttribute('role', 'status');
     if (applied) {
       var text = cart.discountCents() > 0
-        ? 'Coupon ' + applied.code + ' applied: ' + applied.label + '.'
-        : 'Coupon ' + applied.code + ' is saved but does not apply to the current subtotal (' + applied.label + ').';
+        ? 'Cupom ' + applied.code + ' aplicado: ' + applied.label + '.'
+        : 'Cupom ' + applied.code + ' salvo, mas n\u00e3o se aplica ao subtotal atual (' + applied.label + ').';
       box.appendChild(el('p', 'coupon-applied', text));
-      var drop = el('button', 'text-button', 'Remove coupon');
+      var drop = el('button', 'text-button', 'Remover cupom');
       drop.type = 'button';
       drop.addEventListener('click', function () {
         cart.removeCoupon();
@@ -545,15 +569,15 @@
     }
     var form = el('form', 'coupon-form');
     form.setAttribute('novalidate', 'novalidate');
-    form.setAttribute('aria-label', 'Coupon');
-    var label = el('label', null, 'Coupon code');
+    form.setAttribute('aria-label', 'Cupom');
+    var label = el('label', null, 'C\u00f3digo do cupom');
     label.setAttribute('for', 'coupon-code');
     var input = el('input', 'form-input');
     input.id = 'coupon-code';
     input.name = 'coupon';
     input.type = 'text';
     input.setAttribute('autocomplete', 'off');
-    var submit = el('button', 'action-button coupon-apply', 'Apply coupon');
+    var submit = el('button', 'action-button coupon-apply', 'Aplicar cupom');
     submit.type = 'submit';
     form.addEventListener('submit', function (event) {
       if (event && event.preventDefault) {
@@ -578,15 +602,15 @@
 
   function cartView() {
     var container = el('div', 'container');
-    container.appendChild(el('h1', 'page-title', 'Cart'));
+    container.appendChild(el('h1', 'page-title', 'Sacola'));
     var cart = window.DanCart;
     var lines = cart ? cart.lines() : [];
     if (!lines.length) {
-      container.appendChild(el('p', 'cart-empty', 'Your cart is empty.'));
-      var shop = el('a', 'text-link', 'Browse the catalog');
+      container.appendChild(el('p', 'cart-empty', 'Sua sacola est\u00e1 vazia.'));
+      var shop = el('a', 'text-link', 'Ver o card\u00e1pio');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Cart \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
+      return { title: 'Sacola \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
     }
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
@@ -595,86 +619,76 @@
     container.appendChild(list);
     container.appendChild(couponBox(cart));
     container.appendChild(totalsBlock(cart));
-    var clear = el('button', 'text-button', 'Clear cart');
+    var clear = el('button', 'text-button', 'Esvaziar sacola');
     clear.type = 'button';
     clear.addEventListener('click', function () {
       cart.clear();
     });
     container.appendChild(clear);
-    var checkout = el('a', 'action-button checkout-link', 'Agendar box');
+    var checkout = el('a', 'action-button checkout-link', 'Fechar pedido');
     checkout.href = '#/checkout';
     container.appendChild(checkout);
-    return { title: 'Cart \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
+    return { title: 'Sacola \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
   }
 
-  // ----- Agendamento de box / confirmação da OS (simulado: nada é enviado) -----
+  // ----- Fechamento do pedido: Delivery por CEP ou Retirada no Balcao (simulado: nada e enviado) -----
 
-  var SHIFTS = [
-    { value: 'manha', label: 'Manhã (08h às 12h)' },
-    { value: 'tarde', label: 'Tarde (13h às 17h)' },
-    { value: 'noite', label: 'Noite (18h às 21h)' }
+  var MODES = [
+    { value: 'delivery', label: 'Delivery por CEP' },
+    { value: 'pickup', label: 'Retirada no Balcão' }
   ];
 
-  var BOOKING_FIELDS = [
-    { name: 'name', label: 'Nome do cliente', type: 'text', autocomplete: 'name' },
-    { name: 'plate', label: 'Placa do veículo (ABC1D23 ou ABC-1234)', type: 'text', autocomplete: 'off' },
-    { name: 'shift', label: 'Turno preferido', type: 'select' },
-    { name: 'cep', label: 'CEP para leva-e-traz/guincho', type: 'text', autocomplete: 'postal-code' }
-  ];
-
-  // Returns the plate as 7 upper-case characters (old "ABC1234" or Mercosul
-  // "ABC1D23"; an optional hyphen after the third character is accepted), or
-  // null when it matches neither pattern.
-  function normalizePlate(raw) {
-    var value = String(raw === undefined || raw === null ? '' : raw).trim().toUpperCase();
-    if (/^[A-Z]{3}-\d{4}$/.test(value)) {
-      value = value.replace('-', '');
-    }
-    return /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(value) ? value : null;
-  }
-
-  function shiftLabel(value) {
-    for (var i = 0; i < SHIFTS.length; i++) {
-      if (SHIFTS[i].value === value) {
-        return SHIFTS[i].label;
+  function modeLabel(value) {
+    for (var i = 0; i < MODES.length; i++) {
+      if (MODES[i].value === value) {
+        return MODES[i].label;
       }
     }
     return null;
   }
 
   // Returns an error message, or '' when the value is valid.
-  function validateField(name, raw) {
+  function validateName(raw) {
     var value = String(raw || '').trim();
     if (!value) {
       return 'Campo obrigatório.';
     }
-    if (name === 'name' && (value.length < 3 || value.indexOf(' ') === -1)) {
+    if (value.length < 3 || value.indexOf(' ') === -1) {
       return 'Informe nome e sobrenome.';
     }
-    if (name === 'plate' && !normalizePlate(value)) {
-      return 'Placa inválida. Use o padrão Mercosul (ABC1D23) ou o antigo (ABC-1234).';
+    return '';
+  }
+
+  function validateCep(raw) {
+    var value = String(raw || '').trim();
+    if (!value) {
+      return 'Campo obrigatório.';
     }
-    if (name === 'shift' && !shiftLabel(value)) {
-      return 'Escolha um turno.';
-    }
-    if (name === 'cep' && (!/^\d{5}-?\d{3}$/.test(value))) {
+    if (!/^\d{5}-?\d{3}$/.test(value)) {
       return 'Informe um CEP com 8 dígitos, como 01310-100.';
     }
     return '';
   }
 
-  function shippingQuote(raw) {
-    return window.DanCheckout ? window.DanCheckout.quote(raw) : null;
+  function fulfillmentFor(mode, rawCep) {
+    return window.DanCheckout ? window.DanCheckout.fulfillment(mode, rawCep) : null;
+  }
+
+  function trackingCode() {
+    return window.DanCheckout ? window.DanCheckout.trackingCode() : 'DAN-0000';
   }
 
   function orderSummary(cart, lines) {
     var section = el('section', 'order-summary');
-    section.appendChild(el('h2', 'order-summary-title', 'Resumo da OS'));
+    section.appendChild(el('h2', 'order-summary-title', 'Resumo do pedido'));
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
       var item = el('li', 'cart-item');
       item.appendChild(el('span', 'cart-name', lines[i].qty + ' × ' + lineLabel(lines[i])));
       item.appendChild(el('span', 'cart-subtotal', formatPrice(lines[i].subtotalCents)));
+      if (lines[i].note) {
+        item.appendChild(el('span', 'cart-note', 'Obs.: ' + lines[i].note));
+      }
       list.appendChild(item);
     }
     section.appendChild(list);
@@ -682,115 +696,159 @@
     return section;
   }
 
-  // Leva-e-traz/guincho and grand total lines, refreshed as the CEP changes.
+  // Delivery fee / ETA and grand total lines, refreshed as the mode or CEP changes.
   function shippingBlock() {
     var block = el('div', 'shipping-block');
-    var shipping = el('p', 'shipping-line', 'Leva-e-traz/guincho: informe o CEP');
+    var shipping = el('p', 'shipping-line', '');
+    var eta = el('p', 'eta-line', '');
     var grand = el('p', 'grand-total', '');
     block.appendChild(shipping);
+    block.appendChild(eta);
     block.appendChild(grand);
     block.setAttribute('aria-live', 'polite');
-    return { node: block, shipping: shipping, grand: grand };
+    return { node: block, shipping: shipping, eta: eta, grand: grand };
   }
 
-  function newProtocol() {
-    return 'OS-' + Date.now().toString(36).toUpperCase();
+  function etaText(minutes) {
+    return 'Tempo estimado: ' + minutes + ' min';
   }
 
-  function confirmationView(booking) {
+  function confirmationView(order) {
     var container = el('div', 'container');
-    var heading = el('h1', 'page-title', 'OS confirmada');
+    var heading = el('h1', 'page-title', 'Pedido confirmado');
     container.appendChild(heading);
-    container.appendChild(el('p', 'order-confirmation', 'Obrigado, ' + booking.name + '! Sua OS ' +
-      booking.protocol + ' foi aberta, no valor de ' + formatPrice(booking.total) + '.'));
-    container.appendChild(el('p', 'order-protocol', 'Protocolo: ' + booking.protocol));
-    container.appendChild(el('p', 'order-plate', 'Placa: ' + booking.plate));
-    container.appendChild(el('p', 'order-shift', 'Turno: ' + booking.shift));
-    container.appendChild(el('p', 'order-shipping', 'Leva-e-traz/guincho (' + booking.region + '): ' + formatPrice(booking.shippingCents)));
-    container.appendChild(el('p', null, 'Isto é uma simulação: nenhum serviço será prestado e nenhum pagamento foi feito.'));
-    var link = el('a', 'text-link', 'Voltar ao catálogo');
+    container.appendChild(el('p', 'order-confirmation', 'Obrigado, ' + order.name + '! Seu pedido ' +
+      order.code + ' foi confirmado, no valor de ' + formatPrice(order.total) + '.'));
+    container.appendChild(el('p', 'order-protocol', 'Código de acompanhamento: ' + order.code));
+    container.appendChild(el('p', 'order-mode', 'Modalidade: ' + order.modeLabel));
+    if (order.mode === 'delivery') {
+      container.appendChild(el('p', 'order-shipping', 'Delivery (' + order.region + '): ' + formatPrice(order.shippingCents)));
+    } else {
+      container.appendChild(el('p', 'order-shipping', 'Retirada no Balcão: grátis'));
+    }
+    container.appendChild(el('p', 'order-eta', etaText(order.minutes)));
+    container.appendChild(el('p', null, 'Isto é uma simulação: nenhum prato será preparado e nenhum pagamento foi feito.'));
+    var link = el('a', 'text-link', 'Voltar ao cardápio');
     link.href = '#/catalog';
     container.appendChild(link);
-    return { title: 'OS confirmada – ' + BRAND, description: DESCRIPTIONS.confirmed, node: container, heading: heading };
+    return { title: 'Pedido confirmado – ' + BRAND, description: DESCRIPTIONS.confirmed, node: container, heading: heading };
   }
 
   function checkoutView(notice) {
     var cart = window.DanCart;
     var lines = cart ? cart.lines() : [];
     var container = el('div', 'container');
-    container.appendChild(el('h1', 'page-title', 'Agendamento de box'));
+    container.appendChild(el('h1', 'page-title', 'Fechar pedido'));
     if (notice) {
       var alert = el('p', 'checkout-notice', notice);
       alert.setAttribute('role', 'status');
       container.appendChild(alert);
     }
     if (!lines.length) {
-      container.appendChild(el('p', 'cart-empty', 'Seu orçamento está vazio.'));
-      var shop = el('a', 'text-link', 'Ver o catálogo');
+      container.appendChild(el('p', 'cart-empty', 'Sua sacola está vazia.'));
+      var shop = el('a', 'text-link', 'Ver o cardápio');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Agendamento de box – ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
+      return { title: 'Fechar pedido – ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
     }
     var total = cart.totalCents();
     var count = cart.count();
     container.appendChild(orderSummary(cart, lines));
     var ship = shippingBlock();
-    ship.grand.textContent = 'Total com leva-e-traz: ' + formatPrice(total) + ' + leva-e-traz';
     container.appendChild(ship.node);
 
     var form = el('form', 'checkout-form');
     form.setAttribute('novalidate', 'novalidate');
-    form.setAttribute('aria-label', 'Dados do agendamento');
-    var inputs = {};
-    var errors = {};
-    for (var i = 0; i < BOOKING_FIELDS.length; i++) {
-      var field = BOOKING_FIELDS[i];
-      var row = el('div', 'form-field');
-      var label = el('label', null, field.label);
-      label.setAttribute('for', 'checkout-' + field.name);
-      var input;
-      if (field.type === 'select') {
-        input = el('select', 'form-input');
-        var blank = el('option', null, 'Selecione');
-        blank.value = '';
-        input.appendChild(blank);
-        for (var s = 0; s < SHIFTS.length; s++) {
-          var option = el('option', null, SHIFTS[s].label);
-          option.value = SHIFTS[s].value;
-          input.appendChild(option);
-        }
-        input.value = '';
-      } else {
-        input = el('input', 'form-input');
-        input.type = field.type;
-        input.setAttribute('autocomplete', field.autocomplete);
+    form.setAttribute('aria-label', 'Dados do pedido');
+
+    // Customer name
+    var nameRow = el('div', 'form-field');
+    var nameLabel = el('label', null, 'Nome do cliente');
+    nameLabel.setAttribute('for', 'checkout-name');
+    var nameInput = el('input', 'form-input');
+    nameInput.id = 'checkout-name';
+    nameInput.name = 'name';
+    nameInput.type = 'text';
+    nameInput.setAttribute('autocomplete', 'name');
+    nameInput.setAttribute('aria-required', 'true');
+    nameInput.setAttribute('aria-describedby', 'checkout-name-error');
+    var nameError = el('p', 'form-error');
+    nameError.id = 'checkout-name-error';
+    nameRow.appendChild(nameLabel);
+    nameRow.appendChild(nameInput);
+    nameRow.appendChild(nameError);
+    form.appendChild(nameRow);
+
+    // Fulfilment mode: delivery (default) or pickup
+    var mode = 'delivery';
+    var modeBox = el('fieldset', 'form-field mode-field');
+    modeBox.appendChild(el('legend', null, 'Como você quer receber?'));
+    var radios = {};
+    MODES.forEach(function (m) {
+      var label = el('label', 'mode-option');
+      var radio = el('input', 'mode-radio');
+      radio.type = 'radio';
+      radio.name = 'mode';
+      radio.value = m.value;
+      radio.id = 'checkout-mode-' + m.value;
+      radio.checked = m.value === mode;
+      radio.addEventListener('change', function () {
+        mode = m.value;
+        refresh();
+      });
+      label.appendChild(radio);
+      label.appendChild(el('span', null, ' ' + m.label));
+      modeBox.appendChild(label);
+      radios[m.value] = radio;
+    });
+    form.appendChild(modeBox);
+
+    // CEP (delivery only)
+    var cepRow = el('div', 'form-field cep-field');
+    var cepLabel = el('label', null, 'CEP para delivery');
+    cepLabel.setAttribute('for', 'checkout-cep');
+    var cepInput = el('input', 'form-input');
+    cepInput.id = 'checkout-cep';
+    cepInput.name = 'cep';
+    cepInput.type = 'text';
+    cepInput.setAttribute('autocomplete', 'postal-code');
+    cepInput.setAttribute('aria-required', 'true');
+    cepInput.setAttribute('aria-describedby', 'checkout-cep-error');
+    var cepError = el('p', 'form-error');
+    cepError.id = 'checkout-cep-error';
+    cepRow.appendChild(cepLabel);
+    cepRow.appendChild(cepInput);
+    cepRow.appendChild(cepError);
+    form.appendChild(cepRow);
+
+    function refresh() {
+      var pickup = mode === 'pickup';
+      cepRow.setAttribute('hidden', 'hidden');
+      cepRow.hidden = true;
+      if (!pickup) {
+        cepRow.removeAttribute('hidden');
+        cepRow.hidden = false;
       }
-      input.id = 'checkout-' + field.name;
-      input.name = field.name;
-      input.setAttribute('aria-required', 'true');
-      input.setAttribute('aria-describedby', 'checkout-' + field.name + '-error');
-      var error = el('p', 'form-error');
-      error.id = 'checkout-' + field.name + '-error';
-      row.appendChild(label);
-      row.appendChild(input);
-      row.appendChild(error);
-      form.appendChild(row);
-      inputs[field.name] = input;
-      errors[field.name] = error;
-    }
-    function refreshShipping() {
-      var quote = shippingQuote(inputs.cep.value);
-      if (quote) {
-        ship.shipping.textContent = 'Leva-e-traz/guincho para ' + quote.region + ': ' + formatPrice(quote.cents);
-        ship.grand.textContent = 'Total com leva-e-traz: ' + formatPrice(total + quote.cents);
+      var f = fulfillmentFor(mode, cepInput.value);
+      if (pickup && f) {
+        ship.shipping.textContent = 'Retirada no Balcão: grátis';
+        ship.eta.textContent = etaText(f.minutes);
+        ship.grand.textContent = 'Total do pedido: ' + formatPrice(total);
+      } else if (f) {
+        ship.shipping.textContent = 'Delivery para ' + f.region + ': ' + formatPrice(f.cents);
+        ship.eta.textContent = etaText(f.minutes);
+        ship.grand.textContent = 'Total com delivery: ' + formatPrice(total + f.cents);
       } else {
-        ship.shipping.textContent = 'Leva-e-traz/guincho: informe o CEP';
-        ship.grand.textContent = 'Total com leva-e-traz: ' + formatPrice(total) + ' + leva-e-traz';
+        ship.shipping.textContent = 'Delivery: informe o CEP';
+        ship.eta.textContent = '';
+        ship.grand.textContent = 'Total com delivery: ' + formatPrice(total) + ' + delivery';
       }
     }
-    inputs.cep.addEventListener('input', refreshShipping);
-    inputs.cep.addEventListener('change', refreshShipping);
-    var submit = el('button', 'action-button checkout-submit', 'Confirmar agendamento');
+    cepInput.addEventListener('input', refresh);
+    cepInput.addEventListener('change', refresh);
+    refresh();
+
+    var submit = el('button', 'action-button checkout-submit', 'Confirmar pedido');
     submit.type = 'submit';
     form.appendChild(submit);
 
@@ -799,27 +857,32 @@
         event.preventDefault();
       }
       var firstInvalid = null;
-      for (var j = 0; j < BOOKING_FIELDS.length; j++) {
-        var name = BOOKING_FIELDS[j].name;
-        var message = validateField(name, inputs[name].value);
-        errors[name].textContent = message;
-        if (message) {
-          inputs[name].setAttribute('aria-invalid', 'true');
-          if (!firstInvalid) {
-            firstInvalid = inputs[name];
-          }
-        } else {
-          inputs[name].removeAttribute('aria-invalid');
+      var nameMessage = validateName(nameInput.value);
+      nameError.textContent = nameMessage;
+      if (nameMessage) {
+        nameInput.setAttribute('aria-invalid', 'true');
+        firstInvalid = nameInput;
+      } else {
+        nameInput.removeAttribute('aria-invalid');
+      }
+      var cepMessage = mode === 'delivery' ? validateCep(cepInput.value) : '';
+      cepError.textContent = cepMessage;
+      if (cepMessage) {
+        cepInput.setAttribute('aria-invalid', 'true');
+        if (!firstInvalid) {
+          firstInvalid = cepInput;
         }
+      } else {
+        cepInput.removeAttribute('aria-invalid');
       }
       if (firstInvalid) {
         firstInvalid.focus();
         return;
       }
-      // The cart may have changed (another tab, reload) since this view was
+      // The bag may have changed (another tab, reload) since this view was
       // rendered: never confirm against a stale snapshot.
       if (cart.totalCents() !== total || cart.count() !== count) {
-        var fresh = checkoutView('Seu orçamento mudou. Revise o resumo atualizado e confirme novamente.');
+        var fresh = checkoutView('Sua sacola mudou. Revise o resumo atualizado e confirme novamente.');
         var host = document.getElementById('app');
         host.textContent = '';
         host.appendChild(fresh.node);
@@ -827,22 +890,24 @@
         host.focus();
         return;
       }
-      var quote = shippingQuote(inputs.cep.value);
-      if (!quote) {
-        // Never confirm a booking without the leva-e-traz fee (e.g. checkout.js missing).
-        errors.cep.textContent = 'O cálculo de leva-e-traz está indisponível agora. Tente novamente mais tarde.';
-        inputs.cep.setAttribute('aria-invalid', 'true');
-        inputs.cep.focus();
+      var f = fulfillmentFor(mode, cepInput.value);
+      if (!f) {
+        // Never confirm an order without its fulfilment fee (e.g. checkout.js missing).
+        cepError.textContent = 'O cálculo de entrega está indisponível agora. Tente novamente mais tarde.';
+        ship.shipping.textContent = cepError.textContent;
+        cepInput.setAttribute('aria-invalid', 'true');
+        cepInput.focus();
         return;
       }
       var done = confirmationView({
-        name: String(inputs.name.value).trim(),
-        plate: normalizePlate(inputs.plate.value),
-        shift: shiftLabel(String(inputs.shift.value).trim()),
-        region: quote.region,
-        shippingCents: quote.cents,
-        total: total + quote.cents,
-        protocol: newProtocol()
+        name: String(nameInput.value).trim(),
+        mode: f.mode,
+        modeLabel: modeLabel(f.mode),
+        region: f.region,
+        shippingCents: f.cents,
+        minutes: f.minutes,
+        total: total + f.cents,
+        code: trackingCode()
       });
       cart.clear();
       var app = document.getElementById('app');
@@ -852,7 +917,7 @@
       app.focus();
     });
     container.appendChild(form);
-    return { title: 'Agendamento de box – ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
+    return { title: 'Fechar pedido – ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
   }
 
   function updateCartCount() {

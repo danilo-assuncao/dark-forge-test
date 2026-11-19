@@ -1,4 +1,4 @@
-/* Simulated shipping for Dan Motors checkout. Exposed as window.DanCheckout;
+/* Simulated shipping for Dan Food checkout. Exposed as window.DanCheckout;
    loaded after cart.js and before script.js. The fee depends only on the
    first digit of the 8-digit CEP (Brazilian postal region); nothing is sent
    anywhere. Amounts are BRL cents. */

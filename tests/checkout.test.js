@@ -55,10 +55,10 @@ function boot(hash, load) {
   return { app, win, doc, badge, store, go(h) { win.location.hash = h; win.listeners.hashchange(); } };
 }
 
-const VALID = { name: 'Maria Silva', plate: 'ABC1D23', shift: 'manha', cep: '01310-100' };
+const VALID = { name: 'Maria Silva', cep: '01310-100' };
 
 function fill(t, values) {
-  find(t.app, function (n) { return n.tagName === 'input' || n.tagName === 'select'; }).forEach(function (i) { i.value = values[i.name] || ''; });
+  find(t.app, function (n) { return n.tagName === 'input' && n.type !== 'radio'; }).forEach(function (i) { i.value = values[i.name] || ''; });
 }
 function typeCep(t, value) {
   const cep = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
@@ -92,9 +92,9 @@ test('checkout.js quotes shipping by CEP and rejects invalid CEPs', function () 
   });
 });
 
-test('home shows the workshop hero, featured services linking to detail, and a catalog call', function () {
+test('home shows the Dan Food hero, featured dishes linking to detail, and a catalog call', function () {
   const t = boot('#/');
-  assert.equal(text(t, 'hero-eyebrow'), 'Dan Motors workshop');
+  assert.equal(text(t, 'hero-eyebrow'), 'Cozinha Dan Food');
   assert.equal(byClass(t.app, 'action-button')[0].href, '#/catalog');
   const cards = byClass(t.app, 'product-card');
   assert.equal(cards.length, 4);
@@ -102,7 +102,7 @@ test('home shows the workshop hero, featured services linking to detail, and a c
   assert.equal(byClass(t.app, 'showcase-link')[0].href, '#/catalog');
 });
 
-test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz, OS protocol', function () {
+test('full flow: catalog, detail, bag with DAN10, delivery checkout by CEP, tracking code', function () {
   const t = boot('#/');
   t.go('#/catalog');
   assert.ok(byClass(t.app, 'product-card').length >= 10);
@@ -121,26 +121,26 @@ test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz,
 
   t.go('#/checkout');
   assert.equal(text(t, 'cart-name'), '2 × File a parmegiana (Individual)');
-  assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 7,98');
-  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho: informe o CEP');
-  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 71,82 + leva-e-traz');
+  assert.equal(text(t, 'cart-discount'), 'Cupom DAN10: −R$ 7,98');
+  assert.equal(text(t, 'shipping-line'), 'Delivery: informe o CEP');
+  assert.equal(text(t, 'grand-total'), 'Total com delivery: R$ 71,82 + delivery');
   typeCep(t, '01310-100');
-  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho para Grande São Paulo: R$ 14,90');
-  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 86,72');
+  assert.equal(text(t, 'shipping-line'), 'Delivery para Grande São Paulo: R$ 14,90');
+  assert.equal(text(t, 'grand-total'), 'Total com delivery: R$ 86,72');
   typeCep(t, '9001');
-  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho: informe o CEP');
+  assert.equal(text(t, 'shipping-line'), 'Delivery: informe o CEP');
   const cepInput = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
   cepInput.value = '90010-000';
   cepInput.listeners.change();
-  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho para Rio Grande do Sul: R$ 26,90');
+  assert.equal(text(t, 'shipping-line'), 'Delivery para Rio Grande do Sul: R$ 26,90');
 
   fill(t, VALID);
   submit(t);
-  assert.equal(find(t.app, function (n) { return n.tagName === 'h1'; })[0].textContent, 'OS confirmada');
+  assert.equal(find(t.app, function (n) { return n.tagName === 'h1'; })[0].textContent, 'Pedido confirmado');
   assert.match(text(t, 'order-confirmation'), /Maria Silva.*R\$ 86,72/);
-  assert.match(text(t, 'order-protocol'), /^Protocolo: OS-[0-9A-Z]+$/);
-  assert.equal(text(t, 'order-plate'), 'Placa: ABC1D23');
-  assert.equal(text(t, 'order-shift'), 'Turno: Manhã (08h às 12h)');
+  assert.match(text(t, 'order-protocol'), /^Código de acompanhamento: DAN-[A-Z2-9]{4}$/);
+  assert.equal(text(t, 'order-mode'), 'Modalidade: Delivery por CEP');
+  assert.equal(text(t, 'order-eta'), 'Tempo estimado: 45 min');
   assert.equal(t.badge.textContent, '0');
   assert.deepEqual(JSON.parse(t.store['dan-cart']), []);
   t.go('#/checkout');
@@ -171,7 +171,7 @@ test('without checkout.js a valid order is blocked instead of confirmed with no 
   fill(t, VALID);
   submit(t);
   assert.equal(byClass(t.app, 'order-confirmation').length, 0);
-  assert.match(find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0].textContent, /leva-e-traz está indispon/);
+  assert.match(find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0].textContent, /entrega está indispon/);
   assert.equal(t.badge.textContent, '1');
 });
 
@@ -181,27 +181,30 @@ test('index.html loads checkout.js before script.js', function () {
   assert.ok(html.indexOf('checkout.js') < html.indexOf('script.js'));
 });
 
-test('home hides the preventive review showcase when the menu has no review packages', function () {
+test('home shows the combos of the day with their dishes and a combo add button', function () {
   const t = boot('#/');
-  assert.equal(byClass(t.app, 'revision-showcase').length, 0);
-  assert.equal(byClass(t.app, 'revision-card').length, 0);
+  assert.equal(text(t, 'showcase-title'), 'Combos do dia');
+  const combos = byClass(t.app, 'combo-card');
+  assert.equal(combos.length, 3);
+  assert.ok(byClass(combos[0], 'combo-dishes')[0].children.length >= 2);
+  assert.equal(byClass(combos[0], 'product-price')[0].textContent, 'R$ 42,80');
+  byClass(combos[0], 'combo-add')[0].listeners.click();
+  assert.equal(byClass(combos[0], 'combo-status')[0].textContent, 'Combo Executivo adicionado à sacola.');
+  assert.equal(t.badge.textContent, '2');
+  assert.deepEqual(JSON.parse(t.store['dan-cart']).map(function (i) { return i.id + ':' + i.size; }),
+    ['frango-grelhado:Individual', 'suco-natural:Individual']);
 });
 
-test('plate validation accepts Mercosul and old plates only', function () {
-  const accepted = ['ABC1D23', 'abc1d23', 'ABC-1234', 'ABC1234', 'BRA2E19'];
-  const rejected = ['', 'ABC', 'ABC12', '1234567', 'AB1D234', 'ABC-1D23', 'ABC12345', 'ABC 1234'];
-  function plateError(plate) {
-    const t = boot('#/produto/frango-grelhado');
-    byClass(t.app, 'size-button')[0].listeners.click();
-    byClass(t.app, 'add-to-cart')[0].listeners.click();
-    t.go('#/checkout');
-    fill(t, Object.assign({}, VALID, { plate: plate }));
-    submit(t);
-    const err = find(t.app, function (n) { return n.id === 'checkout-plate-error'; })[0];
-    return err ? err.textContent : ''; // no error element: the OS was confirmed
-  }
-  accepted.forEach(function (p) { assert.equal(plateError(p), '', p); });
-  rejected.forEach(function (p) { assert.notEqual(plateError(p), '', JSON.stringify(p)); });
+test('pickup without checkout.js reports the unavailable calculation instead of confirming', function () {
+  const t = boot('#/produto/frango-grelhado', ['products.js', 'cart.js', 'script.js']);
+  byClass(t.app, 'size-button')[0].listeners.click();
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  t.go('#/checkout');
+  fill(t, VALID);
+  find(t.app, function (n) { return n.type === 'radio' && n.value === 'pickup'; })[0].listeners.change();
+  submit(t);
+  assert.equal(byClass(t.app, 'order-confirmation').length, 0);
+  assert.match(text(t, 'shipping-line'), /entrega está indispon/);
 });
 
 test('CEP validation blocks the booking and nothing is cleared', function () {

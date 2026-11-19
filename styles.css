@@ -3,10 +3,10 @@
    the WCAG thresholds and that each noted ratio matches the real colours. */
 :root {
   color-scheme: only light;
-  --bg: #faf7f2;                 /* clean workshop off-white page background */
+  --bg: #faf7f2;                 /* clean off-white page background */
   --text: #1c1917;               /* near-black graphite, ~16.4:1 vs --bg (AAA) */
   --focus: #1c1917;              /* ~16.4:1 vs --bg (WCAG 1.4.11 needs 3:1) */
-  --button-bg: #9a3412;          /* Dan Motors burnt orange, ~6.8:1 vs --bg (1.4.11); ~7.3:1 vs --button-text (AAA) */
+  --button-bg: #9a3412;          /* Dan Food burnt orange, ~6.8:1 vs --bg (1.4.11); ~7.3:1 vs --button-text (AAA) */
   --button-bg-hover: #7c2d12;    /* ~9.4:1 vs --button-text (AAA) */
   --button-border: #431407;      /* ~14.6:1 vs --bg (WCAG 1.4.11 needs 3:1) */
   --button-text: #ffffff;        /* white button label */
@@ -845,3 +845,11 @@ body {
 .revision-cta { position: static; transform: none; display: inline-block; text-decoration: none; }
 select.form-input { padding-right: 0.5rem; }
 .order-protocol { font-weight: 900; font-size: 1.125rem; }
+
+/* Combos of the day, delivery mode picker, dish notes */
+.combo-item { list-style: none; }
+.combo-card { display: flex; flex-direction: column; gap: 0.5rem; height: 100%; padding: 1rem; border: 2px solid var(--text); border-radius: 0.5rem; }
+.combo-dishes { margin: 0; padding-left: 1.25rem; }
+.mode-field { border: 2px solid var(--text); border-radius: 0.5rem; }
+.mode-option { display: block; min-height: 44px; padding: 0.5rem 0; font-weight: 700; }
+.cart-note { font-style: italic; }

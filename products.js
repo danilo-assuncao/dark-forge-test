@@ -68,7 +68,35 @@
     dish('suco-natural', 'Suco natural da fruta', SOBREMESAS, 990, 5, ['Individual', 'Duplo'], [110, 26, 1, 0, 10], 'Suco da fruta do dia, sem adicao de acucar, servido gelado.', ['Fruta do dia','Agua gelada','Gelo','Folhas de hortela'])
   ];
 
+  // Combos of the day: a main dish plus a side or dessert, one portion each.
+  // The price is the sum of the dishes (no hidden discount).
+  var COMBOS = [
+    { id: 'combo-executivo', name: 'Combo Executivo', description: 'Frango grelhado com suco natural para o almoco leve.', items: ['frango-grelhado', 'suco-natural'] },
+    { id: 'combo-italiano', name: 'Combo Italiano', description: 'Fettuccine alfredo com pudim de leite de sobremesa.', items: ['fettuccine-alfredo', 'pudim-leite'] },
+    { id: 'combo-burger', name: 'Combo Burger', description: 'Burger classico com suco natural gelado.', items: ['burger-classico', 'suco-natural'] }
+  ];
+
+  function comboDishes(combo) {
+    return combo.items.map(function (id) {
+      for (var i = 0; i < PRODUCTS.length; i++) {
+        if (PRODUCTS[i].id === id) {
+          return PRODUCTS[i];
+        }
+      }
+      return null;
+    });
+  }
+
   window.DanProducts = {
+    // [{ id, name, description, dishes: [dish], size (portion per dish), priceCents }]
+    combos: function () {
+      return COMBOS.map(function (combo) {
+        var dishes = comboDishes(combo);
+        var total = 0;
+        dishes.forEach(function (d) { total += d.priceCents; });
+        return { id: combo.id, name: combo.name, description: combo.description, dishes: dishes, priceCents: total };
+      });
+    },
     all: function () {
       return PRODUCTS.slice();
     },
