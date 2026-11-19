@@ -50,7 +50,7 @@ test('unknown products, sizes and invalid quantities are rejected', function () 
   assert.equal(cart.add('basic-tee', -3, 'M'), false);
   assert.equal(cart.add('basic-tee', NaN, 'M'), false);
   assert.equal(cart.count(), 0);
-  assert.ok(cart.add('cap', 1, 'Tamanho \u00fanico'));
+  assert.ok(cart.add('hoodie', 1, 'GG'));
 });
 
 test('total is computed in cents from quantities', function () {

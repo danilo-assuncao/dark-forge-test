@@ -60,7 +60,7 @@
 
   // Meta description per route (SEO); the views below attach theirs.
   var DESCRIPTIONS = {
-    home: 'Dan Wear is a simulated clothing store: tees, pants, outerwear and accessories in sizes PP to GG.',
+    home: 'Dan Wear is a simulated clothing store: tees, pants and jackets in sizes PP to GG.',
     about: 'About Dan Wear, a simulated online clothing store built as a small single-page app.',
     catalog: 'Browse every Dan Wear piece, filter by category and pick your size.',
     cart: 'Review the pieces in your Dan Wear cart, adjust quantities and apply a coupon.',
@@ -169,7 +169,13 @@
     link.href = '#/produto/' + encodeURIComponent(product.id);
     link.appendChild(productImage(product));
     link.appendChild(el('span', 'product-name', product.name));
+    if (product.category) {
+      link.appendChild(el('span', 'product-category', product.category));
+    }
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
+    if (product.sizes && product.sizes.length) {
+      link.appendChild(el('span', 'product-sizes', 'Tamanhos: ' + product.sizes.join(', ')));
+    }
     item.appendChild(link);
     return item;
   }
@@ -217,7 +223,7 @@
       filter.setAttribute('aria-label', 'Filter by category');
       var labels = [null].concat(categories);
       labels.forEach(function (category) {
-        var button = el('button', 'filter-button', category === null ? 'All' : category);
+        var button = el('button', 'filter-button', category === null ? 'Todas' : category);
         button.type = 'button';
         button.addEventListener('click', function () {
           show(category);

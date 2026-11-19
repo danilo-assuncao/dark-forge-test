@@ -165,9 +165,9 @@ test('products.js holds well-formed mock data', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
   const all = ctx.window.DanProducts.all();
-  assert.ok(all.length >= 12);
+  assert.ok(all.length >= 8);
   const cats = ctx.window.DanProducts.categories();
-  assert.deepEqual(Array.from(cats), ['Tops', 'Bottoms', 'Outerwear', 'Accessories']);
+  assert.deepEqual(Array.from(cats), ['Camisetas', 'Calças', 'Casacos']);
   cats.forEach(function (c) {
     assert.ok(all.filter(function (p) { return p.category === c; }).length >= 3, c);
   });
@@ -175,15 +175,12 @@ test('products.js holds well-formed mock data', function () {
   all.forEach(function (p) {
     assert.ok(p.name && p.description && Number.isInteger(p.priceCents) && p.priceCents > 0);
     assert.ok(Array.isArray(p.sizes) && p.sizes.length > 0, p.id + ' sizes');
-    if (p.category === 'Accessories') {
-      assert.equal(p.measurements, undefined, p.id);
-    } else {
-      assert.deepEqual(Array.from(p.sizes), ['PP', 'P', 'M', 'G', 'GG'], p.id);
-      assert.deepEqual(Array.from(p.measurements.rows.map(function (r) { return r.size; })), Array.from(p.sizes), p.id);
-      p.measurements.rows.forEach(function (r) {
-        assert.equal(r.values.length, p.measurements.columns.length, p.id);
-      });
-    }
+    assert.ok(p.color && p.fabric, p.id + ' color and fabric');
+    assert.deepEqual(Array.from(p.sizes), ['PP', 'P', 'M', 'G', 'GG'], p.id);
+    assert.deepEqual(Array.from(p.measurements.rows.map(function (r) { return r.size; })), Array.from(p.sizes), p.id);
+    p.measurements.rows.forEach(function (r) {
+      assert.equal(r.values.length, p.measurements.columns.length, p.id);
+    });
   });
   assert.ok(all.some(function (p) { return /tee/i.test(p.name); }));
   assert.ok(all.some(function (p) { return /jeans/i.test(p.name); }));
@@ -229,11 +226,13 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
   cards.forEach(function (card, i) {
     assert.equal(card.href, '#/produto/' + all[i].id);
     const classes = card.children.map(function (c) { return c.className; });
-    assert.deepEqual(classes, ['product-image', 'product-name', 'product-price']);
+    assert.deepEqual(classes, ['product-image', 'product-name', 'product-category', 'product-price', 'product-sizes']);
     assert.equal(card.children[1].textContent, all[i].name);
-    assert.match(card.children[2].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
+    assert.equal(card.children[2].textContent, all[i].category);
+    assert.equal(card.children[4].textContent, 'Tamanhos: ' + all[i].sizes.join(', '));
+    assert.match(card.children[3].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
   });
-  assert.equal(cards[0].children[2].textContent, 'R$ 79,90');
+  assert.equal(cards[0].children[3].textContent, 'R$ 79,90');
 });
 
 test('category filter shows only matching products and All restores the grid', function () {
@@ -243,7 +242,7 @@ test('category filter shows only matching products and All restores the grid', f
   const all = Array.from(ctx.window.DanProducts.all());
   const buttons = collect(t.app, function (n) { return n.className === 'filter-button'; });
   assert.deepEqual(buttons.map(function (b) { return b.textContent; }),
-    ['All', 'Tops', 'Bottoms', 'Outerwear', 'Accessories']);
+    ['Todas', 'Camisetas', 'Calças', 'Casacos']);
   const cards = function () { return collect(t.app, function (n) { return n.className === 'product-card'; }); };
   assert.equal(cards().length, all.length);
   assert.equal(buttons[0].attrs['aria-pressed'], 'true');
@@ -649,12 +648,12 @@ test('catalog cards have no quick add: a size must be chosen on the product page
 });
 
 test('catalog honours ?category= from the hash and ignores unknown categories', function () {
-  const t = boot('#/catalog?category=Bottoms');
+  const t = boot('#/catalog?category=Cal%C3%A7as');
   const hrefs = byClass(t, 'product-card').map(function (c) { return c.href; });
   const bottoms = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Bottoms'; });
   assert.deepEqual(hrefs, bottoms.map(function (p) { return '#/produto/' + p.id; }));
   const pressed = byClass(t, 'filter-button').filter(function (b) { return b.attrs['aria-pressed'] === 'true'; });
-  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Bottoms']);
+  assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Calças']);
   assert.equal(byClass(boot('#/catalog?category=Nope'), 'product-card').length, t.win.DanProducts.all().length);
   assert.equal(byClass(boot('#/catalog?category=%E0%A4%A'), 'product-card').length, t.win.DanProducts.all().length);
 });
@@ -662,8 +661,8 @@ test('catalog honours ?category= from the hash and ignores unknown categories', 
 test('home shows category links and a showcase of products', function () {
   const t = boot('#/');
   const links = byClass(t, 'category-link');
-  assert.deepEqual(links.map(function (l) { return l.textContent; }), ['Tops', 'Bottoms', 'Outerwear', 'Accessories']);
-  assert.equal(links[1].href, '#/catalog?category=Bottoms');
+  assert.deepEqual(links.map(function (l) { return l.textContent; }), ['Camisetas', 'Calças', 'Casacos']);
+  assert.equal(links[1].href, '#/catalog?category=Cal%C3%A7as');
   assert.equal(byClass(t, 'product-card').length, 4);
 });
 
