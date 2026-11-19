@@ -162,8 +162,14 @@
       b.dataset.id = sid;
       b.setAttribute('aria-pressed', String(sid === size));
       b.addEventListener('click', function () {
+        var next = detailHash(item.id, sid, route.cat, route.q);
+        if (next === root.location.hash) {
+          // No hashchange will fire: keep focus on the button directly.
+          if (b.focus) b.focus();
+          return;
+        }
         focusSize = sid;
-        root.location.hash = detailHash(item.id, sid, route.cat, route.q);
+        root.location.hash = next;
       });
       group.appendChild(b);
     });
@@ -218,8 +224,7 @@
         root.history.replaceState(null, '', next);
         render();
       } else {
-        root.location.replace(next);
-        render();
+        root.location.replace(next); // hashchange re-renders
       }
     });
     var ul = $('sizes');

@@ -62,7 +62,7 @@ function fakeNode(tag) {
   };
 }
 
-function boot() {
+function boot(opts = {}) {
   const els = {};
   ['categories', 'search', 'catalog', 'empty', 'list-view', 'detail-view', 'sizes'].forEach((id) => { els[id] = fakeNode(id); });
   els.empty.hidden = true;
@@ -71,9 +71,14 @@ function boot() {
   const winListeners = {};
   const win = {
     DanPetsCatalog: C,
-    location: { hash: '' },
-    history: { replaceState: (st, t, h) => { win.location.hash = h; win.pushes--; } },
-    pushes: 0,
+    counts: { push: 0, replace: 0, locationReplace: 0 },
+    location: {
+      _hash: '',
+      get hash() { return this._hash; },
+      set hash(v) { this._hash = v; win.counts.push++; },
+      replace(v) { this._hash = v; win.counts.locationReplace++; },
+    },
+    history: opts.noReplaceState ? undefined : { replaceState: (st, t, h) => { win.location._hash = h; win.counts.replace++; } },
     addEventListener: (e, f) => { winListeners[e] = f; },
   };
   const document = {
@@ -84,8 +89,7 @@ function boot() {
   const ctx = { window: win, document };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'), ctx);
-  const go = (hash) => { win.location.hash = hash; winListeners.hashchange(); };
-  win.pushes = 0;
+  const go = (hash) => { win.location._hash = hash; winListeners.hashchange(); };
   return { els, tbody, win, go };
 }
 
@@ -185,9 +189,53 @@ test('search replaces history instead of pushing and works on detail route', () 
   go('#/item/vermifugo?size=mini&cat=farmacia');
   els.search.value = 'rac';
   els.search.listeners.input();
-  assert.equal(win.location.hash, '#/?q=rac'); // cat reset when coming from detail
-  assert.equal(els['list-view'].hidden, false);
-  assert.equal(win.pushes, -1);
+  assert.equal(win.location.hash, '#/?q=rac');
+  assert.equal(win.counts.replace, 1);
+  assert.equal(win.counts.push, 0);
+});
+
+test('search falls back to location.replace without history.replaceState', () => {
+  const { els, win } = boot({ noReplaceState: true });
+  els.search.value = 'rac';
+  els.search.listeners.input();
+  assert.equal(win.counts.locationReplace, 1);
+  assert.equal(win.counts.push, 0);
+  assert.equal(win.location.hash, '#/?q=rac');
+});
+
+test('clicking the already-selected size does not leave stale focus state', () => {
+  const { els, win, go } = boot();
+  go('#/item/vermifugo?size=mini');
+  const group = () => walk(els['detail-view']).find((n) => n.className === 'sizes');
+  group().children[0].listeners.click(); // same hash: focus directly, no push
+  assert.equal(win.counts.push, 0);
+  assert.equal(group().children[0].focused, true);
+  go('#/item/antipulgas?size=mini'); // later render must not steal focus
+  assert.equal(group().children[0].focused, false);
+});
+
+test('unknown cat in list route is ignored (Todos pressed, all items)', () => {
+  const { els, go } = boot();
+  go('#/?cat=bogus');
+  assert.equal(els.catalog.children.length, C.ITEMS.length);
+  assert.equal(els.categories.children[0].attrs['aria-pressed'], 'true');
+  go('#/item/osso-natural?cat=bogus');
+  assert.equal(walk(els['detail-view']).find((n) => n.className === 'back').href, '#/?cat=bogus');
+});
+
+test('rangeLabel branches and table/size text', () => {
+  assert.equal(A.rangeLabel({ minKg: 0, maxKg: 5 }), 'ate 5 kg');
+  assert.equal(A.rangeLabel({ minKg: 5, maxKg: 10 }), 'acima de 5 ate 10 kg');
+  assert.equal(A.rangeLabel({ minKg: 40, maxKg: Infinity }), 'acima de 40 kg');
+  const { els, tbody } = boot();
+  assert.equal(els.sizes.children[1].textContent, 'Medio (acima de 10 ate 25 kg)');
+  assert.deepEqual(tbody.children[0].children.map((c) => c.textContent), ['Mini', 'ate 5 kg', '1/2 comprimido']);
+  assert.equal(tbody.children[1].children[1].textContent, 'acima de 5 ate 10 kg');
+  assert.equal(tbody.children[5].children[1].textContent, 'acima de 40 kg');
+  C.DOSAGE_TABLE.forEach((r) => {
+    const sz = C.SIZES.find((x) => x.id === r.size);
+    assert.ok(r.minKg >= sz.minKg && r.maxKg <= sz.maxKg);
+  });
 });
 
 test('Todos button clears the category', () => {
