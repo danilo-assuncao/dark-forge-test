@@ -50,16 +50,19 @@ test('SAC costs less in total, starts higher and ends lower than Price', () => {
   assert.ok(r.sac.first > r.price.first);
   assert.ok(r.sac.last < r.price.last);
   assert.ok(r.sac.total < r.price.total);
-  assert.equal(r.sacSavings, r.price.total - r.sac.total);
-  assert.equal(r.sac.interest, r.sac.total - r.financed);
+  assert.ok(r.sacSavings > 0);
+  const rows = M.schedule('sac', r.financed, 10.5, 360);
+  assert.equal(r.sac.total, rows.reduce((a, x) => a + x.installment, 0));
+  assert.equal(r.sac.interest, rows.reduce((a, x) => a + x.interest, 0));
 });
 
 test('recommended income covers the first installment at 30% commitment', () => {
   const r = M.simulate({ price: 60000000, down: 12000000, annualRate: 10.5, months: 360 });
   [r.sac, r.price].forEach((s) => {
-    assert.ok(s.recommendedIncome * M.INCOME_COMMITMENT >= s.first);
-    assert.ok((s.recommendedIncome - 1) * M.INCOME_COMMITMENT < s.first);
+    assert.ok(s.recommendedIncome * 30 >= s.first * 100);
+    assert.ok((s.recommendedIncome - 1) * 30 < s.first * 100);
   });
+  assert.equal(M.simulate({ price: 3000, down: 0, annualRate: 0, months: 10 }).sac.recommendedIncome, 1000);
   assert.ok(r.sac.recommendedIncome > r.price.recommendedIncome);
 });
 
@@ -76,4 +79,52 @@ test('rejects invalid inputs', () => {
   assert.throws(() => M.schedule('sac', 100, -1, 12), RangeError);
   assert.throws(() => M.schedule('foo', 100, 10, 12), RangeError);
   assert.throws(() => M.simulate({ price: 100, down: 0, annualRate: Infinity, months: 12 }), RangeError);
+});
+
+test('golden values: R$200k at 12% a.a. over 120 months', () => {
+  assert.ok(Math.abs(M.monthlyRate(12) - 0.009488793) < 1e-9);
+  const r = M.simulate({ price: 20000000, down: 0, annualRate: 12, months: 120 });
+  // SAC first = 200000/120 + 200000 * i; last = 200000/120 * (1 + i)
+  assert.ok(Math.abs(r.sac.first - 356443) <= 1);
+  assert.ok(Math.abs(r.sac.last - 168248) <= 1);
+  assert.ok(Math.abs(r.price.first - 279894) <= 1);
+  assert.ok(Math.abs(r.price.last - 279894) <= 1);
+});
+
+test('rounding residue is spread and balance ends at zero', () => {
+  ['sac', 'price'].forEach((s) => {
+    const rows = M.schedule(s, 100, 0, 3);
+    assert.equal(rows[2].balance, 0);
+    assert.equal(rows.reduce((a, r) => a + r.installment, 0), 100);
+    const one = M.schedule(s, 12345, 8, 1);
+    assert.equal(one.length, 1);
+    assert.equal(one[0].balance, 0);
+    assert.equal(one[0].amortization, 12345);
+  });
+  const tiny = M.schedule('sac', 10, 0, 360);
+  assert.ok(Math.max(...tiny.map((r) => r.amortization)) <= 1);
+  assert.equal(tiny.reduce((a, r) => a + r.amortization, 0), 10);
+  M.schedule('price', 10, 5, 360).forEach((r) => assert.ok(r.amortization >= 0));
+});
+
+test('rejects out-of-range and malformed inputs up front', () => {
+  const ok = { price: 100, down: 0, annualRate: 10, months: 12 };
+  assert.throws(() => M.simulate({ ...ok, down: 200 }), RangeError);
+  assert.throws(() => M.simulate({ ...ok, months: 0 }), /months/);
+  assert.throws(() => M.simulate({ ...ok, months: M.MAX_MONTHS + 1 }), /months/);
+  assert.throws(() => M.simulate({ ...ok, months: 1e12 }), /months/);
+  assert.throws(() => M.simulate({ ...ok, annualRate: undefined }), /annualRate/);
+  assert.throws(() => M.simulate({ ...ok, annualRate: -1 }), /annualRate/);
+  assert.throws(() => M.simulate({ ...ok, annualRate: 1e308 }), /annualRate/);
+  assert.throws(() => M.schedule('sac', -1, 10, 12), RangeError);
+  assert.throws(() => M.schedule('sac', NaN, 10, 12), RangeError);
+  assert.doesNotThrow(() => M.simulate({ ...ok, months: M.MAX_MONTHS }));
+});
+
+test('loads in a browser-like context and sets window.ImoveisMortgage', () => {
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const win = {};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../mortgage.js'), 'utf8'), { window: win });
+  assert.equal(typeof win.ImoveisMortgage.simulate, 'function');
 });

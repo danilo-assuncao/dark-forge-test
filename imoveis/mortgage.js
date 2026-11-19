@@ -1,7 +1,8 @@
 /* Imóveis mortgage simulator: financed amount, SAC (first/last installment,
    decreasing) vs Price (fixed installment), total cost and recommended family
    income. Money is in BRL cents; rates are nominal annual percentages
-   (e.g. 10.5 = 10.5% a.a.) converted to an effective monthly rate. Exposed as
+   (e.g. 10.5 = 10.5% a.a.) converted to an effective monthly rate. Negative
+   rates are not supported. Exposed as
    window.ImoveisMortgage in the browser and via module.exports in Node. */
 (function (root) {
   'use strict';
@@ -12,7 +13,12 @@
   ];
 
   // Share of gross family income that may go to the first installment.
-  var INCOME_COMMITMENT = 0.3;
+  var INCOME_COMMITMENT_PERCENT = 30;
+  var INCOME_COMMITMENT = INCOME_COMMITMENT_PERCENT / 100;
+
+  // Bounds that keep schedules finite and the loop cheap.
+  var MAX_MONTHS = 600;
+  var MAX_ANNUAL_RATE = 100;
 
   function isMoney(n) { return typeof n === 'number' && isFinite(n) && n >= 0; }
 
@@ -33,23 +39,30 @@
   }
 
   // Returns [{ n, installment, interest, amortization, balance }] in cents.
+  function validateTerms(annualPercent, months) {
+    if (typeof annualPercent !== 'number' || !isFinite(annualPercent) || annualPercent < 0 || annualPercent > MAX_ANNUAL_RATE) {
+      throw new RangeError('annualRate must be a number between 0 and ' + MAX_ANNUAL_RATE);
+    }
+    if (typeof months !== 'number' || !isFinite(months) || months < 1 || months > MAX_MONTHS || Math.floor(months) !== months) {
+      throw new RangeError('months must be an integer between 1 and ' + MAX_MONTHS);
+    }
+  }
+
   function schedule(system, financed, annualPercent, months) {
     if (system !== 'sac' && system !== 'price') throw new RangeError('unknown system: ' + system);
     if (!isMoney(financed)) throw new RangeError('invalid financed amount');
-    if (!isMoney(annualPercent)) throw new RangeError('invalid annual rate');
-    if (typeof months !== 'number' || !isFinite(months) || months < 1 || Math.floor(months) !== months) {
-      throw new RangeError('months must be a positive integer');
-    }
+    validateTerms(annualPercent, months);
+    financed = Math.round(financed);
     var rate = monthlyRate(annualPercent);
     var rows = [];
     var balance = financed;
     var fixed = priceInstallment(financed, rate, months);
-    var sacAmort = financed / months;
     for (var n = 1; n <= months; n++) {
       var interest = Math.round(balance * rate);
       var amort;
       if (n === months) amort = balance; // clear rounding residue
-      else amort = system === 'sac' ? Math.round(sacAmort) : fixed - interest;
+      else if (system === 'sac') amort = Math.round(financed * n / months) - Math.round(financed * (n - 1) / months);
+      else amort = Math.max(0, fixed - interest);
       if (amort > balance) amort = balance;
       balance -= amort;
       rows.push({ n: n, installment: amort + interest, interest: interest, amortization: amort, balance: balance });
@@ -64,7 +77,7 @@
       last: rows[rows.length - 1].installment,
       total: total,
       interest: total - financed,
-      recommendedIncome: Math.ceil(rows[0].installment / INCOME_COMMITMENT),
+      recommendedIncome: Math.ceil(rows[0].installment * 100 / INCOME_COMMITMENT_PERCENT),
     };
   }
 
@@ -72,6 +85,7 @@
   function simulate(opts) {
     opts = opts || {};
     var financed = financedAmount(opts.price, opts.down);
+    validateTerms(opts.annualRate, opts.months);
     var out = { financed: financed, months: opts.months, annualRate: opts.annualRate };
     SYSTEMS.forEach(function (s) {
       out[s.id] = summarize(schedule(s.id, financed, opts.annualRate, opts.months), financed);
@@ -81,7 +95,7 @@
   }
 
   var api = {
-    SYSTEMS: SYSTEMS, INCOME_COMMITMENT: INCOME_COMMITMENT, monthlyRate: monthlyRate,
+    SYSTEMS: SYSTEMS, INCOME_COMMITMENT: INCOME_COMMITMENT, MAX_MONTHS: MAX_MONTHS, MAX_ANNUAL_RATE: MAX_ANNUAL_RATE, monthlyRate: monthlyRate,
     financedAmount: financedAmount, schedule: schedule, simulate: simulate,
   };
   root.ImoveisMortgage = api;
