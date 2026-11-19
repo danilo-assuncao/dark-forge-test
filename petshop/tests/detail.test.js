@@ -13,16 +13,21 @@ const ROOT = path.join(__dirname, '..');
 test('parseHash routes list, detail and unknown', () => {
   assert.deepEqual(A.parseHash(''), { view: 'list', cat: null, q: '' });
   assert.deepEqual(A.parseHash('#/?cat=gatos&q=ra%C3%A7%C3%A3o'), { view: 'list', cat: 'gatos', q: 'ração' });
-  assert.deepEqual(A.parseHash('#/item/vermifugo'), { view: 'detail', id: 'vermifugo', size: null });
-  assert.deepEqual(A.parseHash('#/item/vermifugo?size=mini'), { view: 'detail', id: 'vermifugo', size: 'mini' });
+  assert.deepEqual(A.parseHash('#/item/vermifugo'), { view: 'detail', id: 'vermifugo', size: null, cat: null, q: '' });
+  assert.deepEqual(A.parseHash('#/item/vermifugo?size=mini'), { view: 'detail', id: 'vermifugo', size: 'mini', cat: null, q: '' });
   assert.equal(A.parseHash('#/nope').view, 'notfound');
-  assert.equal(A.parseHash('#/item/%E0%A4%A').view, 'detail'); // malformed escape does not throw
+  assert.deepEqual(A.parseHash('#/item/%E0%A4%A'), { view: 'detail', id: '%E0%A4%A', size: null, cat: null, q: '' });
+  [['#/?q=a+b', { cat: null, q: 'a b' }], ['#/?cat', { cat: null, q: '' }], ['#/?&q=x', { cat: null, q: 'x' }],
+   ['#/?q=%E0%A4%A', { cat: null, q: '' }]].forEach(([h, exp]) =>
+    assert.deepEqual(A.parseHash(h), { view: 'list', ...exp }, h));
+  assert.deepEqual(A.parseHash('#/item/x?size=mini&cat=caes&q=a'), { view: 'detail', id: 'x', size: 'mini', cat: 'caes', q: 'a' });
+  assert.equal(A.detailHash('x', 'mini', 'caes', 'a b'), '#/item/x?size=mini&cat=caes&q=a%20b');
 });
 
 test('hash builders round-trip', () => {
   assert.equal(A.listHash(null, ''), '#/');
   assert.deepEqual(A.parseHash(A.listHash('caes', 'osso natural')), { view: 'list', cat: 'caes', q: 'osso natural' });
-  assert.deepEqual(A.parseHash(A.detailHash('osso-natural', 'grande')), { view: 'detail', id: 'osso-natural', size: 'grande' });
+  assert.deepEqual(A.parseHash(A.detailHash('osso-natural', 'grande')), { view: 'detail', id: 'osso-natural', size: 'grande', cat: null, q: '' });
 });
 
 test('filterItems by category, accent-insensitive search, and combination', () => {
@@ -40,10 +45,13 @@ test('validSize only accepts sizes the item offers', () => {
   assert.equal(A.validSize(sup, 'medio'), true);
   assert.equal(A.validSize(sup, null), false);
   assert.equal(A.validSize(null, 'mini'), false);
+  assert.equal(A.validSize(sup, 'xxl'), false);
+  assert.equal(A.validSize(A.findItem('arranhador'), 'grande'), false);
 });
 
 function fakeNode(tag) {
   return {
+    focused: false, focus() { this.focused = true; },
     tagName: tag, className: '', textContent: '', children: [], attrs: {}, dataset: {}, listeners: {},
     type: '', href: '', value: '', hidden: false, disabled: false,
     get firstChild() { return this.children[0] || null; },
@@ -64,6 +72,8 @@ function boot() {
   const win = {
     DanPetsCatalog: C,
     location: { hash: '' },
+    history: { replaceState: (st, t, h) => { win.location.hash = h; win.pushes--; } },
+    pushes: 0,
     addEventListener: (e, f) => { winListeners[e] = f; },
   };
   const document = {
@@ -75,6 +85,7 @@ function boot() {
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'), ctx);
   const go = (hash) => { win.location.hash = hash; winListeners.hashchange(); };
+  win.pushes = 0;
   return { els, tbody, win, go };
 }
 
@@ -109,8 +120,7 @@ test('category button and search drive the hash and the list', () => {
   els.search.value = 'areia';
   els.search.listeners.input();
   assert.equal(win.location.hash, '#/?cat=gatos&q=areia');
-  go(win.location.hash);
-  assert.equal(els.catalog.children.length, 1);
+  assert.equal(els.catalog.children.length, 1); // rendered directly, no hashchange needed
   go('#/?q=zzz');
   assert.equal(els.catalog.children.length, 0);
   assert.equal(els.empty.hidden, false);
@@ -157,7 +167,7 @@ test('pharmacy detail shows dosage for the chosen size only', () => {
   const { els, go } = boot();
   go('#/item/vermifugo?size=medio');
   const d = els['detail-view'];
-  assert.equal(byText(d, /^10 a 17\.5 kg: 2 comprimidos$/).length, 1);
+  assert.equal(byText(d, /^acima de 10 ate 17\.5 kg: 2 comprimidos$/).length, 1);
   assert.equal(byText(d, /1\/2 comprimido/).length, 0);
 });
 
@@ -168,4 +178,71 @@ test('unknown item and unknown route do not crash', () => {
   go('#/whatever');
   assert.equal(els['list-view'].hidden, false);
   assert.equal(els.catalog.children.length, C.ITEMS.length);
+});
+
+test('search replaces history instead of pushing and works on detail route', () => {
+  const { els, win, go } = boot();
+  go('#/item/vermifugo?size=mini&cat=farmacia');
+  els.search.value = 'rac';
+  els.search.listeners.input();
+  assert.equal(win.location.hash, '#/?q=rac'); // cat reset when coming from detail
+  assert.equal(els['list-view'].hidden, false);
+  assert.equal(win.pushes, -1);
+});
+
+test('Todos button clears the category', () => {
+  const { els, win, go } = boot();
+  go('#/?cat=gatos');
+  els.categories.children[0].listeners.click();
+  assert.equal(win.location.hash, '#/');
+});
+
+test('back link keeps list filters and size click keeps them and focuses the button', () => {
+  const { els, win, go } = boot();
+  go('#/?cat=caes&q=osso');
+  const link = walk(els.catalog.children[0]).find((n) => n.tagName === 'a');
+  assert.equal(link.href, '#/item/osso-natural?cat=caes&q=osso');
+  go(link.href);
+  const d = els['detail-view'];
+  assert.equal(walk(d).find((n) => n.className === 'back').href, '#/?cat=caes&q=osso');
+  walk(d).find((n) => n.className === 'sizes').children[2].listeners.click();
+  assert.equal(win.location.hash, '#/item/osso-natural?size=grande&cat=caes&q=osso');
+  go(win.location.hash);
+  const pressed = walk(d).find((n) => n.className === 'sizes').children[2];
+  assert.equal(pressed.focused, true);
+});
+
+test('CTA label and confirmation message', () => {
+  const { els, go } = boot();
+  go('#/item/banho-simples?size=medio');
+  const d = els['detail-view'];
+  const cta = walk(d).find((n) => n.className === 'cta');
+  assert.equal(cta.textContent, 'Agendar');
+  cta.listeners.click();
+  const msg = walk(d).find((n) => n.attrs.role === 'status');
+  assert.match(msg.textContent, /Banho/);
+  assert.match(msg.textContent, /Medio/);
+  go('#/item/osso-natural?size=mini');
+  assert.equal(walk(d).find((n) => n.className === 'cta').textContent, 'Escolher');
+});
+
+test('dosage section only with size and only for dosage items', () => {
+  const { els, go } = boot();
+  const d = els['detail-view'];
+  go('#/item/vermifugo');
+  assert.equal(byText(d, /Dosagem de referencia/).length, 0);
+  go('#/item/osso-natural?size=mini');
+  assert.equal(byText(d, /Dosagem de referencia/).length, 0);
+  go('#/item/vermifugo?size=grande');
+  assert.equal(byText(d, /Dosagem de referencia/).length, 1);
+  assert.equal(byText(d, /^acima de 40 kg: 5 comprimidos$/).length, 1);
+});
+
+test('app.js element ids all exist in index.html', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const ids = [...js.matchAll(/\$\('([\w-]+)'\)/g)].map((m) => m[1]);
+  assert.ok(ids.length >= 7);
+  ids.forEach((id) => assert.match(html, new RegExp('id="' + id + '"'), id));
+  assert.match(html, /id="dosage"/);
 });

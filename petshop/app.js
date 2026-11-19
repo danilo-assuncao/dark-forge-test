@@ -33,7 +33,7 @@
     if (m) {
       var id;
       try { id = decodeURIComponent(m[1]); } catch (e) { id = m[1]; }
-      return { view: 'detail', id: id, size: query.size || null };
+      return { view: 'detail', id: id, size: query.size || null, cat: query.cat || null, q: query.q || '' };
     }
     if (path === '' || path === '/') return { view: 'list', cat: query.cat || null, q: query.q || '' };
     return { view: 'notfound' };
@@ -46,8 +46,19 @@
     return '#/' + (parts.length ? '?' + parts.join('&') : '');
   }
 
-  function detailHash(id, size) {
-    return '#/item/' + encodeURIComponent(id) + (size ? '?size=' + encodeURIComponent(size) : '');
+  // cat/q are carried along so the back link can restore the list filters.
+  function detailHash(id, size, cat, q) {
+    var parts = [];
+    if (size) parts.push('size=' + encodeURIComponent(size));
+    if (cat) parts.push('cat=' + encodeURIComponent(cat));
+    if (q) parts.push('q=' + encodeURIComponent(q));
+    return '#/item/' + encodeURIComponent(id) + (parts.length ? '?' + parts.join('&') : '');
+  }
+
+  function rangeLabel(r) {
+    return r.minKg === 0 ? 'ate ' + r.maxKg + ' kg'
+      : r.maxKg === Infinity ? 'acima de ' + r.minKg + ' kg'
+      : 'acima de ' + r.minKg + ' ate ' + r.maxKg + ' kg';
   }
 
   function filterItems(items, cat, q) {
@@ -75,7 +86,7 @@
 
   var api = {
     normalize: normalize, parseHash: parseHash, listHash: listHash, detailHash: detailHash,
-    filterItems: filterItems, findItem: findItem, validSize: validSize,
+    filterItems: filterItems, rangeLabel: rangeLabel, findItem: findItem, validSize: validSize,
   };
   root.DanPetsApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -97,6 +108,7 @@
   var empty = $('empty');
   var listView = $('list-view');
   var detailView = $('detail-view');
+  var focusSize = null;
 
   function renderList(route) {
     var cat = route.cat && C.CATEGORIES.some(function (c) { return c.id === route.cat; }) ? route.cat : null;
@@ -112,7 +124,7 @@
     items.forEach(function (it) {
       var card = el('article', 'card');
       var link = el('a', null, it.name);
-      link.href = detailHash(it.id);
+      link.href = detailHash(it.id, null, cat, route.q);
       var h3 = el('h3');
       h3.appendChild(link);
       var from = Math.min.apply(null, it.sizes.map(function (s) { return C.priceFor(it, s); }));
@@ -128,7 +140,7 @@
     detailView.hidden = false;
     clear(detailView);
     var back = el('a', 'back', '← Voltar a listagem');
-    back.href = listHash(null, '');
+    back.href = listHash(route.cat, route.q);
     detailView.appendChild(back);
     var item = findItem(route.id);
     if (!item) {
@@ -149,10 +161,19 @@
       b.type = 'button';
       b.dataset.id = sid;
       b.setAttribute('aria-pressed', String(sid === size));
-      b.addEventListener('click', function () { root.location.hash = detailHash(item.id, sid); });
+      b.addEventListener('click', function () {
+        focusSize = sid;
+        root.location.hash = detailHash(item.id, sid, route.cat, route.q);
+      });
       group.appendChild(b);
     });
     detailView.appendChild(group);
+    if (focusSize) {
+      Array.prototype.forEach.call(group.children, function (b) {
+        if (b.dataset.id === focusSize && b.focus) b.focus();
+      });
+      focusSize = null;
+    }
     var priceEl = el('p', 'price', size ? C.formatBRL(C.priceFor(item, size)) : 'Selecione um porte para ver o preco.');
     priceEl.setAttribute('aria-live', 'polite');
     detailView.appendChild(priceEl);
@@ -160,8 +181,7 @@
       detailView.appendChild(el('h3', null, 'Dosagem de referencia'));
       var ul = el('ul');
       C.DOSAGE_TABLE.filter(function (r) { return r.size === size; }).forEach(function (r) {
-        var range = r.maxKg === Infinity ? 'acima de ' + r.minKg + ' kg' : r.minKg + ' a ' + r.maxKg + ' kg';
-        ul.appendChild(el('li', null, range + ': ' + r.dose));
+        ul.appendChild(el('li', null, rangeLabel(r) + ': ' + r.dose));
       });
       detailView.appendChild(ul);
     }
@@ -192,16 +212,22 @@
     });
     search.addEventListener('input', function () {
       var r = parseHash(root.location.hash);
-      root.location.hash = listHash(r.view === 'list' ? r.cat : null, search.value);
+      var next = listHash(r.view === 'list' ? r.cat : null, search.value);
+      // Replace (not push) so typing does not flood the history with partial queries.
+      if (root.history && root.history.replaceState) {
+        root.history.replaceState(null, '', next);
+        render();
+      } else {
+        root.location.replace(next);
+        render();
+      }
     });
     var ul = $('sizes');
     C.SIZES.forEach(function (s) { ul.appendChild(el('li', null, s.name + ' (' + s.weightRange + ')')); });
     var tbody = document.querySelector('#dosage tbody');
     C.DOSAGE_TABLE.forEach(function (r) {
       var size = findSize(r.size);
-      var range = r.minKg === 0 ? 'ate ' + r.maxKg + ' kg'
-        : r.maxKg === Infinity ? 'acima de ' + r.minKg + ' kg'
-        : 'acima de ' + r.minKg + ' ate ' + r.maxKg + ' kg';
+      var range = rangeLabel(r);
       var tr = el('tr');
       [size.name, range, r.dose].forEach(function (t) { tr.appendChild(el('td', null, t)); });
       tbody.appendChild(tr);
