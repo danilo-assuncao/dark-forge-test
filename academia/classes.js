@@ -57,11 +57,16 @@
   }
 
   // Seats left given the number of booked students; never negative.
+  // Fails closed: Infinity means sold out (0); negatives count as no bookings;
+  // missing or non-numeric input (null, undefined, '', NaN, 'abc') returns null
+  // so callers cannot mistake it for a free class.
   function spotsLeft(classId, booked) {
     var c = getClass(classId);
     if (!c) return null;
+    if (booked === null || booked === undefined || booked === '') return null;
     var n = Number(booked);
-    if (!isFinite(n) || n < 0) n = 0;
+    if (n !== n) return null;
+    if (n < 0) n = 0;
     return Math.max(0, c.capacity - Math.floor(n));
   }
 

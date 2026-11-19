@@ -30,6 +30,9 @@ test('instructor/class links are consistent both ways', () => {
   for (const c of A.CLASSES) {
     for (const i of A.instructorsFor(c.id)) assert.ok(i.specialties.includes(c.id));
   }
+  for (const i of A.INSTRUCTORS) {
+    for (const s of i.specialties) assert.ok(A.getClass(s).instructors.includes(i.id), `${i.id} -> ${s}`);
+  }
   assert.deepEqual(A.classesByInstructor('bruno-tavares').map((c) => c.id), ['forca-funcional', 'boxe']);
   assert.deepEqual(A.instructorsFor('nope'), []);
 });
@@ -40,12 +43,30 @@ test('intensity filter and ordering', () => {
   assert.ok(A.getIntensity('leve').level < A.getIntensity('alta').level);
 });
 
-test('caloriesPerMinute and spotsLeft', () => {
-  assert.equal(A.caloriesPerMinute('spinning'), 12.2);
+test('lookup and filter miss paths return null or empty', () => {
+  assert.equal(A.getClass('nope'), null);
+  assert.equal(A.getInstructor('nope'), null);
+  assert.equal(A.getIntensity('nope'), null);
+  assert.deepEqual(A.classesByIntensity('x'), []);
+  assert.deepEqual(A.classesByInstructor('x'), []);
+});
+
+test('caloriesPerMinute rounds to one decimal for every class', () => {
+  const expected = { 'forca-funcional': 9, spinning: 12.2, 'yoga-mobilidade': 3.3, boxe: 9.1 };
+  for (const c of A.CLASSES) assert.equal(A.caloriesPerMinute(c.id), expected[c.id], c.id);
   assert.equal(A.caloriesPerMinute('nope'), null);
+});
+
+test('spotsLeft handles boundaries and fails closed', () => {
+  assert.equal(A.spotsLeft('boxe', 0), 16);
   assert.equal(A.spotsLeft('boxe', 10), 6);
+  assert.equal(A.spotsLeft('boxe', 16), 0);
   assert.equal(A.spotsLeft('boxe', 99), 0);
+  assert.equal(A.spotsLeft('boxe', 10.9), 6);
+  assert.equal(A.spotsLeft('boxe', 2.9), 14);
   assert.equal(A.spotsLeft('boxe', -3), 16);
-  assert.equal(A.spotsLeft('boxe', 'abc'), 16);
+  assert.equal(A.spotsLeft('boxe', Infinity), 0);
+  assert.equal(A.spotsLeft('boxe', -Infinity), 16);
+  for (const bad of [null, undefined, '', NaN, 'abc']) assert.equal(A.spotsLeft('boxe', bad), null);
   assert.equal(A.spotsLeft('nope', 1), null);
 });
