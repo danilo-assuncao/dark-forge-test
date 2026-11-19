@@ -3,10 +3,10 @@
  *
  * Run from the repository root:  node --test
  *
- * The site ships one light palette on a editorial off-white background. There is no dark
- * mode: no theme switch, no prefers-color-scheme detection and no saved
- * choice. These checks read the static site files and fail if dark-mode
- * support comes back, if the background stops being light red, if the palette
+ * The site ships one light palette on an editorial off-white background. There
+ * is no dark mode: no theme switch, no prefers-color-scheme detection and no
+ * saved choice. These checks read the static site files and fail if dark-mode
+ * support comes back, if the background stops being a warm off-white, if the palette
  * drops below WCAG contrast thresholds, if a ratio written in the styles.css
  * comments no longer matches the real colours, or if the page stops painting
  * with those checked tokens (a hardcoded colour would bypass the contrast
@@ -188,8 +188,12 @@ function toHsl(hex) {
 test('the page background is a clean, light editorial off-white', function () {
   const tokens = rootTokens();
   const hsl = toHsl(tokens['--bg']);
-  assert.ok(hsl.lightness >= 0.92, '--bg should be near-white, got lightness ' + hsl.lightness);
-  assert.ok(hsl.saturation <= 0.5, '--bg should be a muted tint, got saturation ' + hsl.saturation);
+  // Warm (cream/ivory) hue, a visible but muted tint, and near-white lightness.
+  assert.ok(hsl.hue >= 25 && hsl.hue <= 55, '--bg should be a warm hue, got ' + hsl.hue);
+  assert.ok(hsl.saturation >= 0.2 && hsl.saturation <= 0.6,
+    '--bg should be a muted warm tint, got saturation ' + hsl.saturation);
+  assert.ok(hsl.lightness >= 0.94 && hsl.lightness <= 0.99,
+    '--bg should be near-white, got lightness ' + hsl.lightness);
 
   const css = stripCssComments(read('styles.css'));
   assert.match(css, /body\s*\{[^}]*background-color:\s*var\(--bg\)/,
