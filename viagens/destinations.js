@@ -45,6 +45,7 @@
   var DURATION_LABELS = { 3: '3 dias', 7: '7 dias', 12: '12 dias' };
 
   function formatBRL(cents) {
+    if (typeof cents !== 'number' || !isFinite(cents)) { return 'Sob consulta'; }
     var abs = Math.abs(Math.round(cents));
     var reais = String(Math.floor(abs / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     var c = abs % 100;
@@ -111,7 +112,8 @@
         var card = el('article', undefined, 'card');
         card.appendChild(el('h3', d.name));
         var chips = el('p', undefined, 'chips');
-        d.durations.forEach(function (n) {
+        var shown = state && state.duration ? [Number(state.duration)] : d.durations;
+        shown.forEach(function (n) {
           chips.appendChild(el('span', durationLabel(n) + ' - ' + formatBRL(d.priceCents[n]), 'chip'));
         });
         card.appendChild(chips);
@@ -154,6 +156,9 @@
     durSel.addEventListener('change', update);
     update();
   }
+
+  api.render = render;
+  api.init = init;
 
   root.ViagensDestinations = api;
   if (typeof module !== 'undefined' && module.exports) {

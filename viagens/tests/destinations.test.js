@@ -64,3 +64,74 @@ test('getDestination, formatBRL and durationLabel', () => {
   assert.equal(api.formatBRL(5), 'R$ 0,05');
   assert.equal(api.durationLabel(12), '12 dias');
 });
+
+test('formatBRL and durationLabel edge cases', () => {
+  assert.equal(api.formatBRL(0), 'R$ 0,00');
+  assert.equal(api.formatBRL(100), 'R$ 1,00');
+  assert.equal(api.formatBRL(100000000), 'R$ 1.000.000,00');
+  assert.equal(api.formatBRL(-250), '-R$ 2,50');
+  assert.equal(api.formatBRL(1234.6), 'R$ 12,35');
+  assert.equal(api.formatBRL(undefined), 'Sob consulta');
+  assert.equal(api.formatBRL(NaN), 'Sob consulta');
+  assert.equal(api.durationLabel(5), '5 dias');
+});
+
+test('filterDestinations and byCategory boundaries', () => {
+  assert.equal(api.filterDestinations({ category: '', duration: '' }).length, api.DESTINATIONS.length);
+  assert.deepEqual(api.filterDestinations({ category: 'Nope' }), []);
+  assert.deepEqual(api.byCategory('Nope'), []);
+  assert.equal(api.filterDestinations({ category: 'Internacional' }).length, api.byCategory('Internacional').length);
+  const d3 = api.filterDestinations({ duration: 3 });
+  assert.ok(d3.length > 0 && d3.every((d) => d.durations.includes(3)));
+  assert.equal(d3.length, api.DESTINATIONS.filter((d) => d.durations.includes(3)).length);
+});
+
+// Minimal fake DOM for render()/init().
+function fakeDocument() {
+  function node(tag) {
+    return {
+      tag, children: [], className: '', value: '', listeners: {}, _text: '',
+      get textContent() { return this._text; },
+      set textContent(v) { this._text = v; if (v === '') { this.children = []; } },
+      appendChild(c) { this.children.push(c); return c; },
+      addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
+      fire(t) { (this.listeners[t] || []).forEach((f) => f()); }
+    };
+  }
+  const ids = { catalog: node('div'), 'filter-category': node('select'), 'filter-duration': node('select') };
+  return { createElement: node, getElementById: (i) => ids[i], readyState: 'complete', ids };
+}
+const all = (n, tag, out = []) => { if (n.tag === tag) out.push(n); n.children.forEach((c) => all(c, tag, out)); return out; };
+
+test('render groups by category, shows only the selected duration, and handles empty', () => {
+  global.document = fakeDocument();
+  const c = global.document.createElement('div');
+  api.render(c, {});
+  assert.equal(all(c, 'section').length, 4);
+  assert.equal(all(c, 'article').length, api.DESTINATIONS.length);
+  api.render(c, { duration: '12' });
+  const chips = all(c, 'span');
+  assert.ok(chips.length > 0 && chips.every((s) => s.textContent.startsWith('12 dias')));
+  assert.equal(all(c, 'article').length, api.filterDestinations({ duration: 12 }).length);
+  api.render(c, { category: 'Ecoturismo', duration: 99 });
+  assert.equal(all(c, 'article').length, 0);
+  assert.equal(c.children[0].textContent, 'Nenhum destino encontrado.');
+  delete global.document;
+});
+
+test('init populates selects and re-renders on change', () => {
+  const doc = fakeDocument();
+  global.document = doc;
+  api.init();
+  const { catalog, 'filter-category': cat, 'filter-duration': dur } = doc.ids;
+  assert.deepEqual(cat.children.map((o) => o.value), api.CATEGORIES);
+  assert.deepEqual(dur.children.map((o) => o.value), ['3', '7', '12']);
+  assert.equal(all(catalog, 'section').length, 4);
+  cat.value = 'Praias';
+  cat.fire('change');
+  assert.equal(all(catalog, 'section').length, 1);
+  dur.value = '99';
+  dur.fire('change');
+  assert.equal(catalog.children[0].textContent, 'Nenhum destino encontrado.');
+  delete global.document;
+});
