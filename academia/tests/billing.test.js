@@ -55,11 +55,55 @@ test('protocol formatting and generation', () => {
   assert.throws(() => b.formatProtocol('12'), RangeError);
   assert.equal(b.generateProtocol(() => 0), 'FIT-0001');
   assert.equal(b.generateProtocol(() => 0.999999999), 'FIT-9999');
-  for (let i = 0; i < 50; i++) assert.ok(b.isValidProtocol(b.generateProtocol()));
+  assert.equal(b.generateProtocol(() => 0.5), 'FIT-5000');
+  assert.equal(b.generateProtocol(() => 0.0001), 'FIT-0001');
+  assert.equal(b.generateProtocol(() => 0.0002), 'FIT-0002');
+  assert.ok(b.isValidProtocol(b.generateProtocol()));
+});
+
+test('out-of-contract rng and non-finite numbers throw', () => {
+  [1, -0.5, NaN, Infinity, 2].forEach((v) =>
+    assert.throws(() => b.generateProtocol(() => v), RangeError));
+  [NaN, Infinity, -1, null, undefined].forEach((v) =>
+    assert.throws(() => b.formatProtocol(v), RangeError));
 });
 
 test('protocol validation', () => {
   assert.equal(b.normalizeProtocol(' fit-0042 '), 'FIT-0042');
+  assert.equal(b.normalizeProtocol('FIT-0001'), 'FIT-0001');
+  assert.equal(b.normalizeProtocol('FIT-9999'), 'FIT-9999');
+  assert.equal(b.normalizeProtocol('FIT-0000'), null);
+  assert.equal(b.normalizeProtocol(42), null);
+  assert.equal(b.normalizeProtocol({}), null);
+  assert.equal(b.normalizeProtocol('FIT- 0042'), null);
   ['FIT-0000', 'FIT-123', 'FIT-12345', 'FIT0042', 'ABC-0042', '', null, undefined].forEach((v) =>
     assert.equal(b.isValidProtocol(v), false));
+});
+
+test('black_vip anual with literal expected values', () => {
+  const s = b.simulate('Black Vip', ' ANUAL ');
+  assert.equal(s.plan, 'black_vip');
+  assert.equal(s.cycle, 'anual');
+  assert.equal(s.listCents, 239880);
+  assert.equal(s.cycleDiscountCents, 47976);
+  assert.equal(s.couponDiscountCents, 0);
+  assert.equal(s.totalCents, 191904);
+  assert.equal(s.netMonthlyCents, 15992);
+  assert.equal(s.savingsCents, 47976);
+  const c = b.simulate('black-vip', 'anual', 'DANFIT10');
+  assert.equal(c.couponDiscountCents, 19190);
+  assert.equal(c.totalCents, 172714);
+  assert.equal(c.netMonthlyCents, 14393);
+  assert.equal(c.savingsCents, 67166);
+});
+
+test('netMonthly with coupon and annualSavings literals', () => {
+  assert.equal(b.netMonthly('start', 'anual', 'DANFIT10'), 6473);
+  assert.equal(b.netMonthly('start', 'mensal', 'DANFIT10'), 8990);
+  const a = b.annualSavings('plus');
+  assert.equal(a.savingsCents, 31176);
+  assert.equal(a.monthlySavingsCents, 2598);
+  const bad = b.annualSavings('plus', 'BAD');
+  assert.equal(bad.couponCode, null);
+  assert.equal(bad.savingsCents, 31176);
 });

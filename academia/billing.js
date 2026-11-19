@@ -18,6 +18,7 @@
   // versus paying the Mensal list price for the same number of months.
   // Throws RangeError for an unknown plan/cycle (via plans.price).
   function simulate(planId, cycleId, couponCode) {
+    if (!plans) { throw new Error('billing.js requires plans.js to be loaded first'); }
     var plan = plans.getPlan(planId);
     var p = plans.price(planId, cycleId, couponCode);
     var baselineCents = plan.monthlyCents * p.months;
@@ -64,7 +65,8 @@
     return PROTOCOL_PREFIX + ('0000' + n).slice(-4);
   }
 
-  // Generates a protocol; `rng` (default Math.random) returns a value in [0, 1).
+  // Generates a protocol; `rng` (default Math.random) must return a value in
+  // [0, 1). Out-of-range or non-finite values yield a RangeError.
   function generateProtocol(rng) {
     var r = typeof rng === 'function' ? rng() : Math.random();
     return formatProtocol(1 + Math.floor(r * MAX_PROTOCOL));
