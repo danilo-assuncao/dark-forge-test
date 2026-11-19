@@ -192,12 +192,29 @@
     return section;
   }
 
+  function specsSection(product) {
+    var section = el('section', 'specs');
+    section.appendChild(el('h2', 'specs-title', 'Specifications'));
+    if (!product.specs || !product.specs.length) {
+      section.appendChild(el('p', null, 'Specifications not available.'));
+      return section;
+    }
+    var list = el('dl', 'specs-list');
+    for (var i = 0; i < product.specs.length; i++) {
+      list.appendChild(el('dt', null, product.specs[i].label));
+      list.appendChild(el('dd', null, product.specs[i].value));
+    }
+    section.appendChild(list);
+    return section;
+  }
+
   function productView(product) {
     var container = el('div', 'container');
     container.appendChild(el('h1', 'page-title', product.name));
     container.appendChild(productImage(product));
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
+    container.appendChild(specsSection(product));
     // Only products that carry nutrition data (supplements) show the table.
     if (product.nutrition) {
       container.appendChild(nutritionTable(product));

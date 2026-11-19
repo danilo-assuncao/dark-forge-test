@@ -572,3 +572,43 @@ test('confirmation updates focus, title and order id; errors clear and refocus o
   assert.equal(t.doc.title, 'Order confirmed – Dan');
   assert.match(byClass(t, 'order-confirmation')[0].textContent, /#[0-9A-Z]+/);
 });
+
+test('detail page shows description, specifications and price for every product', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const all = ctx.window.DanProducts.all();
+  assert.ok(all.length > 0);
+  all.forEach(function (p) {
+    assert.ok(p.specs && p.specs.length > 0, p.id + ' specs');
+    const t = boot('#/produto/' + p.id);
+    assert.equal(t.has('specs'), true, p.id);
+    const texts = [];
+    walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+    assert.ok(texts.indexOf('Specifications') !== -1, p.id);
+    assert.ok(texts.indexOf(p.description) !== -1, p.id);
+    assert.ok(texts.some(function (x) { return /^R\$ /.test(x); }), p.id + ' price');
+    const dl = collect(t.app, function (n) { return n.className === 'specs-list'; });
+    assert.equal(dl.length, 1, p.id);
+    assert.equal(dl[0].tagName, 'dl', p.id);
+    assert.equal(dl[0].children.length, p.specs.length * 2, p.id);
+    p.specs.forEach(function (s, i) {
+      const dt = dl[0].children[i * 2];
+      const dd = dl[0].children[i * 2 + 1];
+      assert.equal(dt.tagName, 'dt', p.id);
+      assert.equal(dt.textContent, s.label, p.id);
+      assert.equal(dd.tagName, 'dd', p.id);
+      assert.equal(dd.textContent, s.value, p.id);
+      assert.ok(typeof s.label === 'string' && s.label.trim() && typeof s.value === 'string' && s.value.trim(), p.id + ' spec shape');
+    });
+  });
+});
+
+test('detail page shows a specifications fallback when a product has none or empty specs', function () {
+  [undefined, []].forEach(function (specs) {
+    const t = boot('#/produto/x', { products: [{ id: 'x', name: 'Xyz', description: 'd', priceCents: 100, specs: specs }] });
+    const texts = [];
+    walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+    assert.ok(texts.indexOf('Specifications not available.') !== -1);
+    assert.equal(collect(t.app, function (n) { return n.tagName === 'dl'; }).length, 0);
+  });
+});
