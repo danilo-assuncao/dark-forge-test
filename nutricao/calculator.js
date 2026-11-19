@@ -40,8 +40,9 @@
     return round1(rawBmi(weightKg, heightCm));
   }
 
-  // Expects the unrounded BMI; prefer bmiClassification(weightKg, heightCm),
-  // since bmi() is rounded and can sit on the other side of a threshold.
+  // Expects the UNROUNDED BMI. Do not pass the value returned by bmi(): it is
+  // rounded to 1 decimal and can fall on the other side of a threshold (e.g.
+  // 24.97 -> 25). Use bmiClassification(weightKg, heightCm) instead.
   function bmiCategory(value) {
     if (typeof value !== 'number' || !isFinite(value) || value < 0) {
       throw new RangeError('BMI must be a non-negative finite number');
@@ -95,6 +96,9 @@
   function suggestProducts(goal, opts) {
     if (!Object.prototype.hasOwnProperty.call(GOAL_RULES, goal)) {
       throw new RangeError('unknown goal: ' + goal);
+    }
+    if (!catalog || typeof catalog.byGoal !== 'function') {
+      throw new Error('DanNutriProducts must be loaded before calculator.js');
     }
     var category = opts && opts.category;
     return catalog.byGoal(goal).filter(function (p) {

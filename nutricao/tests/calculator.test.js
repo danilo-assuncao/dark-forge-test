@@ -98,7 +98,8 @@ test('rejects invalid input', () => {
   assert.throws(() => calc.bmr({ ...man, age: 121 }), RangeError);
   assert.throws(() => calc.bmr({ ...man, weightKg: 501 }), RangeError);
   assert.throws(() => calc.bmr({ ...man, heightCm: 301 }), RangeError);
-  assert.throws(() => calc.bmr({ sex: 'F', weightKg: 1, heightCm: 1, age: 120 }), RangeError);
+  assert.throws(() => calc.bmr({ sex: 'F', weightKg: 2, heightCm: 30, age: 120 }), /non-positive BMR/);
+  assert.ok(calc.bmr({ sex: 'F', weightKg: 40, heightCm: 150, age: 60 }) > 0);
   for (const p of [undefined, null, {}]) {
     assert.throws(() => calc.bmr(p), RangeError);
     assert.throws(() => calc.tdee(p), RangeError);
@@ -170,4 +171,12 @@ test('exposes window.DanNutriCalculator when loaded in a browser-like context', 
   assert.ok(win.DanNutriCalculator);
   assert.equal(win.DanNutriCalculator.bmr(man), 1780);
   assert.ok(win.DanNutriCalculator.suggestProducts('Saude').length > 0);
+});
+
+test('suggestProducts fails clearly when the catalog is not loaded', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'calculator.js'), 'utf8');
+  const win = {};
+  vm.runInNewContext(src, { window: win });
+  assert.throws(() => win.DanNutriCalculator.suggestProducts('Saude'), /DanNutriProducts must be loaded/);
+  assert.equal(win.DanNutriCalculator.bmr(man), 1780);
 });
