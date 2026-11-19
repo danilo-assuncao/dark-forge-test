@@ -795,3 +795,32 @@ body {
 .cart-status.is-success::before {
   content: "\2713  ";
 }
+
+/* Home hero eyebrow and showcase link; checkout shipping */
+.hero-eyebrow {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.showcase-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-weight: 700;
+}
+
+.shipping-block {
+  margin: 1rem 0;
+}
+
+.shipping-line,
+.grand-total {
+  margin: 0.25rem 0;
+}
+
+.grand-total {
+  font-size: 1.125rem;
+  font-weight: 900;
+}
