@@ -650,7 +650,7 @@ test('catalog cards have no quick add: a size must be chosen on the product page
 test('catalog honours ?category= from the hash and ignores unknown categories', function () {
   const t = boot('#/catalog?category=Cal%C3%A7as');
   const hrefs = byClass(t, 'product-card').map(function (c) { return c.href; });
-  const bottoms = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Bottoms'; });
+  const bottoms = Array.from(t.win.DanProducts.all()).filter(function (p) { return p.category === 'Calças'; });
   assert.deepEqual(hrefs, bottoms.map(function (p) { return '#/produto/' + p.id; }));
   const pressed = byClass(t, 'filter-button').filter(function (b) { return b.attrs['aria-pressed'] === 'true'; });
   assert.deepEqual(pressed.map(function (b) { return b.textContent; }), ['Calças']);
