@@ -628,7 +628,7 @@ test('catalog cards add to the cart without navigating and update the counter', 
   const status = collect(t.app, function (n) { return n.className === 'cart-status'; })[0];
   assert.equal(status.textContent, 'Added to cart.');
   assert.equal(t.win.location.hash, '#/catalog');
-  assert.equal(adds[0].attrs['aria-label'], 'Add Whey Protein to cart');
+  assert.equal(adds[0].attrs['aria-label'], 'Add Whey Protein 900g to cart');
   adds[1].listeners.click();
   assert.equal(t.win.DanCart.lines().length, 2);
   const statuses = collect(t.app, function (n) { return n.className === 'cart-status'; });
