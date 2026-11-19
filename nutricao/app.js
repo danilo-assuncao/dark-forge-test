@@ -82,8 +82,38 @@
     };
   }
 
+  function safeDecode(v) {
+    try { return decodeURIComponent(v); } catch (e) { return v; }
+  }
+
+  // Pure hash parser: never throws; malformed percent-encoding falls back to the raw text.
+  function parseHash(hash) {
+    var h = String(hash || '#/').replace(/^#/, '') || '/', qi = h.indexOf('?');
+    var path = qi === -1 ? h : h.slice(0, qi), params = {};
+    if (qi !== -1) {
+      h.slice(qi + 1).split('&').forEach(function (kv) {
+        var i = kv.indexOf('='), k = i === -1 ? kv : kv.slice(0, i);
+        if (k) { params[safeDecode(k)] = i === -1 ? '' : safeDecode(kv.slice(i + 1)); }
+      });
+    }
+    return { path: path, params: params };
+  }
+
+  // Builds the confirmed order from cart totals and the raw checkout form.
+  // `slots` is the list the user saw; the chosen slot is resolved from it (never regenerated).
+  function buildOrder(totals, form, slots, protocol) {
+    var sum = checkoutSummary(totals, { cep: form.cep, method: form.method, teleconsult: !!form.teleconsult });
+    if (!sum.ok) { return sum; }
+    var slot = null;
+    if (form.teleconsult) { slot = (slots && slots[Number(form.slot) || 0]) || null; }
+    return {
+      ok: true, protocol: protocol, totalCents: sum.totalCents, days: sum.shipping.days,
+      method: sum.shipping.method, slot: slot
+    };
+  }
+
   var ERRORS = {
-    'invalid-cep': 'CEP invalido. Informe 8 digitos.',
+    'invalid-cep': 'CEP invalido. Informe o CEP com 8 digitos.',
     'invalid-method': 'Metodo de envio invalido.',
     'express-unavailable': 'Envio expresso indisponivel para esta regiao.'
   };
@@ -91,14 +121,14 @@
   var api = {
     formatBRL: formatBRL, esc: esc, fromPrice: fromPrice, filterProducts: filterProducts,
     runCalculator: runCalculator, defaultPresentation: defaultPresentation,
-    checkoutSummary: checkoutSummary, ERRORS: ERRORS
+    checkoutSummary: checkoutSummary, ERRORS: ERRORS, parseHash: parseHash, buildOrder: buildOrder
   };
 
   /* ---------------- DOM layer ---------------- */
   function start(doc) {
     var cart = root.DanNutriCart;
     var app = doc.getElementById('app');
-    var state = { filters: {}, calc: { sex: 'M', activity: 'moderado', goal: 'Hipertrofia' }, cep: '', method: 'standard', teleconsult: false, slot: '0', order: null };
+    var state = { filters: {}, calc: { sex: 'M', activity: 'moderado', goal: 'Hipertrofia' }, cep: '', method: 'standard', teleconsult: false, slot: '0', slots: null, submitted: false, couponDraft: null, order: null };
 
     function opt(list, sel, anyLabel) {
       return (anyLabel ? '<option value="">' + anyLabel + '</option>' : '') + list.map(function (v) {
@@ -112,7 +142,7 @@
         return '<option value="' + esc(k) + '">' + esc(k) + ' - ' + formatBRL(p.priceCents[k]) + '</option>';
       }).join('');
       return '<article class="card"><h3>' + esc(p.name) + '</h3><p class="muted">' + esc(p.category) + ' · ' + esc(p.goals.join(', ')) + '</p>' +
-        '<p class="muted">Dose ' + esc(p.dose) + ': ' + p.macros.kcal + ' kcal, ' + p.macros.proteinG + ' g proteina</p>' +
+        '<p class="muted">Dose ' + esc(p.dose) + ': ' + esc(p.macros.kcal) + ' kcal, ' + esc(p.macros.proteinG) + ' g proteina</p>' +
         '<p class="price">a partir de ' + formatBRL(fromPrice(p)) + '</p>' +
         '<label>Apresentacao<select data-pres="' + esc(p.id) + '">' + sels + '</select></label> ' +
         '<button class="btn" data-add="' + esc(p.id) + '">Adicionar a cesta</button></article>';
@@ -122,7 +152,7 @@
       return '<section class="hero"><h1>Nutricao pensada para o seu objetivo</h1><p>Escolha um objetivo e veja os produtos indicados.</p></section>' +
         '<h2>Comece pelo seu objetivo</h2><div class="grid">' + catalog.goals.map(function (g) {
           return '<a class="card" href="#/catalogo?goal=' + encodeURIComponent(g) + '"><h3>' + esc(g) + '</h3><p class="muted">' +
-            catalog.byGoal(g).length + ' produtos indicados</p></a>';
+            esc(catalog.byGoal(g).length) + ' produtos indicados</p></a>';
         }).join('') + '</div><p><a class="btn secondary" href="#/calculadora">Calcular minhas metas</a></p>';
     }
 
@@ -133,7 +163,7 @@
         '<label>Categoria<select name="category">' + opt(catalog.categories, f.category, 'Todas') + '</select></label>' +
         '<label>Objetivo<select name="goal">' + opt(catalog.goals, f.goal, 'Todos') + '</select></label>' +
         '<label>Apresentacao<select name="presentation">' + opt(catalog.presentations, f.presentation, 'Todas') + '</select></label></form>' +
-        '<p class="muted" role="status">' + list.length + ' produto(s)</p><div class="grid">' +
+        '<p class="muted" role="status">' + esc(list.length) + ' produto(s)</p><div class="grid">' +
         (list.length ? list.map(productCard).join('') : '<p>Nenhum produto encontrado.</p>') + '</div>';
     }
 
@@ -144,10 +174,10 @@
           out = '<p class="error" role="alert">' + esc(c.run.error) + '</p>';
         } else {
           var r = c.run.result;
-          out = '<div class="result" role="status"><div class="stat"><strong>' + r.bmi + '</strong>IMC · ' + esc(r.bmiCategory) + '</div>' +
-            '<div class="stat"><strong>' + r.bmr + '</strong>TMB (kcal)</div><div class="stat"><strong>' + r.tdee + '</strong>Gasto diario (kcal)</div>' +
-            '<div class="stat"><strong>' + r.targets.kcal + '</strong>Meta kcal · ' + esc(r.targets.goal) + '</div>' +
-            '<div class="stat"><strong>' + r.targets.proteinG + ' g</strong>Meta proteina</div></div>' +
+          out = '<div class="result" role="status"><div class="stat"><strong>' + esc(r.bmi) + '</strong>IMC · ' + esc(r.bmiCategory) + '</div>' +
+            '<div class="stat"><strong>' + esc(r.bmr) + '</strong>TMB (kcal)</div><div class="stat"><strong>' + esc(r.tdee) + '</strong>Gasto diario (kcal)</div>' +
+            '<div class="stat"><strong>' + esc(r.targets.kcal) + '</strong>Meta kcal · ' + esc(r.targets.goal) + '</div>' +
+            '<div class="stat"><strong>' + esc(r.targets.proteinG) + ' g</strong>Meta proteina</div></div>' +
             '<h2>Sugestoes para ' + esc(r.targets.goal) + '</h2><div class="grid">' + r.suggestions.map(function (p) {
               var pr = defaultPresentation(p);
               return '<article class="card"><h3>' + esc(p.name) + '</h3><p class="price">' + formatBRL(p.priceCents[pr]) + ' · ' + esc(pr) + '</p>' +
@@ -165,11 +195,17 @@
         '<button class="btn" type="submit">Calcular</button></form>' + out;
     }
 
+    // Slots are generated once per checkout visit so the index the user picked stays stable.
+    function getSlots() {
+      if (!state.slots) { state.slots = shipping.teleconsultSlots(new Date(), 3); }
+      return state.slots;
+    }
+
     function viewCheckout() {
       if (state.order) {
         var o = state.order;
         return '<h1>Pedido confirmado</h1><div class="ok" role="status"><p>Protocolo <strong>' + esc(o.protocol) + '</strong></p><p>Total: ' + formatBRL(o.totalCents) +
-          ' · entrega em ' + o.days + ' dia(s) uteis (' + esc(o.method) + ')</p>' +
+          ' · entrega em ' + esc(o.days) + ' dia(s) uteis (' + esc(o.method) + ')</p>' +
           (o.slot ? '<p>Teleconsulta: ' + esc(o.slot.date) + ' as ' + esc(o.slot.time) + ' com ' + esc(o.slot.nutritionist) + '</p>' : '') +
           '</div><p><a class="btn secondary" href="#/catalogo">Continuar comprando</a></p>';
       }
@@ -177,22 +213,22 @@
       if (!t.count) { return '<h1>Cesta</h1><p>Sua cesta esta vazia.</p><p><a class="btn" href="#/catalogo">Ver catalogo</a></p>'; }
       var rows = t.lines.map(function (l) {
         var p = catalog.find(l.id);
-        return '<tr><td>' + esc(p.name) + ' (' + esc(l.presentation) + ')</td><td><input type="number" min="0" max="99" value="' + l.qty +
+        return '<tr><td>' + esc(p.name) + ' (' + esc(l.presentation) + ')</td><td><input type="number" min="0" max="99" value="' + esc(l.qty) +
           '" aria-label="Quantidade de ' + esc(p.name) + '" data-qty="' + esc(l.id) + '|' + esc(l.presentation) + '"></td><td>' + formatBRL(l.lineCents) +
           '</td><td><button class="btn secondary" data-rm="' + esc(l.id) + '|' + esc(l.presentation) + '">Remover</button></td></tr>';
       }).join('');
-      var sum = state.cep ? checkoutSummary(t, { cep: state.cep, method: state.method, teleconsult: state.teleconsult }) : null;
+      var sum = (state.cep || state.submitted) ? checkoutSummary(t, { cep: state.cep, method: state.method, teleconsult: state.teleconsult }) : null;
       var shipHtml = '';
       if (sum && !sum.ok) { shipHtml = '<p class="error" role="alert">' + esc(ERRORS[sum.error] || 'Erro no frete') + '</p>'; }
-      else if (sum) { shipHtml = '<p>Frete (' + esc(sum.shipping.region) + '): ' + (sum.shippingCents ? formatBRL(sum.shippingCents) : 'Gratis') + ' · ' + sum.shipping.days + ' dia(s)</p>'; }
-      var slots = shipping.teleconsultSlots(new Date(), 3);
+      else if (sum) { shipHtml = '<p>Frete (' + esc(sum.shipping.region) + '): ' + (sum.shippingCents ? formatBRL(sum.shippingCents) : 'Gratis') + ' · ' + esc(sum.shipping.days) + ' dia(s)</p>'; }
+      var slots = getSlots();
       var slotSel = slots.map(function (s, i) {
         return [String(i), s.date + ' ' + s.time + ' - ' + s.nutritionist];
       });
       return '<h1>Cesta e checkout</h1><table><thead><tr><th>Produto</th><th>Qtd</th><th>Subtotal</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
-        '<form class="form" id="coupon"><label>Cupom<input name="code" value="' + esc(t.coupon || '') + '"></label><button class="btn secondary" type="submit">Aplicar</button></form>' +
+        '<form class="form" id="coupon"><label>Cupom<input name="code" value="' + esc(state.couponDraft !== null ? state.couponDraft : (t.coupon || '')) + '"></label><button class="btn secondary" type="submit">Aplicar</button></form>' +
         '<p>Subtotal: ' + formatBRL(t.subtotalCents) + (t.discountCents ? ' · Desconto: -' + formatBRL(t.discountCents) : '') + '</p>' +
-        '<p class="muted">Combo: ' + t.proteinG + ' g de proteina · ' + t.kcal + ' kcal por dose</p>' +
+        '<p class="muted">Combo: ' + esc(t.proteinG) + ' g de proteina · ' + esc(t.kcal) + ' kcal por dose</p>' +
         '<form id="checkout"><fieldset><legend>Entrega</legend><div class="form">' +
         '<label>CEP<input name="cep" inputmode="numeric" placeholder="00000-000" value="' + esc(state.cep) + '"></label>' +
         '<label>Envio<select name="method">' + opt([['standard', 'Padrao'], ['express', 'Expresso']], state.method) + '</select></label></div>' + shipHtml + '</fieldset>' +
@@ -202,24 +238,13 @@
         '<button class="btn" type="submit">Finalizar pedido</button></form>';
     }
 
-    function parseHash() {
-      var h = (doc.location.hash || '#/').slice(1), qi = h.indexOf('?');
-      var path = qi === -1 ? h : h.slice(0, qi), params = {};
-      if (qi !== -1) {
-        h.slice(qi + 1).split('&').forEach(function (kv) {
-          var p = kv.split('=');
-          if (p[0]) { params[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || ''); }
-        });
-      }
-      return { path: path, params: params };
-    }
-
     function render() {
-      var r = parseHash(), name = { '/catalogo': 'catalogo', '/calculadora': 'calculadora', '/checkout': 'checkout' }[r.path] || 'home';
+      var r = parseHash(doc.location.hash), name = { '/catalogo': 'catalogo', '/calculadora': 'calculadora', '/checkout': 'checkout' }[r.path] || 'home';
       if (name === 'catalogo' && r.params.goal && !state.hashApplied) {
         state.filters = { goal: catalog.goals.indexOf(r.params.goal) !== -1 ? r.params.goal : '' };
       }
       state.hashApplied = false;
+      if (name !== 'checkout') { state.slots = null; state.submitted = false; state.couponDraft = null; }
       app.innerHTML = { home: viewHome, catalogo: viewCatalog, calculadora: viewCalc, checkout: viewCheckout }[name]();
       Array.prototype.forEach.call(doc.querySelectorAll('[data-route]'), function (a) {
         if (a.getAttribute('data-route') === name) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
@@ -269,7 +294,13 @@
         var d = formData(el.form);
         state.cep = d.cep; state.method = d.method; state.teleconsult = !!d.teleconsult; state.slot = d.slot || state.slot;
         render();
+        var back = el.name && app.querySelector('#checkout [name="' + el.name + '"]');
+        if (back && back.focus) { back.focus(); }
       }
+    });
+
+    app.addEventListener('input', function (e) {
+      if (e.target.form && e.target.form.id === 'coupon') { state.couponDraft = e.target.value; }
     });
 
     app.addEventListener('submit', function (e) {
@@ -279,21 +310,27 @@
         state.calc = { weightKg: d.weightKg, heightCm: d.heightCm, age: d.age, sex: d.sex, activity: d.activity, goal: d.goal, run: runCalculator(d) };
         render();
       } else if (form.id === 'coupon') {
+        state.couponDraft = null;
         if (d.code && !cart.applyCoupon(d.code)) { form.querySelector('input').setCustomValidity('Cupom invalido'); form.reportValidity(); form.querySelector('input').setCustomValidity(''); return; }
         if (!d.code) { cart.removeCoupon(); }
         render();
       } else if (form.id === 'checkout') {
         state.cep = d.cep; state.method = d.method; state.teleconsult = !!d.teleconsult; state.slot = d.slot || state.slot;
-        var t = cart.totals(), sum = checkoutSummary(t, { cep: d.cep, method: d.method, teleconsult: !!d.teleconsult });
-        if (!sum.ok) { render(); return; }
-        var slot = d.teleconsult ? shipping.teleconsultSlots(new Date(), 3)[Number(d.slot) || 0] : null;
-        state.order = { protocol: shipping.generateProtocol(), totalCents: sum.totalCents, days: sum.shipping.days, method: sum.shipping.method, slot: slot || null };
+        state.submitted = true;
+        var order = buildOrder(cart.totals(), d, getSlots(), shipping.generateProtocol());
+        if (!order.ok) { render(); return; }
+        state.order = order;
         cart.clear();
+        state.submitted = false;
         render();
       }
     });
 
     cart.subscribe(function (t) { doc.getElementById('cart-count').textContent = String(t.count); });
+    doc.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('[data-route]') : null;
+      if (a && state.order) { state.order = null; render(); }
+    });
     root.addEventListener('hashchange', function () { state.order = null; render(); });
     doc.getElementById('cart-count').textContent = String(cart.totals().count);
     render();
