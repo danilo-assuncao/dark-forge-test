@@ -271,3 +271,38 @@ test('DAN10 and DAN50 discounts apply to the quote and invalid coupons are repor
   assert.equal(cart.applyCoupon('DAN99').ok, false);
   assert.equal(cart.coupon().code, 'DAN50', 'invalid code keeps the applied coupon');
 });
+
+test('labour + parts equals the unit price for every service, including rounding and the default share', function () {
+  const products = vm.runInContext('window.DanProducts.all()', (function () {
+    const ctx = { window: {} };
+    vm.createContext(ctx);
+    vm.runInContext(productsJs, ctx);
+    return ctx;
+  })());
+  const expected = { 'wheel-alignment': 100, 'scanner-diagnosis': 100, 'tire-rotation': 100,
+    'major-service': 35, 'timing-belt': 35, 'battery-replacement': 15, 'brake-discs': 30 };
+  products.forEach(function (p) {
+    const cart = load(fakeStorage());
+    cart.add(p.id, 1, p.sizes[0]);
+    const pct = Object.prototype.hasOwnProperty.call(expected, p.id) ? expected[p.id] : 40; // 40 = default
+    assert.equal(cart.laborCents(), Math.round(p.priceCents * pct / 100), p.id);
+    assert.equal(cart.laborCents() + cart.partsCents(), p.priceCents, p.id);
+  });
+  const cart = load(fakeStorage());
+  cart.add('battery-replacement', 1, 'Hatch/Sedan'); // 42990 * 15% = 6448.5 -> 6449
+  assert.equal(cart.laborCents(), 6449);
+  assert.equal(cart.partsCents(), 36541);
+  cart.add('tire-fitting', 1, 'Hatch/Sedan'); // not listed: default share
+  assert.equal(cart.laborCents(), 6449 + Math.round(19990 * 0.4));
+});
+
+test('parts and labour are zero on an empty cart and ignore coupon discounts', function () {
+  const cart = load(fakeStorage());
+  assert.equal(cart.laborCents(), 0);
+  assert.equal(cart.partsCents(), 0);
+  cart.add('brake-pads', 1, 'Hatch/Sedan');
+  cart.applyCoupon('DAN10');
+  assert.ok(cart.discountCents() > 0);
+  assert.equal(cart.partsCents() + cart.laborCents(), cart.subtotalCents());
+  assert.notEqual(cart.partsCents() + cart.laborCents(), cart.totalCents());
+});
