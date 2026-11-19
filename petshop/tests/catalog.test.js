@@ -4,7 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 const C = require('../catalog.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -106,43 +105,10 @@ test('formatBRL edge values', () => {
   assert.equal(C.formatBRL(100000000), 'R$ 1.000.000,00');
 });
 
-function fakeNode(tag) {
-  return {
-    tagName: tag, className: '', textContent: '', children: [], attrs: {}, dataset: {}, listeners: {}, type: '',
-    get firstChild() { return this.children[0] || null; },
-    appendChild(c) { this.children.push(c); return c; },
-    removeChild(c) { this.children.splice(this.children.indexOf(c), 1); },
-    setAttribute(k, v) { this.attrs[k] = v; },
-    addEventListener(e, f) { this.listeners[e] = f; },
-  };
-}
-
-test('index.html inline script renders nav, cards, sizes and dosage table', () => {
+test('index.html loads catalog.js and app.js without inline script', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.match(html, /catalog\.js/);
+  assert.match(html, /<script src="catalog\.js">/);
+  assert.match(html, /<script src="app\.js">/);
   assert.match(html, /styles\.css/);
-  const src = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
-  const els = { categories: fakeNode('nav'), catalog: fakeNode('section'), sizes: fakeNode('ul') };
-  const tbody = fakeNode('tbody');
-  const document = {
-    getElementById: (id) => els[id],
-    querySelector: (sel) => { assert.equal(sel, '#dosage tbody'); return tbody; },
-    createElement: fakeNode,
-  };
-  const ctx = { window: { DanPetsCatalog: C }, document };
-  vm.createContext(ctx);
-  vm.runInContext(src, ctx);
-  const text = (n) => n.textContent;
-  assert.equal(els.categories.children.length, 4);
-  assert.equal(els.catalog.children.length, C.itemsByCategory('caes').length);
-  assert.equal(els.sizes.children.length, 3);
-  assert.equal(text(els.sizes.children[1]), 'Medio (acima de 10 ate 25 kg)');
-  assert.equal(tbody.children.length, 6);
-  assert.equal(text(tbody.children[5].children[1]), 'acima de 40 kg');
-  assert.equal(text(tbody.children[1].children[1]), 'acima de 5 ate 10 kg');
-  els.categories.children[3].listeners.click();
-  assert.equal(els.catalog.children.length, C.itemsByCategory('farmacia').length);
-  assert.equal(text(els.catalog.children[0].children[0]), 'Vermifugo Oral');
-  assert.equal(els.categories.children[3].attrs['aria-pressed'], 'true');
-  assert.equal(els.categories.children[0].attrs['aria-pressed'], 'false');
+  assert.doesNotMatch(html, /<script>/);
 });
