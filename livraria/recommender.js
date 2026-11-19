@@ -5,9 +5,15 @@
 (function (root) {
   'use strict';
 
-  var Catalog = (typeof module !== 'undefined' && module.exports && typeof require === 'function')
-    ? require('./books.js')
-    : root.DanBooksCatalog;
+  // Resolved lazily so script load order in the browser does not matter, and
+  // a missing catalog fails with a clear error instead of a TypeError.
+  function catalog() {
+    var c = (typeof module !== 'undefined' && module.exports && typeof require === 'function')
+      ? require('./books.js')
+      : root.DanBooksCatalog;
+    if (!c) throw new Error('DanBooksRecommender requires books.js (DanBooksCatalog) to be loaded first');
+    return c;
+  }
 
   var DAYS_PER_MONTH = 30;
 
@@ -24,7 +30,7 @@
 
   function resolveBook(bookOrId) {
     if (bookOrId && typeof bookOrId === 'object') return bookOrId;
-    return Catalog.findBook(bookOrId);
+    return catalog().findBook(bookOrId);
   }
 
   // Days needed to finish a book (object or id) reading minutesPerDay daily;
@@ -32,7 +38,7 @@
   function daysToFinish(bookOrId, minutesPerDay) {
     var book = resolveBook(bookOrId);
     if (!book || !validMinutes(minutesPerDay)) return null;
-    var total = Catalog.readingMinutes(book.pages);
+    var total = catalog().readingMinutes(book.pages);
     if (total === null) return null;
     return Math.ceil(total / minutesPerDay);
   }
@@ -42,17 +48,17 @@
   function recommend(opts) {
     opts = opts || {};
     if (!validMinutes(opts.minutesPerDay)) return [];
-    var list = Catalog.booksByGenre(opts.genre || undefined).map(function (b) {
+    var list = catalog().booksByGenre(opts.genre || undefined).map(function (b) {
       return {
         book: b,
-        readingMinutes: Catalog.readingMinutes(b.pages),
+        readingMinutes: catalog().readingMinutes(b.pages),
         days: daysToFinish(b, opts.minutesPerDay),
       };
     }).filter(function (r) {
-      return r.days !== null && (typeof opts.maxDays !== 'number' || r.days <= opts.maxDays);
+      return r.days !== null && (!isFinite(opts.maxDays) || typeof opts.maxDays !== 'number' || r.days <= opts.maxDays);
     });
     list.sort(function (a, b) { return a.days - b.days || a.book.pages - b.book.pages; });
-    if (typeof opts.limit === 'number' && opts.limit >= 0) list = list.slice(0, Math.floor(opts.limit));
+    if (typeof opts.limit === 'number' && isFinite(opts.limit) && opts.limit >= 0) list = list.slice(0, Math.floor(opts.limit));
     return list;
   }
 
@@ -61,11 +67,12 @@
   function recommendPlan(opts) {
     opts = opts || {};
     if (!validMinutes(opts.minutesPerDay)) return null;
-    var books = Catalog.booksByGenre(opts.genre || undefined);
+    var books = catalog().booksByGenre(opts.genre || undefined);
     if (!books.length) return null;
-    var avg = books.reduce(function (s, b) { return s + Catalog.readingMinutes(b.pages); }, 0) / books.length;
+    var avg = books.reduce(function (s, b) { return s + catalog().readingMinutes(b.pages); }, 0) / books.length;
     var capacity = opts.minutesPerDay * DAYS_PER_MONTH;
-    var fit = Math.floor(capacity / avg);
+    // Never promise more books than the genre actually has.
+    var fit = Math.min(Math.floor(capacity / avg), books.length);
     var plan = PLANS[0];
     PLANS.forEach(function (p) { if (p.booksPerMonth <= fit) plan = p; });
     return { plan: plan, booksPerMonthCapacity: fit, averageReadingMinutes: Math.round(avg) };
