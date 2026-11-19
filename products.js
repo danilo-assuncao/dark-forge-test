@@ -49,7 +49,7 @@
     service('oil-change', 'Troca de oleo e filtros', REVISAO, 24990, 60, '90 dias', '10.000 km ou 12 meses', 'Oleo do motor, filtro de oleo e filtro de ar com checklist de 20 itens.'),
     service('major-service', 'Revisao completa', REVISAO, 54990, 180, '6 meses', '20.000 km ou 12 meses', 'Revisao por quilometragem: fluidos, correias, velas, filtros e inspecao geral.'),
     service('timing-belt', 'Troca da correia dentada', REVISAO, 79990, 240, '12 meses', '60.000 km', 'Correia dentada, tensor e bomba dagua substituidos com ajuste de ponto.'),
-    service('brake-pads', 'Troca de pastilhas de freio', FREIOS, 31990, 75, '6 meses', '30.000 km', 'Pastilhas dianteiras com limpeza das pinças e teste em pista.'),
+    service('brake-pads', 'Troca de pastilhas de freio', FREIOS, 31990, 75, '6 meses', '30.000 km', 'Pastilhas dianteiras com limpeza das pincas e teste em pista.'),
     service('brake-discs', 'Troca de discos e fluido de freio', FREIOS, 64990, 120, '12 meses', '50.000 km', 'Discos dianteiros, pastilhas e sangria completa do fluido de freio.'),
     service('shock-absorbers', 'Troca de amortecedores', FREIOS, 89990, 210, '12 meses', '60.000 km', 'Par de amortecedores com coxins e batentes, seguido de alinhamento.'),
     service('tire-fitting', 'Montagem e balanceamento de pneus', PNEUS, 19990, 60, '30 dias', 'A cada 10.000 km', 'Montagem de quatro pneus com balanceamento computadorizado.'),

@@ -178,7 +178,7 @@
     }
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
     if (product.boxTime) {
-      link.appendChild(el('span', 'product-box-time', 'Tempo de box: ' + product.boxTime));
+      link.appendChild(el('span', 'product-box-time', 'Tempo de box (Hatch/Sedan): ' + product.boxTime));
     }
     if (product.sizes && product.sizes.length) {
       link.appendChild(el('span', 'product-sizes', 'Portes: ' + product.sizes.join(', ')));

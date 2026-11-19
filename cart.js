@@ -80,7 +80,7 @@
     if (typeof rawCoupon === 'string' && Object.prototype.hasOwnProperty.call(COUPONS, rawCoupon)) {
       couponCode = rawCoupon;
     }
-    // Carts saved by the pre-Dan Wear catalog ({ id, qty } with no size, old
+    // Carts saved by the pre-size catalog ({ id, qty } with no size, old
     // product ids) are intentionally discarded: those products no longer exist.
     var raw = readKey(STORAGE_KEY);
     if (!raw) {

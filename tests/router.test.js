@@ -234,7 +234,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
     assert.deepEqual(classes, ['product-image', 'product-name', 'product-category', 'product-price', 'product-box-time', 'product-sizes']);
     assert.equal(card.children[1].textContent, all[i].name);
     assert.equal(card.children[2].textContent, all[i].category);
-    assert.equal(card.children[4].textContent, 'Tempo de box: ' + all[i].boxTime);
+    assert.equal(card.children[4].textContent, 'Tempo de box (Hatch/Sedan): ' + all[i].boxTime);
     assert.equal(card.children[5].textContent, 'Portes: ' + all[i].sizes.join(', '));
     assert.match(card.children[3].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
   });
@@ -850,4 +850,26 @@ test('the 404 page has friendly copy and a link home', function () {
   assert.match(t.heading(), /404/);
   assert.match(t.doc.title, /^404/);
   assert.equal(t.description(), 'The page you are looking for does not exist.');
+});
+
+test('bay times per porte are exact, covering rounding and zero-padding', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const times = function (id) {
+    return Array.from(ctx.window.DanProducts.find(id).measurements.rows.map(function (r) { return r.values[0]; }));
+  };
+  assert.deepEqual(times('wheel-alignment'), ['45 min', '55 min', '1h10']);
+  assert.deepEqual(times('brake-pads'), ['1h15', '1h35', '1h55']);
+  assert.deepEqual(times('tire-rotation'), ['30 min', '40 min', '45 min']);
+  assert.deepEqual(times('oil-change'), ['1h', '1h15', '1h30']);
+  assert.deepEqual(times('shock-absorbers'), ['3h30', '4h25', '5h15']);
+  assert.deepEqual(times('timing-belt'), ['4h', '5h', '6h']);
+});
+
+test('technical table caption falls back when the table has no unit', function () {
+  const product = { id: 'x', name: 'Xyz', description: 'd', priceCents: 100, sizes: ['A'],
+    measurements: { columns: ['C'], rows: [{ size: 'A', values: ['1'] }] } };
+  const t = boot('#/produto/x', { products: [product] });
+  const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
+  assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent, 'Technical specifications');
 });
