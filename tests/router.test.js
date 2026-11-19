@@ -49,7 +49,9 @@ function boot(hash, opts) {
   });
   const cartBadge = makeNode('span');
   const metas = {};
-  ['meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]'].forEach(function (s) { metas[s] = makeNode('meta'); });
+  if (!opts.noMeta) {
+    ['meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]'].forEach(function (s) { metas[s] = makeNode('meta'); });
+  }
   const win = { location: { hash: hash }, listeners: {} };
   if (opts.cartStorage) {
     win.localStorage = {
@@ -532,18 +534,72 @@ test('home hero links to the catalog', function () {
   assert.equal(cta.href, '#/catalog');
 });
 
+const META = 'meta[name="description"]';
+const OG_TITLE = 'meta[property="og:title"]';
+const OG_DESC = 'meta[property="og:description"]';
+
+function assertMeta(t, expectedDesc) {
+  const d = t.metas[META].attrs.content;
+  if (expectedDesc instanceof RegExp) { assert.match(d, expectedDesc); } else { assert.equal(d, expectedDesc); }
+  assert.equal(t.metas[OG_TITLE].attrs.content, t.doc.title);
+  assert.equal(t.metas[OG_DESC].attrs.content, d);
+}
+
 test('each route sets its own title, description and og meta tags', function () {
-  const t = boot('#/');
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) };
+  const t = boot('#/', { cartStorage: store });
+  const routes = [
+    ['#/', /^Dan is a small online store/],
+    ['#/catalog', 'Browse every Dan product with prices and nutrition facts.'],
+    ['#/about', 'About Dan: a small single-page store with client-side routing.'],
+    ['#/cart', 'Review the items in your Dan cart.'],
+    ['#/checkout', 'Enter your details to place your Dan order (simulated checkout).'],
+    ['#/produto/creatine', /\S{10}/],
+    ['#/nope', 'The page you are looking for does not exist.'],
+  ];
   const seen = {};
-  ['#/', '#/catalog', '#/about', '#/cart', '#/checkout', '#/nope'].forEach(function (h) {
-    t.go(h);
-    const d = t.metas['meta[name="description"]'].attrs.content;
-    assert.ok(d && d.length > 10, h + ' needs a description');
-    assert.equal(t.metas['meta[property="og:title"]'].attrs.content, t.doc.title);
-    assert.equal(t.metas['meta[property="og:description"]'].attrs.content, d);
+  routes.forEach(function (r) {
+    t.go(r[0]);
+    assertMeta(t, r[1]);
     assert.ok(!seen[t.doc.title], 'titles must be unique per route: ' + t.doc.title);
     seen[t.doc.title] = true;
   });
+});
+
+test('product without description falls back to a generated meta description', function () {
+  const t = boot('#/produto/x', { products: [{ id: 'x', name: 'Plain Thing', priceCents: 100 }], cartStorage: {} });
+  assert.equal(t.doc.title, 'Plain Thing \u2013 Dan');
+  assertMeta(t, 'Buy Plain Thing at Dan.');
+});
+
+test('meta stays in sync after invalid submit, stale-cart re-render and confirmed order', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) };
+  const t = boot('#/checkout', { cartStorage: store });
+  const checkoutDesc = 'Enter your details to place your Dan order (simulated checkout).';
+  assertMeta(t, checkoutDesc);
+  fillCheckout(t, Object.assign({}, VALID, { email: 'x' }));
+  submitForm(t);
+  assert.equal(t.heading(), 'Checkout');
+  assertMeta(t, checkoutDesc);
+  // Stale cart: re-render keeps meta in sync with the fresh checkout view.
+  t.doc.title = 'stale';
+  t.metas[META].attrs.content = 'stale';
+  fillCheckout(t, VALID);
+  t.win.DanCart.add('creatine', 1);
+  submitForm(t);
+  assert.equal(byClass(t, 'checkout-notice').length, 1);
+  assertMeta(t, checkoutDesc);
+  fillCheckout(t, VALID);
+  submitForm(t);
+  assert.equal(t.heading(), 'Order confirmed');
+  assert.equal(t.doc.title, 'Order confirmed \u2013 Dan');
+  assertMeta(t, 'Your Dan order was received.');
+});
+
+test('rendering does not throw when the page has no meta tags', function () {
+  const t = boot('#/', { noMeta: true });
+  t.go('#/catalog');
+  assert.equal(t.doc.title, 'Catalog \u2013 Dan');
 });
 
 test('index.html declares viewport, description and og meta tags', function () {
@@ -551,6 +607,20 @@ test('index.html declares viewport, description and og meta tags', function () {
   assert.match(html, /<meta name="description" content="[^"]{20,}"/);
   assert.match(html, /<meta property="og:title"/);
   assert.match(html, /<meta property="og:description"/);
+  assert.match(html, /<meta name="theme-color"/);
+  assert.match(html, /<meta property="og:type" content="website"/);
+  assert.match(html, /<meta property="og:site_name"/);
+  assert.match(html, /<meta name="twitter:card"/);
+});
+
+test('static index.html title and description match the home view', function () {
+  const t = boot('#/');
+  const title = /<title>([^<]*)<\/title>/.exec(html)[1];
+  const desc = /<meta name="description" content="([^"]*)"/.exec(html)[1];
+  assert.equal(title, t.doc.title);
+  assert.equal(desc, t.metas[META].attrs.content);
+  assert.equal(/<meta property="og:title" content="([^"]*)"/.exec(html)[1], title);
+  assert.equal(/<meta property="og:description" content="([^"]*)"/.exec(html)[1], desc);
 });
 
 test('main flow: catalog -> product -> cart -> checkout -> confirmation', function () {

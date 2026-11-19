@@ -529,6 +529,9 @@ body {
   border-radius: 0.75rem;
   background-color: var(--bg);
   text-align: center;
+  /* Never taller than the home area: scroll inside the hero on short viewports */
+  max-height: calc(100% - 1rem);
+  overflow-y: auto;
 }
 
 .hero-title {
