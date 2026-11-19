@@ -154,7 +154,12 @@ test('products.js holds well-formed mock data', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
   const all = ctx.window.DanProducts.all();
-  assert.ok(all.length >= 6);
+  assert.ok(all.length >= 12);
+  const cats = ctx.window.DanProducts.categories();
+  assert.deepEqual(Array.from(cats), ['Supplements', 'Accessories', 'Equipment']);
+  cats.forEach(function (c) {
+    assert.ok(all.filter(function (p) { return p.category === c; }).length >= 3, c);
+  });
   assert.equal(new Set(all.map(function (p) { return p.id; })).size, all.length);
   all.forEach(function (p) {
     assert.ok(p.name && p.description && Number.isInteger(p.priceCents) && p.priceCents > 0);
@@ -208,6 +213,36 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
     assert.match(card.children[2].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
   });
   assert.equal(cards[0].children[2].textContent, 'R$ 159,90');
+});
+
+test('category filter shows only matching products and All restores the grid', function () {
+  const t = boot('#/catalog');
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const all = Array.from(ctx.window.DanProducts.all());
+  const buttons = collect(t.app, function (n) { return n.className === 'filter-button'; });
+  assert.deepEqual(buttons.map(function (b) { return b.textContent; }),
+    ['All', 'Supplements', 'Accessories', 'Equipment']);
+  const cards = function () { return collect(t.app, function (n) { return n.className === 'product-card'; }); };
+  assert.equal(cards().length, all.length);
+  assert.equal(buttons[0].attrs['aria-pressed'], 'true');
+  buttons.slice(1).forEach(function (b) {
+    b.listeners.click();
+    const expected = all.filter(function (p) { return p.category === b.textContent; });
+    assert.deepEqual(cards().map(function (c) { return c.href; }),
+      expected.map(function (p) { return '#/produto/' + p.id; }));
+    assert.equal(b.attrs['aria-pressed'], 'true');
+    assert.equal(buttons[0].attrs['aria-pressed'], 'false');
+  });
+  buttons[0].listeners.click();
+  assert.equal(cards().length, all.length);
+});
+
+test('equipment detail pages omit the nutrition section', function () {
+  const t = boot('#/produto/yoga-mat');
+  assert.match(t.heading(), /Yoga/);
+  assert.equal(collect(t.app, function (n) { return n.tagName === 'table'; }).length, 0);
+  assert.equal(t.has('nutrition'), false);
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
@@ -279,10 +314,10 @@ test('nutrition table has caption, scoped headers and paired label/amount cells'
   assert.equal(row.children[1].textContent, '5 g');
 });
 
-test('every product has nutrition data and its detail renders rows + 1 tr', function () {
+test('every supplement has nutrition data and its detail renders rows + 1 tr', function () {
   const ctx = { window: {} };
   vm.runInNewContext(productsJs, ctx);
-  ctx.window.DanProducts.all().forEach(function (p) {
+  ctx.window.DanProducts.all().filter(function (p) { return p.category === 'Supplements'; }).forEach(function (p) {
     assert.ok(p.nutrition && p.nutrition.serving, p.id + ' serving');
     assert.ok(p.nutrition.rows.length > 0, p.id + ' rows');
     p.nutrition.rows.forEach(function (r) { assert.ok(r.label && r.amount, p.id + ' row'); });
