@@ -11,6 +11,7 @@ const vm = require('node:vm');
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const js = fs.readFileSync(path.join(ROOT, 'script.js'), 'utf8');
+const productsJs = fs.readFileSync(path.join(ROOT, 'products.js'), 'utf8');
 
 function makeNode(tag) {
   const node = {
@@ -36,10 +37,11 @@ function walk(node, fn) {
   node.children.forEach(function (c) { walk(c, fn); });
 }
 
-function boot(hash) {
+function boot(hash, opts) {
+  opts = opts || {};
   const app = makeNode('main');
   const skip = makeNode('a');
-  const navLinks = ['#/', '#/about'].map(function (href) {
+  const navLinks = ['#/', '#/catalog', '#/about'].map(function (href) {
     const a = makeNode('a');
     a.href = href;
     return a;
@@ -55,7 +57,17 @@ function boot(hash) {
     querySelectorAll(sel) { return sel === '.nav-link' ? navLinks : []; },
     addEventListener() {},
   };
-  vm.runInNewContext(js, { window: win, document: doc });
+  const ctx = { window: win, document: doc };
+  vm.createContext(ctx);
+  if (opts.products) {
+    ctx.window.DanProducts = {
+      all() { return opts.products.slice(); },
+      find(id) { return opts.products.find(function (p) { return p.id === id; }) || null; },
+    };
+  } else if (!opts.noProducts) {
+    vm.runInContext(productsJs, ctx);
+  }
+  vm.runInContext(js, ctx);
   return {
     app, skip, navLinks, doc, win,
     go(h) { win.location.hash = h; win.listeners.hashchange(); },
@@ -109,15 +121,107 @@ test('navigating swaps the view, moves aria-current and focuses main only after 
   assert.equal(t.app.focusCount, undefined, 'first render must not steal focus');
   assert.equal(t.navLinks[0].attrs['aria-current'], 'page');
   assert.equal(t.navLinks[1].attrs['aria-current'], undefined);
+  assert.equal(t.navLinks[2].attrs['aria-current'], undefined);
   t.go('#/about');
   assert.equal(t.heading(), 'About');
   assert.equal(t.app.children.length, 1, 'old view must be replaced');
   assert.equal(t.navLinks[0].attrs['aria-current'], undefined);
-  assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
+  assert.equal(t.navLinks[2].attrs['aria-current'], 'page');
   assert.equal(t.app.focusCount, 1);
   t.go('#/missing');
   assert.match(t.heading(), /404/);
-  assert.equal(t.navLinks[1].attrs['aria-current'], undefined);
+  assert.equal(t.navLinks[2].attrs['aria-current'], undefined);
+});
+
+function collect(node, pred) {
+  const out = [];
+  walk(node, function (n) { if (pred(n)) { out.push(n); } });
+  return out;
+}
+
+test('products.js holds well-formed mock data', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const all = ctx.window.DanProducts.all();
+  assert.ok(all.length >= 6);
+  assert.equal(new Set(all.map(function (p) { return p.id; })).size, all.length);
+  all.forEach(function (p) {
+    assert.ok(p.name && p.description && Number.isInteger(p.priceCents) && p.priceCents > 0);
+  });
+  assert.ok(all.some(function (p) { return /whey/i.test(p.name); }));
+  assert.ok(all.some(function (p) { return /creatine/i.test(p.name); }));
+  assert.equal(ctx.window.DanProducts.find('nope'), null);
+  assert.equal(ctx.window.DanProducts.find('creatine').id, 'creatine');
+  const n = ctx.window.DanProducts.all().length;
+  const copy = ctx.window.DanProducts.all();
+  copy.push({ id: 'x' });
+  copy.pop();
+  copy.length = 0;
+  assert.equal(ctx.window.DanProducts.all().length, n, 'all() must return a copy');
+});
+
+test('formatPrice pads cents and groups thousands', function () {
+  const cases = [[5, 'R$ 0,05'], [100, 'R$ 1,00'], [100005, 'R$ 1.000,05'],
+    [123456789, 'R$ 1.234.567,89'], [99900, 'R$ 999,00']];
+  const products = cases.map(function (c, i) {
+    return { id: 'p' + i, name: 'P' + i, description: 'd', priceCents: c[0] };
+  });
+  const t = boot('#/catalog', { products: products });
+  const prices = collect(t.app, function (n) { return n.className === 'product-price'; })
+    .map(function (n) { return n.textContent; });
+  assert.deepEqual(prices, cases.map(function (c) { return c[1]; }));
+});
+
+test('without product data the catalog is empty and details give a 404', function () {
+  const t = boot('#/catalog', { noProducts: true });
+  assert.equal(t.heading(), 'Catalog');
+  assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 0);
+  assert.match(boot('#/catalog/creatine', { noProducts: true }).heading(), /404/);
+});
+
+test('the catalog grid shows name, placeholder image and price, linking to detail', function () {
+  const t = boot('#/catalog');
+  assert.equal(t.heading(), 'Catalog');
+  assert.equal(t.doc.title, 'Catalog – Dan');
+  assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
+  const cards = collect(t.app, function (n) { return n.className === 'product-card'; });
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  const all = ctx.window.DanProducts.all();
+  assert.equal(cards.length, all.length);
+  cards.forEach(function (card, i) {
+    assert.equal(card.href, '#/catalog/' + all[i].id);
+    const classes = card.children.map(function (c) { return c.className; });
+    assert.deepEqual(classes, ['product-image', 'product-name', 'product-price']);
+    assert.equal(card.children[1].textContent, all[i].name);
+    assert.match(card.children[2].textContent, /^R\$ \d{1,3}(\.\d{3})*,\d{2}$/);
+  });
+  assert.equal(cards[0].children[2].textContent, 'R$ 159,90');
+});
+
+test('a product detail route renders the product; unknown ids give a 404', function () {
+  const t = boot('#/catalog/creatine');
+  assert.match(t.heading(), /Creatine/);
+  assert.match(t.doc.title, /Creatine/);
+  assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
+  assert.equal(t.navLinks[0].attrs['aria-current'], undefined);
+  assert.equal(t.navLinks[2].attrs['aria-current'], undefined);
+  const texts = [];
+  walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+  assert.ok(texts.indexOf('R$ 89,90') !== -1, 'price shown');
+  assert.ok(texts.some(function (x) { return /micronized creatine/.test(x); }), 'description shown');
+  assert.equal(collect(t.app, function (n) { return n.className === 'product-image'; }).length, 1);
+  const back = collect(t.app, function (n) { return n.tagName === 'a'; })[0];
+  assert.equal(back.href, '#/catalog');
+  assert.equal(back.textContent, 'Back to catalog');
+  ['#/catalog/nope', '#/catalogue', '#/catalog/creatine/x', '#/catalog/%E0%A4%A'].forEach(function (h) {
+    const u = boot(h);
+    assert.match(u.heading(), /404/, h);
+    u.navLinks.forEach(function (l) { assert.equal(l.attrs['aria-current'], undefined, h); });
+  });
+  ['#/catalog/nope', '#/catalog/%E0%A4%A', '#/catalog/constructor', '#/catalog/creatine/x'].forEach(function (h) {
+    assert.match(boot(h).heading(), /404/, h);
+  });
 });
 
 test('the skip link focuses main without changing the hash or the view', function () {
