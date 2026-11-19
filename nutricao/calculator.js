@@ -19,10 +19,11 @@
 
   // Plausible human limits; anything outside is rejected as invalid input.
   var LIMITS = { weightKg: 500, heightCm: 300, age: 120 };
+  var MINIMUMS = { weightKg: 2, heightCm: 30, age: 1 };
 
   function positive(value, name) {
-    if (typeof value !== 'number' || !isFinite(value) || value <= 0 || value > LIMITS[name]) {
-      throw new RangeError(name + ' must be a number between 0 (exclusive) and ' + LIMITS[name]);
+    if (typeof value !== 'number' || !isFinite(value) || value < MINIMUMS[name] || value > LIMITS[name]) {
+      throw new RangeError(name + ' must be a number between ' + MINIMUMS[name] + ' and ' + LIMITS[name]);
     }
     return value;
   }

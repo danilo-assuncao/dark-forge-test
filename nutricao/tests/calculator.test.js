@@ -63,7 +63,27 @@ test('suggests compatible catalog items', () => {
   assert.ok(prot.every((p) => p.category === 'Proteinas' && p.goals.includes('Hipertrofia')));
   assert.deepEqual(calc.suggestProducts('Saude', { category: 'Inexistente' }), []);
   const vit = calc.suggestProducts('Emagrecimento', { category: 'Vitaminas & Longevidade' });
+  assert.ok(vit.length > 0);
   assert.ok(vit.every((p) => p.category === 'Vitaminas & Longevidade' && p.goals.includes('Emagrecimento')));
+});
+
+test('every activity multiplier is applied', () => {
+  const expected = { sedentario: 1.2, leve: 1.375, moderado: 1.55, intenso: 1.725, muito_intenso: 1.9 };
+  assert.deepEqual({ ...calc.activityLevels }, expected);
+  for (const [level, factor] of Object.entries(expected)) {
+    assert.equal(calc.tdee({ ...man, activity: level }), Math.round(1780 * factor), level);
+  }
+});
+
+test('accepts inputs exactly at the limits and rejects tiny ones', () => {
+  assert.doesNotThrow(() => calc.bmi(500, 300));
+  assert.doesNotThrow(() => calc.bmi(2, 30));
+  assert.doesNotThrow(() => calc.bmr({ ...man, age: 120 }));
+  assert.doesNotThrow(() => calc.bmr({ ...man, age: 1 }));
+  assert.equal(calc.bmiCategory(0), 'Abaixo do peso');
+  assert.throws(() => calc.bmi(80, 0.001), RangeError);
+  assert.throws(() => calc.bmi(0.1, 180), RangeError);
+  assert.throws(() => calc.bmr({ ...man, age: 0.1 }), RangeError);
 });
 
 test('rejects invalid input', () => {
