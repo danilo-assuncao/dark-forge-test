@@ -201,7 +201,7 @@ test('the page background is a clean, light editorial off-white', function () {
 });
 
 test('only a light colour scheme is declared', function () {
-  assert.equal(rootTokens()['color-scheme'], 'light');
+  assert.equal(rootTokens()['color-scheme'], 'only light');
   assert.match(read('index.html'), /<meta\s+name="color-scheme"\s+content="light">/);
 });
 
