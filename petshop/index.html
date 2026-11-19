@@ -10,8 +10,11 @@
 <body>
   <header><h1>Dan Pets</h1></header>
   <main>
+    <div id="list-view">
+    <label class="search"><span>Buscar</span> <input id="search" type="search" placeholder="Ex.: racao, banho, gatos"></label>
     <nav id="categories" aria-label="Categorias"></nav>
     <section id="catalog" class="grid" aria-live="polite"></section>
+    <p id="empty" class="muted" hidden>Nenhum item encontrado.</p>
     <section>
       <h2>Portes</h2>
       <ul id="sizes"></ul>
@@ -24,61 +27,10 @@
         <tbody></tbody>
       </table>
     </section>
+    </div>
+    <section id="detail-view" hidden></section>
   </main>
   <script src="catalog.js"></script>
-  <script>
-    (function () {
-      var C = window.DanPetsCatalog;
-      var nav = document.getElementById('categories');
-      var grid = document.getElementById('catalog');
-      function show(id) {
-        Array.prototype.forEach.call(nav.children, function (b) {
-          b.setAttribute('aria-pressed', String(b.dataset.id === id));
-        });
-        while (grid.firstChild) grid.removeChild(grid.firstChild);
-        C.itemsByCategory(id).forEach(function (it) {
-          var card = document.createElement('article');
-          card.className = 'card';
-          var sizes = it.sizes.map(function (s) {
-            var size = C.SIZES.filter(function (x) { return x.id === s; })[0];
-            return size.name + ' ' + C.formatBRL(C.priceFor(it, s));
-          }).join(' · ');
-          var h3 = document.createElement('h3');
-          h3.textContent = it.name;
-          var p = document.createElement('p');
-          p.className = 'muted';
-          p.textContent = sizes;
-          card.appendChild(h3);
-          card.appendChild(p);
-          grid.appendChild(card);
-        });
-      }
-      C.CATEGORIES.forEach(function (c) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.textContent = c.name; b.dataset.id = c.id;
-        b.addEventListener('click', function () { show(c.id); });
-        nav.appendChild(b);
-      });
-      var ul = document.getElementById('sizes');
-      C.SIZES.forEach(function (s) {
-        var li = document.createElement('li');
-        li.textContent = s.name + ' (' + s.weightRange + ')';
-        ul.appendChild(li);
-      });
-      var tbody = document.querySelector('#dosage tbody');
-      C.DOSAGE_TABLE.forEach(function (r) {
-        var size = C.SIZES.filter(function (x) { return x.id === r.size; })[0];
-        var tr = document.createElement('tr');
-        var range = r.minKg === 0 ? 'ate ' + r.maxKg + ' kg'
-          : r.maxKg === Infinity ? 'acima de ' + r.minKg + ' kg'
-          : 'acima de ' + r.minKg + ' ate ' + r.maxKg + ' kg';
-        [size.name, range, r.dose].forEach(function (t) {
-          var td = document.createElement('td'); td.textContent = t; tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-      show(C.CATEGORIES[0].id);
-    })();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
