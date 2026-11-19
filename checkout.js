@@ -60,12 +60,20 @@
     return { mode: 'delivery', cents: q.cents, minutes: q.minutes, region: q.region, cep: q.cep };
   }
 
-  // Tracking code "DAN-XXXX". Optional rng returns a float in [0, 1).
+  // Tracking code "DAN-XXXX". DISPLAY LABEL ONLY: it has ~20 bits of entropy and
+  // is generated client-side, so never use it to authorize access to an order.
+  // Optional rng returns a float in [0, 1) (used by tests); otherwise it uses
+  // crypto.getRandomValues when available (32 divides 256, so masking is unbiased).
   function trackingCode(rng) {
-    var next = typeof rng === 'function' ? rng : Math.random;
     var out = '';
+    var bytes = null;
+    var cr = typeof crypto !== 'undefined' ? crypto : null;
+    if (typeof rng !== 'function' && cr && typeof cr.getRandomValues === 'function') {
+      bytes = cr.getRandomValues(new Uint8Array(4));
+    }
+    var next = typeof rng === 'function' ? rng : Math.random;
     for (var i = 0; i < 4; i++) {
-      var idx = Math.floor(next() * CODE_ALPHABET.length) % CODE_ALPHABET.length;
+      var idx = bytes ? bytes[i] & (CODE_ALPHABET.length - 1) : Math.floor(next() * CODE_ALPHABET.length);
       out += CODE_ALPHABET.charAt(idx);
     }
     return 'DAN-' + out;
