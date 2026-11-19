@@ -111,7 +111,7 @@ KNOWN.forEach(function (c) {
     const t = boot(c[0]);
     if (c[1] === 'home') {
       assert.ok(t.has('home'));
-      assert.equal(t.doc.title, 'Dan');
+      assert.equal(t.doc.title, 'Dan \u2013 Supplements and training gear');
     } else {
       assert.equal(t.heading(), 'About');
       assert.equal(t.doc.title, 'About – Dan');
@@ -647,3 +647,44 @@ test('catalog add button reports the maximum quantity', function () {
   assert.equal(t.win.DanCart.count(), max);
   assert.equal(status.textContent, 'Maximum quantity reached.');
 });
+
+test('home hero names the shop and links to the catalog', function () {
+  const t = boot('#/');
+  assert.ok(t.has('hero'));
+  assert.equal(t.heading(), 'Dan');
+  const cta = byClass(t, 'action-button hero-cta')[0];
+  assert.equal(cta.tagName, 'a');
+  assert.equal(cta.href, '#/catalog');
+});
+
+test('every route sets a distinct title and a meta description', function () {
+  const meta = makeNode('meta');
+  const routes = ['#/', '#/about', '#/catalog', '#/cart', '#/checkout', '#/nope'];
+  const seen = new Set();
+  const t = boot('#/');
+  const origQuery = t.doc.querySelector;
+  t.doc.querySelector = function (sel) {
+    return sel === 'meta[name="description"]' ? meta : origQuery.call(t.doc, sel);
+  };
+  routes.concat(['#/produto/' + encodeURIComponent(
+    firstProductId())]).forEach(function (h) {
+    meta.attrs = {};
+    t.go(h);
+    assert.ok(t.doc.title.length > 0, h + ' has a title');
+    assert.ok(meta.attrs.content && meta.attrs.content.length > 10, h + ' has a description');
+    seen.add(t.doc.title);
+  });
+  assert.equal(seen.size, routes.length + 1);
+});
+
+test('index.html ships SEO meta tags', function () {
+  assert.match(html, /<title>[^<]+<\/title>/);
+  assert.match(html, /<meta name="description" content="[^"]{20,}"/);
+  assert.match(html, /<meta property="og:title"/);
+  assert.match(html, /<meta name="viewport"/);
+});
+
+function firstProductId() {
+  const t = boot('#/');
+  return t.win.DanProducts.all()[0].id;
+}
