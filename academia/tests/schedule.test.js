@@ -72,7 +72,8 @@ test('book rejects unknown slots and time clashes', () => {
 });
 
 test('full session sends the student to the waitlist with a position', () => {
-  const sch = S.createSchedule(memStorage(), { occupancy: { 'yo-ter-0800': 15 }, waiting: { 'yo-ter-0800': 2 } });
+  const cap = A.getClass('yoga-mobilidade').capacity;
+  const sch = S.createSchedule(memStorage(), { occupancy: { 'yo-ter-0800': cap }, waiting: { 'yo-ter-0800': 2 } });
   assert.equal(sch.seatsLeft('yo-ter-0800'), 0);
   const r = sch.book('yo-ter-0800');
   assert.deepEqual(r, { ok: true, status: 'waitlisted', position: 3 });
@@ -121,7 +122,93 @@ test('cancel handles bookings, waitlist and unknowns', () => {
 
 test('non-numeric occupancy normalises to zero', () => {
   const sch = S.createSchedule(memStorage(), { occupancy: { 'sp-seg-1830': 'abc' } });
+  assert.equal(sch.seatsLeft('sp-seg-1830'), A.getClass('spinning').capacity);
   assert.equal(sch.book('sp-seg-1830').status, 'booked');
+  assert.equal(sch.seatsLeft('sp-seg-1830'), A.getClass('spinning').capacity - 1);
+});
+
+test('over-capacity and negative occupancy fail closed / normalise', () => {
+  const over = S.createSchedule(memStorage(), { occupancy: { 'sp-seg-1830': 999, 'bx-ter-1900': Infinity } });
+  assert.equal(over.seatsLeft('sp-seg-1830'), 0);
+  assert.equal(over.book('sp-seg-1830').status, 'waitlisted');
+  assert.equal(over.book('bx-ter-1900').status, 'waitlisted');
+  const neg = S.createSchedule(memStorage(), { occupancy: { 'sp-seg-1830': -5 } });
+  assert.equal(neg.seatsLeft('sp-seg-1830'), A.getClass('spinning').capacity);
+});
+
+test('clashes are enforced against waitlisted slots in both directions', () => {
+  const sch = S.createSchedule(memStorage(), { occupancy: { 'sp-qua-1830': 25 } });
+  assert.equal(sch.book('sp-qua-1830').status, 'waitlisted');
+  assert.deepEqual(sch.book('ff-qua-1800'), { ok: false, reason: 'conflict', with: 'sp-qua-1830' });
+  const sch2 = S.createSchedule(memStorage(), { occupancy: { 'ff-qua-1800': 20 } });
+  assert.equal(sch2.book('ff-qua-1800').status, 'waitlisted');
+  assert.equal(sch2.book('sp-qua-1830').reason, 'conflict');
+});
+
+test('promotion blocked by a clash (tampered storage) keeps student waitlisted', () => {
+  const st = memStorage();
+  st.setItem(S.STORAGE_KEY, JSON.stringify({ booked: ['ff-qua-1800'], waitlist: ['sp-qua-1830'] }));
+  const sch = S.createSchedule(st, { occupancy: { 'sp-qua-1830': 25 } });
+  const r = sch.releaseSeat('sp-qua-1830');
+  assert.equal(r.promoted, false);
+  assert.equal(sch.isWaitlisted('sp-qua-1830'), true);
+  assert.equal(sch.isBooked('sp-qua-1830'), false);
+});
+
+test('storage drops waitlist entries that are also booked', () => {
+  const st = memStorage();
+  st.setItem(S.STORAGE_KEY, JSON.stringify({ booked: ['ff-seg-0700'], waitlist: ['ff-seg-0700'] }));
+  const sch = S.createSchedule(st);
+  assert.equal(sch.isBooked('ff-seg-0700'), true);
+  assert.equal(sch.isWaitlisted('ff-seg-0700'), false);
+});
+
+test('waitlist persists across instances sharing storage', () => {
+  const st = memStorage();
+  const opts = { occupancy: { 'yo-ter-0800': 15 }, waiting: { 'yo-ter-0800': 1 } };
+  S.createSchedule(st, opts).book('yo-ter-0800');
+  const again = S.createSchedule(st, opts);
+  assert.equal(again.isWaitlisted('yo-ter-0800'), true);
+  assert.equal(again.waitlistPosition('yo-ter-0800'), 2);
+});
+
+test('releaseSeat without booking/waitlist frees a seat; queue is served first', () => {
+  const sch = S.createSchedule(memStorage(), { occupancy: { 'sp-seg-1830': 25 } });
+  assert.equal(sch.seatsLeft('sp-seg-1830'), 0);
+  assert.deepEqual(sch.releaseSeat('sp-seg-1830'), { ok: true, promoted: false });
+  assert.equal(sch.seatsLeft('sp-seg-1830'), 1);
+  for (let i = 0; i < 24; i++) assert.equal(sch.releaseSeat('sp-seg-1830').ok, true);
+  assert.equal(sch.releaseSeat('sp-seg-1830').reason, 'no-seat-held');
+
+  const q = S.createSchedule(memStorage(), { occupancy: { 'sp-seg-1830': 25 }, waiting: { 'sp-seg-1830': 1 } });
+  q.releaseSeat('sp-seg-1830'); // taken by the waiter ahead, not an open seat
+  assert.equal(q.seatsLeft('sp-seg-1830'), 0);
+});
+
+test('schedule does not mutate caller-supplied opts', () => {
+  const opts = { occupancy: { 'bx-ter-1900': 16 }, waiting: { 'bx-ter-1900': 2 } };
+  const sch = S.createSchedule(memStorage(), opts);
+  sch.releaseSeat('bx-ter-1900');
+  assert.deepEqual(opts, { occupancy: { 'bx-ter-1900': 16 }, waiting: { 'bx-ter-1900': 2 } });
+});
+
+test('default storage (none available in Node) falls back to memory', () => {
+  const sch = S.createSchedule();
+  assert.equal(sch.book('ff-seg-0700').ok, true);
+  assert.equal(sch.isBooked('ff-seg-0700'), true);
+});
+
+test('memory fallback recovers once storage writes succeed again', () => {
+  const st = memStorage();
+  let failWrites = true;
+  const flaky = { getItem: st.getItem, setItem(k, v) { if (failWrites) throw new Error('quota'); st.setItem(k, v); } };
+  const sch = S.createSchedule(flaky);
+  sch.book('ff-seg-0700');
+  failWrites = false;
+  sch.book('yo-ter-0800');
+  assert.deepEqual(sch.listBookings().map((x) => x.id).sort(), ['ff-seg-0700', 'yo-ter-0800']);
+  assert.equal(sch.isBooked('yo-ter-0800'), true);
+  assert.equal(S.createSchedule(st).isBooked('yo-ter-0800'), true);
 });
 
 test('corrupt or tampered storage is ignored; missing storage falls back to memory', () => {

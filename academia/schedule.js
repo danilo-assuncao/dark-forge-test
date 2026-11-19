@@ -105,8 +105,9 @@
   // opts.waiting:   { slotId: other students already on the waitlist }.
   function createSchedule(storage, opts) {
     opts = opts || {};
-    var occupancy = opts.occupancy || {};
-    var waiting = opts.waiting || {};
+    // Local copies: the schedule never mutates caller-supplied objects.
+    var occupancy = Object.assign({}, opts.occupancy);
+    var waiting = Object.assign({}, opts.waiting);
     var released = {}; // seats freed by other students during this session
 
     if (!storage) {
@@ -120,7 +121,9 @@
       if (!raw) return emptyState();
       try {
         var data = JSON.parse(raw);
-        return { booked: cleanIds(data && data.booked), waitlist: cleanIds(data && data.waitlist) };
+        var booked = cleanIds(data && data.booked);
+        var waitlist = cleanIds(data && data.waitlist).filter(function (id) { return booked.indexOf(id) === -1; });
+        return { booked: booked, waitlist: waitlist };
       } catch (e) { return emptyState(); }
     }
 
@@ -129,6 +132,7 @@
       try {
         if (!storage) throw new Error('no storage');
         storage.setItem(STORAGE_KEY, raw);
+        memory = null; // storage is authoritative again after a successful write
       } catch (e) { memory = raw; }
     }
 
@@ -151,10 +155,12 @@
       return count(waiting[slotId]) + 1;
     }
 
+    // Clashes are enforced against confirmed bookings and waitlisted slots.
     function clashWith(slotId, state) {
       var s = getSlot(slotId);
-      for (var i = 0; i < state.booked.length; i++) {
-        if (state.booked[i] !== slotId && slotsOverlap(s, getSlot(state.booked[i]))) return state.booked[i];
+      var all = state.booked.concat(state.waitlist);
+      for (var i = 0; i < all.length; i++) {
+        if (all[i] !== slotId && slotsOverlap(s, getSlot(all[i]))) return all[i];
       }
       return null;
     }
@@ -198,21 +204,23 @@
       var s = getSlot(slotId);
       if (!s) return { ok: false, reason: 'unknown-slot' };
       if (count(occupancy[slotId]) - count(released[slotId]) <= 0) return { ok: false, reason: 'no-seat-held' };
+      // The seat is always handed to the queue first: someone ahead takes it.
+      if (count(waiting[slotId]) > 0) {
+        waiting[slotId] = count(waiting[slotId]) - 1;
+        occupancy[slotId] = count(occupancy[slotId]); // seat is taken by that waiter
+        return { ok: true, promoted: false };
+      }
       released[slotId] = count(released[slotId]) + 1;
       var state = load();
       var wi = state.waitlist.indexOf(slotId);
-      if (wi !== -1) {
-        if (waiting[slotId] > 0) {
-          waiting[slotId] = count(waiting[slotId]) - 1; // someone ahead takes the seat
-          released[slotId] -= 1;
-          return { ok: true, promoted: false };
-        }
-        if (!clashWith(slotId, state)) {
-          state.waitlist.splice(wi, 1);
-          state.booked.push(slotId);
-          save(state);
-          return { ok: true, promoted: true };
-        }
+      // First in line: promote unless it would clash (only possible with
+      // tampered storage); in that case the student stays waitlisted and the
+      // seat is left open.
+      if (wi !== -1 && !clashWith(slotId, state)) {
+        state.waitlist.splice(wi, 1);
+        state.booked.push(slotId);
+        save(state);
+        return { ok: true, promoted: true };
       }
       return { ok: true, promoted: false };
     }
