@@ -64,8 +64,8 @@
     about: 'About Dan Motors, a simulated auto repair shop built as a small single-page app.',
     catalog: 'Browse every Dan Motors service, filter by specialty and pick your vehicle size.',
     cart: 'Review the services in your Dan Motors cart, adjust quantities and apply a coupon.',
-    checkout: 'Enter your details to place a simulated Dan Motors order.',
-    confirmed: 'Your simulated Dan Motors order was received.',
+    checkout: 'Agende o box da Dan Motors com nome, placa, turno e CEP para leva-e-traz simulado.',
+    confirmed: 'Sua OS simulada da Dan Motors foi aberta.',
     product: 'Details, vehicle sizes, bay time and price for this Dan Motors service.',
     notFound: 'The page you are looking for does not exist.'
   };
@@ -75,6 +75,30 @@
   function featuredProducts() {
     var all = window.DanProducts ? window.DanProducts.all() : [];
     return all.slice(0, 4);
+  }
+
+  // Preventive-review packages: the first services of the "Revisao & Motor" specialty.
+  var REVISION_CATEGORY = 'Revisao & Motor';
+
+  function revisionProducts() {
+    var all = window.DanProducts ? window.DanProducts.all() : [];
+    return all.filter(function (p) { return p.category === REVISION_CATEGORY; }).slice(0, 3);
+  }
+
+  function revisionCard(product) {
+    var item = el('li', 'revision-item');
+    var link = el('a', 'revision-card');
+    link.href = '#/produto/' + encodeURIComponent(product.id);
+    link.appendChild(el('span', 'product-name', product.name));
+    link.appendChild(el('span', 'product-price', 'A partir de ' + formatPrice(product.priceCents)));
+    if (product.boxTime) {
+      link.appendChild(el('span', 'product-box-time', 'Tempo de box: ' + product.boxTime));
+    }
+    if (product.checklist && product.checklist.length) {
+      link.appendChild(el('span', 'revision-checklist', 'Checklist: ' + product.checklist.slice(0, 3).join(', ')));
+    }
+    item.appendChild(link);
+    return item;
   }
 
   function homeView() {
@@ -122,6 +146,24 @@
       all.href = '#/catalog';
       showcase.appendChild(all);
       home.appendChild(showcase);
+    }
+    var revisions = revisionProducts();
+    if (revisions.length) {
+      var revision = el('section', 'revision-showcase container');
+      revision.setAttribute('aria-labelledby', 'revision-title');
+      var revisionTitle = el('h2', 'showcase-title', 'Pacotes de revis\u00e3o preventiva');
+      revisionTitle.id = 'revision-title';
+      revision.appendChild(revisionTitle);
+      revision.appendChild(el('p', 'revision-intro', 'Mantenha o carro em dia com revis\u00f5es que seguem um checklist t\u00e9cnico.'));
+      var revisionGrid = el('ul', 'revision-grid');
+      revisions.forEach(function (product) {
+        revisionGrid.appendChild(revisionCard(product));
+      });
+      revision.appendChild(revisionGrid);
+      var catalogLink = el('a', 'action-button revision-cta', 'Ver todos os servi\u00e7os no cat\u00e1logo');
+      catalogLink.href = '#/catalog';
+      revision.appendChild(catalogLink);
+      home.appendChild(revision);
     }
     return { title: BRAND + ' \u2013 Auto repair shop', description: DESCRIPTIONS.home, node: home };
   }
@@ -559,47 +601,64 @@
       cart.clear();
     });
     container.appendChild(clear);
-    var checkout = el('a', 'action-button checkout-link', 'Checkout');
+    var checkout = el('a', 'action-button checkout-link', 'Agendar box');
     checkout.href = '#/checkout';
     container.appendChild(checkout);
     return { title: 'Cart \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
   }
 
-  // ----- Checkout (simulated: no payment, nothing is sent anywhere) -----
+  // ----- Agendamento de box / confirmação da OS (simulado: nada é enviado) -----
 
-  var CHECKOUT_FIELDS = [
-    { name: 'name', label: 'Full name', type: 'text', autocomplete: 'name' },
-    { name: 'email', label: 'Email', type: 'email', autocomplete: 'email' },
-    { name: 'phone', label: 'Phone (with area code)', type: 'tel', autocomplete: 'tel' },
-    { name: 'cep', label: 'Postal code (CEP)', type: 'text', autocomplete: 'postal-code' },
-    { name: 'address', label: 'Street address and number', type: 'text', autocomplete: 'street-address' },
-    { name: 'city', label: 'City', type: 'text', autocomplete: 'address-level2' }
+  var SHIFTS = [
+    { value: 'manha', label: 'Manhã (08h às 12h)' },
+    { value: 'tarde', label: 'Tarde (13h às 17h)' },
+    { value: 'noite', label: 'Noite (18h às 21h)' }
   ];
+
+  var BOOKING_FIELDS = [
+    { name: 'name', label: 'Nome do cliente', type: 'text', autocomplete: 'name' },
+    { name: 'plate', label: 'Placa do veículo (ABC1D23 ou ABC-1234)', type: 'text', autocomplete: 'off' },
+    { name: 'shift', label: 'Turno preferido', type: 'select' },
+    { name: 'cep', label: 'CEP para leva-e-traz/guincho', type: 'text', autocomplete: 'postal-code' }
+  ];
+
+  // Returns the plate as 7 upper-case characters (old "ABC1234" or Mercosul
+  // "ABC1D23"; an optional hyphen after the third character is accepted), or
+  // null when it matches neither pattern.
+  function normalizePlate(raw) {
+    var value = String(raw === undefined || raw === null ? '' : raw).trim().toUpperCase();
+    if (/^[A-Z]{3}-\d{4}$/.test(value)) {
+      value = value.replace('-', '');
+    }
+    return /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(value) ? value : null;
+  }
+
+  function shiftLabel(value) {
+    for (var i = 0; i < SHIFTS.length; i++) {
+      if (SHIFTS[i].value === value) {
+        return SHIFTS[i].label;
+      }
+    }
+    return null;
+  }
 
   // Returns an error message, or '' when the value is valid.
   function validateField(name, raw) {
     var value = String(raw || '').trim();
     if (!value) {
-      return 'This field is required.';
+      return 'Campo obrigatório.';
     }
-    var digits = value.replace(/\D/g, '');
     if (name === 'name' && (value.length < 3 || value.indexOf(' ') === -1)) {
-      return 'Enter your first and last name.';
+      return 'Informe nome e sobrenome.';
     }
-    if (name === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
-      return 'Enter a valid email, like name@example.com.';
+    if (name === 'plate' && !normalizePlate(value)) {
+      return 'Placa inválida. Use o padrão Mercosul (ABC1D23) ou o antigo (ABC-1234).';
     }
-    if (name === 'phone' && (!/^[\d\s()+-]+$/.test(value) || digits.length < 10 || digits.length > 11)) {
-      return 'Enter a phone with area code, 10 or 11 digits.';
+    if (name === 'shift' && !shiftLabel(value)) {
+      return 'Escolha um turno.';
     }
     if (name === 'cep' && (!/^\d{5}-?\d{3}$/.test(value))) {
-      return 'Enter a CEP with 8 digits, like 01310-100.';
-    }
-    if (name === 'address' && value.length < 5) {
-      return 'Enter your street address.';
-    }
-    if (name === 'city' && value.length < 2) {
-      return 'Enter your city.';
+      return 'Informe um CEP com 8 dígitos, como 01310-100.';
     }
     return '';
   }
@@ -610,11 +669,11 @@
 
   function orderSummary(cart, lines) {
     var section = el('section', 'order-summary');
-    section.appendChild(el('h2', 'order-summary-title', 'Order summary'));
+    section.appendChild(el('h2', 'order-summary-title', 'Resumo da OS'));
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
       var item = el('li', 'cart-item');
-      item.appendChild(el('span', 'cart-name', lines[i].qty + ' \u00d7 ' + lineLabel(lines[i])));
+      item.appendChild(el('span', 'cart-name', lines[i].qty + ' × ' + lineLabel(lines[i])));
       item.appendChild(el('span', 'cart-subtotal', formatPrice(lines[i].subtotalCents)));
       list.appendChild(item);
     }
@@ -623,10 +682,10 @@
     return section;
   }
 
-  // Shipping and grand total lines, refreshed as the CEP changes.
+  // Leva-e-traz/guincho and grand total lines, refreshed as the CEP changes.
   function shippingBlock() {
     var block = el('div', 'shipping-block');
-    var shipping = el('p', 'shipping-line', 'Shipping: enter your CEP');
+    var shipping = el('p', 'shipping-line', 'Leva-e-traz/guincho: informe o CEP');
     var grand = el('p', 'grand-total', '');
     block.appendChild(shipping);
     block.appendChild(grand);
@@ -634,58 +693,80 @@
     return { node: block, shipping: shipping, grand: grand };
   }
 
-  function confirmationView(customerName, orderId, total) {
+  function newProtocol() {
+    return 'OS-' + Date.now().toString(36).toUpperCase();
+  }
+
+  function confirmationView(booking) {
     var container = el('div', 'container');
-    var heading = el('h1', 'page-title', 'Order confirmed');
+    var heading = el('h1', 'page-title', 'OS confirmada');
     container.appendChild(heading);
-    container.appendChild(el('p', 'order-confirmation', 'Thank you, ' + customerName + '! Your order ' +
-      orderId + ' totaling ' + formatPrice(total) + ' was received.'));
-    container.appendChild(el('p', null, 'This is a simulation: no payment was made.'));
-    var link = el('a', 'text-link', 'Back to catalog');
+    container.appendChild(el('p', 'order-confirmation', 'Obrigado, ' + booking.name + '! Sua OS ' +
+      booking.protocol + ' foi aberta, no valor de ' + formatPrice(booking.total) + '.'));
+    container.appendChild(el('p', 'order-protocol', 'Protocolo: ' + booking.protocol));
+    container.appendChild(el('p', 'order-plate', 'Placa: ' + booking.plate));
+    container.appendChild(el('p', 'order-shift', 'Turno: ' + booking.shift));
+    container.appendChild(el('p', 'order-shipping', 'Leva-e-traz/guincho (' + booking.region + '): ' + formatPrice(booking.shippingCents)));
+    container.appendChild(el('p', null, 'Isto é uma simulação: nenhum serviço será prestado e nenhum pagamento foi feito.'));
+    var link = el('a', 'text-link', 'Voltar ao catálogo');
     link.href = '#/catalog';
     container.appendChild(link);
-    return { title: 'Order confirmed \u2013 ' + BRAND, description: DESCRIPTIONS.confirmed, node: container, heading: heading };
+    return { title: 'OS confirmada – ' + BRAND, description: DESCRIPTIONS.confirmed, node: container, heading: heading };
   }
 
   function checkoutView(notice) {
     var cart = window.DanCart;
     var lines = cart ? cart.lines() : [];
     var container = el('div', 'container');
-    container.appendChild(el('h1', 'page-title', 'Checkout'));
+    container.appendChild(el('h1', 'page-title', 'Agendamento de box'));
     if (notice) {
       var alert = el('p', 'checkout-notice', notice);
       alert.setAttribute('role', 'status');
       container.appendChild(alert);
     }
     if (!lines.length) {
-      container.appendChild(el('p', 'cart-empty', 'Your cart is empty.'));
-      var shop = el('a', 'text-link', 'Browse the catalog');
+      container.appendChild(el('p', 'cart-empty', 'Seu orçamento está vazio.'));
+      var shop = el('a', 'text-link', 'Ver o catálogo');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Checkout \u2013 ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
+      return { title: 'Agendamento de box – ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
     }
     var total = cart.totalCents();
     var count = cart.count();
     container.appendChild(orderSummary(cart, lines));
     var ship = shippingBlock();
-    ship.grand.textContent = 'Total with shipping: ' + formatPrice(total) + ' + shipping';
+    ship.grand.textContent = 'Total com leva-e-traz: ' + formatPrice(total) + ' + leva-e-traz';
     container.appendChild(ship.node);
 
     var form = el('form', 'checkout-form');
     form.setAttribute('novalidate', 'novalidate');
-    form.setAttribute('aria-label', 'Customer details');
+    form.setAttribute('aria-label', 'Dados do agendamento');
     var inputs = {};
     var errors = {};
-    for (var i = 0; i < CHECKOUT_FIELDS.length; i++) {
-      var field = CHECKOUT_FIELDS[i];
+    for (var i = 0; i < BOOKING_FIELDS.length; i++) {
+      var field = BOOKING_FIELDS[i];
       var row = el('div', 'form-field');
       var label = el('label', null, field.label);
       label.setAttribute('for', 'checkout-' + field.name);
-      var input = el('input', 'form-input');
+      var input;
+      if (field.type === 'select') {
+        input = el('select', 'form-input');
+        var blank = el('option', null, 'Selecione');
+        blank.value = '';
+        input.appendChild(blank);
+        for (var s = 0; s < SHIFTS.length; s++) {
+          var option = el('option', null, SHIFTS[s].label);
+          option.value = SHIFTS[s].value;
+          input.appendChild(option);
+        }
+        input.value = '';
+      } else {
+        input = el('input', 'form-input');
+        input.type = field.type;
+        input.setAttribute('autocomplete', field.autocomplete);
+      }
       input.id = 'checkout-' + field.name;
       input.name = field.name;
-      input.type = field.type;
-      input.setAttribute('autocomplete', field.autocomplete);
       input.setAttribute('aria-required', 'true');
       input.setAttribute('aria-describedby', 'checkout-' + field.name + '-error');
       var error = el('p', 'form-error');
@@ -700,16 +781,16 @@
     function refreshShipping() {
       var quote = shippingQuote(inputs.cep.value);
       if (quote) {
-        ship.shipping.textContent = 'Shipping to ' + quote.region + ': ' + formatPrice(quote.cents);
-        ship.grand.textContent = 'Total with shipping: ' + formatPrice(total + quote.cents);
+        ship.shipping.textContent = 'Leva-e-traz/guincho para ' + quote.region + ': ' + formatPrice(quote.cents);
+        ship.grand.textContent = 'Total com leva-e-traz: ' + formatPrice(total + quote.cents);
       } else {
-        ship.shipping.textContent = 'Shipping: enter your CEP';
-        ship.grand.textContent = 'Total with shipping: ' + formatPrice(total) + ' + shipping';
+        ship.shipping.textContent = 'Leva-e-traz/guincho: informe o CEP';
+        ship.grand.textContent = 'Total com leva-e-traz: ' + formatPrice(total) + ' + leva-e-traz';
       }
     }
     inputs.cep.addEventListener('input', refreshShipping);
     inputs.cep.addEventListener('change', refreshShipping);
-    var submit = el('button', 'action-button checkout-submit', 'Place order');
+    var submit = el('button', 'action-button checkout-submit', 'Confirmar agendamento');
     submit.type = 'submit';
     form.appendChild(submit);
 
@@ -718,8 +799,8 @@
         event.preventDefault();
       }
       var firstInvalid = null;
-      for (var j = 0; j < CHECKOUT_FIELDS.length; j++) {
-        var name = CHECKOUT_FIELDS[j].name;
+      for (var j = 0; j < BOOKING_FIELDS.length; j++) {
+        var name = BOOKING_FIELDS[j].name;
         var message = validateField(name, inputs[name].value);
         errors[name].textContent = message;
         if (message) {
@@ -738,7 +819,7 @@
       // The cart may have changed (another tab, reload) since this view was
       // rendered: never confirm against a stale snapshot.
       if (cart.totalCents() !== total || cart.count() !== count) {
-        var fresh = checkoutView('Your cart changed. Review the updated summary and place the order again.');
+        var fresh = checkoutView('Seu orçamento mudou. Revise o resumo atualizado e confirme novamente.');
         var host = document.getElementById('app');
         host.textContent = '';
         host.appendChild(fresh.node);
@@ -748,15 +829,21 @@
       }
       var quote = shippingQuote(inputs.cep.value);
       if (!quote) {
-        // Never confirm an order without shipping (e.g. checkout.js missing).
-        errors.cep.textContent = 'Shipping is unavailable right now. Try again later.';
+        // Never confirm a booking without the leva-e-traz fee (e.g. checkout.js missing).
+        errors.cep.textContent = 'O cálculo de leva-e-traz está indisponível agora. Tente novamente mais tarde.';
         inputs.cep.setAttribute('aria-invalid', 'true');
         inputs.cep.focus();
         return;
       }
-      var grandTotal = total + quote.cents;
-      var orderId = '#' + Date.now().toString(36).toUpperCase();
-      var done = confirmationView(String(inputs.name.value).trim(), orderId, grandTotal);
+      var done = confirmationView({
+        name: String(inputs.name.value).trim(),
+        plate: normalizePlate(inputs.plate.value),
+        shift: shiftLabel(String(inputs.shift.value).trim()),
+        region: quote.region,
+        shippingCents: quote.cents,
+        total: total + quote.cents,
+        protocol: newProtocol()
+      });
       cart.clear();
       var app = document.getElementById('app');
       app.textContent = '';
@@ -765,7 +852,7 @@
       app.focus();
     });
     container.appendChild(form);
-    return { title: 'Checkout \u2013 ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
+    return { title: 'Agendamento de box – ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
   }
 
   function updateCartCount() {

@@ -485,15 +485,12 @@ test('script.js degrades gracefully without cart.js', function () {
 // ----- Checkout -----
 
 function fillCheckout(t, values) {
-  const inputs = collect(t.app, function (n) { return n.tagName === 'input'; });
+  const inputs = collect(t.app, function (n) { return n.tagName === 'input' || n.tagName === 'select'; });
   inputs.forEach(function (i) { i.value = values[i.name] || ''; });
   return inputs;
 }
 
-const VALID = {
-  name: 'Maria Silva', email: 'maria@example.com', phone: '(11) 91234-5678',
-  cep: '01310-100', address: 'Av. Paulista 1000', city: 'Sao Paulo',
-};
+const VALID = { name: 'Maria Silva', plate: 'ABC1D23', shift: 'manha', cep: '01310-100' };
 
 function submitForm(t) {
   const form = collect(t.app, function (n) { return n.tagName === 'form'; })[0];
@@ -504,7 +501,7 @@ function submitForm(t) {
 
 test('checkout with an empty cart shows the empty state and no form', function () {
   const t = boot('#/checkout', { cartStorage: {} });
-  assert.equal(t.heading(), 'Checkout');
+  assert.equal(t.heading(), 'Agendamento de box');
   assert.ok(t.has('cart-empty'));
   assert.equal(collect(t.app, function (n) { return n.tagName === 'form'; }).length, 0);
 });
@@ -525,34 +522,32 @@ test('checkout validates required fields and formats, focusing the first invalid
   const inputs = fillCheckout(t, {});
   assert.ok(submitForm(t), 'default submit must be prevented');
   const errs = byClass(t, 'form-error');
-  assert.equal(errs.length, 6);
-  errs.forEach(function (e) { assert.equal(e.textContent, 'This field is required.'); });
+  assert.equal(errs.length, 4);
+  errs.forEach(function (e) { assert.equal(e.textContent, 'Campo obrigat\u00f3rio.'); });
   assert.equal(inputs[0].focusCount, 1);
   assert.equal(inputs[0].attrs['aria-invalid'], 'true');
   assert.equal(t.cartBadge.textContent, '1', 'cart must be kept on invalid submit');
 
-  const bad = Object.assign({}, VALID, { email: 'nope', phone: '123', cep: '1234', name: 'Maria' });
-  fillCheckout(t, bad);
+  fillCheckout(t, Object.assign({}, VALID, { plate: 'ABC', shift: 'madrugada', cep: '1234', name: 'Maria' }));
   submitForm(t);
   const messages = byClass(t, 'form-error').map(function (e) { return e.textContent; });
-  assert.match(messages[0], /first and last name/);
-  assert.match(messages[1], /valid email/);
-  assert.match(messages[2], /phone/);
+  assert.match(messages[0], /nome e sobrenome/);
+  assert.match(messages[1], /Placa inv/);
+  assert.match(messages[2], /turno/);
   assert.match(messages[3], /CEP/);
-  assert.equal(messages[4], '');
-  assert.equal(messages[5], '');
   assert.equal(inputs[1].attrs['aria-invalid'], 'true');
-  assert.equal(inputs[4].attrs['aria-invalid'], undefined);
   assert.equal(t.cartBadge.textContent, '1');
 });
 
-test('valid checkout shows a simulated confirmation and clears the cart', function () {
+test('valid checkout opens the OS with a protocol and clears the cart', function () {
   const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.equal(t.heading(), 'Order confirmed');
+  assert.equal(t.heading(), 'OS confirmada');
   assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 514,70/);
+  assert.match(byClass(t, 'order-protocol')[0].textContent, /^Protocolo: OS-[0-9A-Z]+$/);
+  assert.equal(byClass(t, 'order-plate')[0].textContent, 'Placa: ABC1D23');
   assert.equal(t.cartBadge.textContent, '0');
   assert.deepEqual(JSON.parse(store['dan-cart']), []);
   t.go('#/checkout');
@@ -568,7 +563,7 @@ test('checkout re-renders instead of confirming when the cart changed after rend
   store['dan-cart'] = JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 3 }]);
   t.win.DanCart.reload();
   submitForm(t);
-  assert.equal(t.heading(), 'Checkout');
+  assert.equal(t.heading(), 'Agendamento de box');
   assert.equal(byClass(t, 'checkout-notice').length, 1);
   assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 749,70');
   assert.equal(t.cartBadge.textContent, '3', 'cart must not be cleared');
@@ -578,17 +573,18 @@ test('checkout re-renders instead of confirming when the cart changed after rend
   t2.win.DanCart.clear();
   submitForm(t2);
   assert.ok(t2.has('cart-empty'));
-  assert.equal(t2.heading(), 'Checkout');
+  assert.equal(t2.heading(), 'Agendamento de box');
 });
 
-test('checkout validator boundaries', function () {
+test('checkout validator boundaries for plate, shift, CEP and name', function () {
   const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }]) };
   const cases = [
-    ['phone', '1112345678', true], ['phone', '11912345678', true], ['phone', '119123456789', false],
-    ['phone', '11 9123a5678', false], ['cep', '01310100', true], ['cep', '013101000', false],
-    ['cep', '01310-100', true], ['address', 'abcd', false], ['address', 'abcde', true],
-    ['city', 'S', false], ['city', 'SP', true], ['email', 'a@b', false], ['email', 'a@b.co', true],
-    ['name', '   ', false], ['address', '     ', false],
+    ['plate', 'ABC1D23', true], ['plate', 'abc1d23', true], ['plate', 'ABC-1234', true], ['plate', 'ABC1234', true],
+    ['plate', ' abc-1234 ', true], ['plate', 'AB1D234', false], ['plate', 'ABC-1D23', false], ['plate', 'ABCD123', false],
+    ['plate', '1234ABC', false], ['plate', 'ABC12345', false], ['plate', 'ABC123', false], ['plate', 'ABC 1234', false],
+    ['shift', 'tarde', true], ['shift', 'noite', true], ['shift', 'madrugada', false],
+    ['cep', '01310100', true], ['cep', '013101000', false], ['cep', '01310-100', true], ['cep', '0131-0100', false],
+    ['name', '   ', false], ['name', 'Maria', false], ['name', 'Ana Li', true],
   ];
   cases.forEach(function (c) {
     const t = boot('#/checkout', { cartStorage: Object.assign({}, store) });
@@ -597,31 +593,31 @@ test('checkout validator boundaries', function () {
     const idx = inputs.findIndex(function (i) { return i.name === c[0]; });
     const msg = byClass(t, 'form-error')[idx];
     if (c[2]) {
-      assert.equal(t.heading(), 'Order confirmed', c[0] + ' ' + c[1]);
+      assert.equal(t.heading(), 'OS confirmada', c[0] + ' ' + c[1]);
     } else {
       assert.notEqual(msg.textContent, '', c[0] + ' ' + JSON.stringify(c[1]));
     }
   });
 });
 
-test('confirmation updates focus, title and order id; errors clear and refocus on retry; multi-line summary', function () {
+test('confirmation updates focus, title and protocol; errors clear and refocus on retry; multi-line summary', function () {
   const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 1 }, { id: 'brake-pads', size: 'Hatch/Sedan', qty: 2 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   assert.equal(byClass(t, 'cart-name').length, 2);
-  const inputs = fillCheckout(t, Object.assign({}, VALID, { email: 'x', city: '' }));
+  const inputs = fillCheckout(t, Object.assign({}, VALID, { plate: 'x', cep: '' }));
   submitForm(t);
   assert.equal(inputs[1].focusCount, 1);
-  fillCheckout(t, Object.assign({}, VALID, { city: '' }));
+  fillCheckout(t, Object.assign({}, VALID, { cep: '' }));
   submitForm(t);
   assert.equal(byClass(t, 'form-error')[1].textContent, '');
   assert.equal(inputs[1].attrs['aria-invalid'], undefined);
-  assert.equal(inputs[5].focusCount, 1);
+  assert.equal(inputs[3].focusCount, 1);
   const before = t.app.focusCount || 0;
   fillCheckout(t, VALID);
   submitForm(t);
   assert.equal(t.app.focusCount, before + 1);
-  assert.equal(t.doc.title, 'Order confirmed – Dan Motors');
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /#[0-9A-Z]+/);
+  assert.equal(t.doc.title, 'OS confirmada \u2013 Dan Motors');
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /OS-[0-9A-Z]+/);
 });
 
 test('detail page shows description, specifications and price for every product', function () {
@@ -747,7 +743,7 @@ test('every route sets its own title and description, mirrored in og tags', func
     ['#/about', /^About/],
     ['#/catalog', /^Catalog/],
     ['#/cart', /^Cart/],
-    ['#/checkout', /^Checkout/],
+    ['#/checkout', /^Agendamento/],
     ['#/nope', /^404/],
     ['#/produto/' + encodeURIComponent(first.id), new RegExp(first.name)],
   ];
@@ -786,13 +782,13 @@ test('checkout submit paths update title and meta', function () {
   t.win.DanCart.reload();
   t.doc.title = '';
   submitForm(t);
-  assert.equal(t.doc.title, 'Checkout \u2013 Dan Motors');
-  assert.match(t.description(), /simulated Dan Motors order/);
+  assert.equal(t.doc.title, 'Agendamento de box \u2013 Dan Motors');
+  assert.match(t.description(), /Agende o box/);
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.equal(t.doc.title, 'Order confirmed \u2013 Dan Motors');
-  assert.equal(t.description(), 'Your simulated Dan Motors order was received.');
-  assert.equal(t.ogTitle(), 'Order confirmed \u2013 Dan Motors');
+  assert.equal(t.doc.title, 'OS confirmada \u2013 Dan Motors');
+  assert.equal(t.description(), 'Sua OS simulada da Dan Motors foi aberta.');
+  assert.equal(t.ogTitle(), 'OS confirmada \u2013 Dan Motors');
 });
 
 test('index.html SEO tags are complete and match the home view', function () {
