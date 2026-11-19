@@ -176,7 +176,7 @@ test('without product data the catalog is empty and details give a 404', functio
   const t = boot('#/catalog', { noProducts: true });
   assert.equal(t.heading(), 'Catalog');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 0);
-  assert.match(boot('#/catalog/creatine', { noProducts: true }).heading(), /404/);
+  assert.match(boot('#/produto/creatine', { noProducts: true }).heading(), /404/);
 });
 
 test('the catalog grid shows name, placeholder image and price, linking to detail', function () {
@@ -190,7 +190,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
   const all = ctx.window.DanProducts.all();
   assert.equal(cards.length, all.length);
   cards.forEach(function (card, i) {
-    assert.equal(card.href, '#/catalog/' + all[i].id);
+    assert.equal(card.href, '#/produto/' + all[i].id);
     const classes = card.children.map(function (c) { return c.className; });
     assert.deepEqual(classes, ['product-image', 'product-name', 'product-price']);
     assert.equal(card.children[1].textContent, all[i].name);
@@ -200,7 +200,7 @@ test('the catalog grid shows name, placeholder image and price, linking to detai
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
-  const t = boot('#/catalog/creatine');
+  const t = boot('#/produto/creatine');
   assert.match(t.heading(), /Creatine/);
   assert.match(t.doc.title, /Creatine/);
   assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
@@ -211,15 +211,22 @@ test('a product detail route renders the product; unknown ids give a 404', funct
   assert.ok(texts.indexOf('R$ 89,90') !== -1, 'price shown');
   assert.ok(texts.some(function (x) { return /micronized creatine/.test(x); }), 'description shown');
   assert.equal(collect(t.app, function (n) { return n.className === 'product-image'; }).length, 1);
+  const rows = collect(t.app, function (n) { return n.tagName === 'tr'; });
+  assert.equal(rows.length, 6, 'header + 5 nutrient rows');
+  assert.ok(texts.indexOf('Creatine monohydrate') !== -1 && texts.indexOf('5 g') !== -1, 'nutrition shown');
+  const btn = collect(t.app, function (n) { return n.tagName === 'button'; });
+  assert.equal(btn.length, 1);
+  assert.equal(btn[0].textContent, 'Add to cart');
+  assert.equal(btn[0].type, 'button');
   const back = collect(t.app, function (n) { return n.tagName === 'a'; })[0];
   assert.equal(back.href, '#/catalog');
   assert.equal(back.textContent, 'Back to catalog');
-  ['#/catalog/nope', '#/catalogue', '#/catalog/creatine/x', '#/catalog/%E0%A4%A'].forEach(function (h) {
+  ['#/produto/nope', '#/produtos', '#/catalog/creatine', '#/produto/creatine/x', '#/produto/%E0%A4%A'].forEach(function (h) {
     const u = boot(h);
     assert.match(u.heading(), /404/, h);
     u.navLinks.forEach(function (l) { assert.equal(l.attrs['aria-current'], undefined, h); });
   });
-  ['#/catalog/nope', '#/catalog/%E0%A4%A', '#/catalog/constructor', '#/catalog/creatine/x'].forEach(function (h) {
+  ['#/produto/nope', '#/produto/%E0%A4%A', '#/produto/constructor', '#/produto/creatine/x'].forEach(function (h) {
     assert.match(boot(h).heading(), /404/, h);
   });
 });

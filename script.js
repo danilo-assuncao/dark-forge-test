@@ -109,7 +109,7 @@
   function productCard(product) {
     var item = el('li', 'product-item');
     var link = el('a', 'product-card');
-    link.href = '#/catalog/' + encodeURIComponent(product.id);
+    link.href = '#/produto/' + encodeURIComponent(product.id);
     link.appendChild(productImage(product));
     link.appendChild(el('span', 'product-name', product.name));
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
@@ -129,12 +129,50 @@
     return { title: 'Catalog \u2013 Dan', node: container };
   }
 
+  function nutritionTable(product) {
+    var section = el('section', 'nutrition');
+    section.appendChild(el('h2', 'nutrition-title', 'Nutrition facts'));
+    var nutrition = product.nutrition;
+    if (!nutrition || !nutrition.rows || !nutrition.rows.length) {
+      section.appendChild(el('p', null, 'Nutrition information not available.'));
+      return section;
+    }
+    var table = el('table', 'nutrition-table');
+    table.appendChild(el('caption', null, 'Per serving: ' + nutrition.serving));
+    var head = el('thead');
+    var headRow = el('tr');
+    var th1 = el('th', null, 'Nutrient');
+    th1.setAttribute('scope', 'col');
+    var th2 = el('th', null, 'Amount');
+    th2.setAttribute('scope', 'col');
+    headRow.appendChild(th1);
+    headRow.appendChild(th2);
+    head.appendChild(headRow);
+    table.appendChild(head);
+    var body = el('tbody');
+    for (var i = 0; i < nutrition.rows.length; i++) {
+      var row = el('tr');
+      var label = el('th', null, nutrition.rows[i].label);
+      label.setAttribute('scope', 'row');
+      row.appendChild(label);
+      row.appendChild(el('td', null, nutrition.rows[i].amount));
+      body.appendChild(row);
+    }
+    table.appendChild(body);
+    section.appendChild(table);
+    return section;
+  }
+
   function productView(product) {
     var container = el('div', 'container');
     container.appendChild(el('h1', 'page-title', product.name));
     container.appendChild(productImage(product));
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
+    container.appendChild(nutritionTable(product));
+    var add = el('button', 'action-button add-to-cart', 'Add to cart');
+    add.type = 'button';
+    container.appendChild(add);
     var back = el('a', 'text-link', 'Back to catalog');
     back.href = '#/catalog';
     container.appendChild(back);
@@ -147,7 +185,7 @@
     '/catalog': catalogView
   };
 
-  var PRODUCT_ROUTE = /^\/catalog\/([^/]+)$/;
+  var PRODUCT_ROUTE = /^\/produto\/([^/]+)$/;
 
   // Returns { title, node, navPath }; navPath is the nav link to mark current
   // (null for the 404 view).
