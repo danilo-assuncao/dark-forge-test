@@ -1,11 +1,10 @@
-/* Mock catalog data for Dan Wear: apparel and accessories with sizes and body
+/* Mock catalog data for Dan Wear: apparel with sizes and body
    measurements. Prices are in BRL cents. Exposed as window.DanProducts;
    loaded before cart.js and script.js. */
 (function () {
   'use strict';
 
   var LETTER_SIZES = ['PP', 'P', 'M', 'G', 'GG'];
-  var ONE_SIZE = ['Tamanho único'];
 
   // Measurement tables in cm, one row per size: [chest, waist, length] or [waist, hip, inseam].
   var TOP_TABLE = {
@@ -31,44 +30,36 @@
     ]
   };
 
-  function top(id, name, priceCents, description, material, fit) {
-    return { id: id, name: name, category: 'Tops', priceCents: priceCents, description: description,
-      specs: [{ label: 'Material', value: material }, { label: 'Fit', value: fit }, { label: 'Care', value: 'Machine wash cold' }],
-      sizes: LETTER_SIZES.slice(), measurements: TOP_TABLE };
+  function piece(id, name, category, priceCents, color, fabric, fit, description, care, table) {
+    return { id: id, name: name, category: category, priceCents: priceCents, description: description,
+      color: color, fabric: fabric,
+      specs: [{ label: 'Cor', value: color }, { label: 'Tecido', value: fabric }, { label: 'Modelagem', value: fit }, { label: 'Cuidados', value: care }],
+      sizes: LETTER_SIZES.slice(), measurements: table };
   }
-  function bottom(id, name, priceCents, description, material, fit) {
-    return { id: id, name: name, category: 'Bottoms', priceCents: priceCents, description: description,
-      specs: [{ label: 'Material', value: material }, { label: 'Fit', value: fit }, { label: 'Care', value: 'Machine wash cold' }],
-      sizes: LETTER_SIZES.slice(), measurements: BOTTOM_TABLE };
+  function top(id, name, priceCents, color, fabric, fit, description) {
+    return piece(id, name, 'Camisetas', priceCents, color, fabric, fit, description, 'Lavar à máquina em água fria', TOP_TABLE);
   }
-  function outer(id, name, priceCents, description, material, fit) {
-    return { id: id, name: name, category: 'Outerwear', priceCents: priceCents, description: description,
-      specs: [{ label: 'Material', value: material }, { label: 'Fit', value: fit }, { label: 'Care', value: 'Wash separately, low spin' }],
-      sizes: LETTER_SIZES.slice(), measurements: TOP_TABLE };
+  function bottom(id, name, priceCents, color, fabric, fit, description) {
+    return piece(id, name, 'Calças', priceCents, color, fabric, fit, description, 'Lavar à máquina em água fria', BOTTOM_TABLE);
   }
-  function accessory(id, name, priceCents, description, material, extra) {
-    return { id: id, name: name, category: 'Accessories', priceCents: priceCents, description: description,
-      specs: [{ label: 'Material', value: material }, { label: 'Details', value: extra }],
-      sizes: ONE_SIZE.slice() };
+  function outer(id, name, priceCents, color, fabric, fit, description) {
+    return piece(id, name, 'Casacos', priceCents, color, fabric, fit, description, 'Lavar separadamente, centrifugação leve', TOP_TABLE);
   }
 
   var PRODUCTS = [
-    top('basic-tee', 'DAN Basic Tee', 7990, 'Everyday crew-neck tee in soft combed cotton.', '100% combed cotton', 'Regular'),
-    top('oversized-tee', 'Oversized Graphic Tee', 8990, 'Boxy oversized tee with the DAN logo printed on the back.', '100% cotton, 180 g/m²', 'Oversized'),
-    top('polo-classic', 'Classic Piqué Polo', 12990, 'Piqué polo with a two-button placket and ribbed collar.', 'Cotton piqué', 'Regular'),
-    top('linen-shirt', 'Linen Short-sleeve Shirt', 17990, 'Light linen blend shirt for warm days.', 'Linen and cotton blend', 'Relaxed'),
-    top('long-sleeve', 'Long-sleeve Tee', 9990, 'Mid-weight long-sleeve tee, easy to layer.', 'Cotton jersey', 'Regular'),
-    bottom('chino-slim', 'Slim Chino Pants', 18990, 'Stretch cotton chinos with a slim, tapered leg.', 'Cotton twill with elastane', 'Slim'),
-    bottom('jeans-straight', 'Straight Jeans', 22990, 'Mid-rise straight jeans in medium indigo denim.', 'Denim, 12 oz', 'Straight'),
-    bottom('jogger', 'Everyday Jogger', 14990, 'Brushed fleece joggers with drawstring waist and zip pockets.', 'Cotton fleece', 'Tapered'),
-    bottom('bermuda', 'Cotton Bermuda Shorts', 10990, 'Knee-length bermuda shorts in lightweight twill.', 'Cotton twill', 'Regular'),
-    bottom('sport-shorts', 'Training Shorts', 8990, 'Quick-dry training shorts with an inner liner.', 'Recycled polyester', 'Regular'),
-    outer('hoodie', 'DAN Hoodie', 21990, 'Heavyweight hoodie with kangaroo pocket and embroidered logo.', 'Cotton fleece, 320 g/m²', 'Relaxed'),
-    outer('windbreaker', 'Light Windbreaker', 24990, 'Water-repellent windbreaker that packs into its own pocket.', 'Recycled nylon', 'Regular'),
-    outer('denim-jacket', 'Denim Jacket', 29990, 'Classic trucker jacket in rigid denim.', 'Denim, 12 oz', 'Regular'),
-    accessory('cap', 'Dad Cap', 5990, 'Curved-brim cap with embroidered DAN wordmark and adjustable strap.', 'Cotton twill', 'Adjustable strap'),
-    accessory('tote-bag', 'Canvas Tote Bag', 4990, 'Sturdy canvas tote with an inner pocket.', 'Heavy canvas', '38 x 40 cm, 10 L'),
-    accessory('socks-3', 'Crew Socks 3-pack', 4490, 'Three pairs of cushioned crew socks.', 'Cotton blend', 'Fits sizes 39 to 44')
+    top('basic-tee', 'DAN Basic Tee', 7990, 'Branco', 'Algodão penteado 100%', 'Regular', 'Everyday crew-neck tee in soft combed cotton.'),
+    top('oversized-tee', 'Oversized Graphic Tee', 8990, 'Preto', 'Algodão 100%, 180 g/m²', 'Oversized', 'Boxy oversized tee with the DAN logo printed on the back.'),
+    top('polo-classic', 'Classic Piqué Polo', 12990, 'Azul-marinho', 'Algodão piqué', 'Regular', 'Piqué polo with a two-button placket and ribbed collar.'),
+    top('linen-shirt', 'Linen Short-sleeve Shirt', 17990, 'Areia', 'Mistura de linho e algodão', 'Relaxada', 'Light linen blend shirt for warm days.'),
+    top('long-sleeve', 'Long-sleeve Tee', 9990, 'Cinza mescla', 'Malha de algodão', 'Regular', 'Mid-weight long-sleeve tee, easy to layer.'),
+    bottom('chino-slim', 'Slim Chino Pants', 18990, 'Caqui', 'Sarja de algodão com elastano', 'Slim', 'Stretch cotton chinos with a slim, tapered leg.'),
+    bottom('jeans-straight', 'Straight Jeans', 22990, 'Índigo médio', 'Denim 12 oz', 'Reta', 'Mid-rise straight jeans in medium indigo denim.'),
+    bottom('jogger', 'Everyday Jogger', 14990, 'Grafite', 'Moletom de algodão', 'Afunilada', 'Brushed fleece joggers with drawstring waist and zip pockets.'),
+    bottom('bermuda', 'Cotton Bermuda Shorts', 10990, 'Oliva', 'Sarja de algodão', 'Regular', 'Knee-length bermuda shorts in lightweight twill.'),
+    bottom('sport-shorts', 'Training Shorts', 8990, 'Preto', 'Poliéster reciclado', 'Regular', 'Quick-dry training shorts with an inner liner.'),
+    outer('hoodie', 'DAN Hoodie', 21990, 'Cinza chumbo', 'Moletom de algodão, 320 g/m²', 'Relaxada', 'Heavyweight hoodie with kangaroo pocket and embroidered logo.'),
+    outer('windbreaker', 'Light Windbreaker', 24990, 'Verde-militar', 'Nylon reciclado', 'Regular', 'Water-repellent windbreaker that packs into its own pocket.'),
+    outer('denim-jacket', 'Denim Jacket', 29990, 'Índigo escuro', 'Denim rígido 12 oz', 'Regular', 'Classic trucker jacket in rigid denim.')
   ];
 
   window.DanProducts = {

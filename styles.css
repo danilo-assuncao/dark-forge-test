@@ -488,6 +488,11 @@ body {
   font-weight: 800;
 }
 
+.product-category,
+.product-sizes {
+  font-size: 0.85rem;
+}
+
 /* Product detail */
 .specs-list {
   display: grid;
