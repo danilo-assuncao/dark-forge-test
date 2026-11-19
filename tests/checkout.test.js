@@ -95,9 +95,9 @@ test('checkout.js quotes shipping by CEP and rejects invalid CEPs', function () 
   });
 });
 
-test('home shows the collection hero, featured pieces linking to detail, and a catalog call', function () {
+test('home shows the workshop hero, featured services linking to detail, and a catalog call', function () {
   const t = boot('#/');
-  assert.equal(text(t, 'hero-eyebrow'), 'Dan Wear collection');
+  assert.equal(text(t, 'hero-eyebrow'), 'Dan Motors workshop');
   assert.equal(byClass(t.app, 'action-button')[0].href, '#/catalog');
   const cards = byClass(t.app, 'product-card');
   assert.equal(cards.length, 4);
@@ -109,8 +109,8 @@ test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confi
   const t = boot('#/');
   t.go('#/catalog');
   assert.ok(byClass(t.app, 'product-card').length >= 10);
-  t.go('#/produto/basic-tee');
-  byClass(t.app, 'size-button').filter(function (b) { return b.textContent === 'M'; })[0].listeners.click();
+  t.go('#/produto/oil-change');
+  byClass(t.app, 'size-button').filter(function (b) { return b.textContent === 'Hatch/Sedan'; })[0].listeners.click();
   const add = byClass(t.app, 'add-to-cart')[0];
   add.listeners.click();
   add.listeners.click();
@@ -120,16 +120,16 @@ test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confi
   const input = find(t.app, function (n) { return n.tagName === 'input'; })[0];
   input.value = 'dan10';
   find(t.app, function (n) { return n.tagName === 'form'; })[0].listeners.submit({ preventDefault() {} });
-  assert.equal(text(t, 'cart-total'), 'Total: R$ 143,82');
+  assert.equal(text(t, 'cart-total'), 'Total: R$ 449,82');
 
   t.go('#/checkout');
-  assert.equal(text(t, 'cart-name'), '2 × DAN Basic Tee (size M)');
-  assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 15,98');
+  assert.equal(text(t, 'cart-name'), '2 × Troca de oleo e filtros (Hatch/Sedan)');
+  assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 49,98');
   assert.equal(text(t, 'shipping-line'), 'Shipping: enter your CEP');
-  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 143,82 + shipping');
+  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 449,82 + shipping');
   typeCep(t, '01310-100');
   assert.equal(text(t, 'shipping-line'), 'Shipping to Grande São Paulo: R$ 14,90');
-  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 158,72');
+  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 464,72');
   typeCep(t, '9001');
   assert.equal(text(t, 'shipping-line'), 'Shipping: enter your CEP');
   const cepInput = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
@@ -140,7 +140,7 @@ test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confi
   fill(t, VALID);
   submit(t);
   assert.equal(find(t.app, function (n) { return n.tagName === 'h1'; })[0].textContent, 'Order confirmed');
-  assert.match(text(t, 'order-confirmation'), /Maria Silva.*R\$ 158,72/);
+  assert.match(text(t, 'order-confirmation'), /Maria Silva.*R\$ 464,72/);
   assert.equal(t.badge.textContent, '0');
   assert.deepEqual(JSON.parse(t.store['dan-cart']), []);
   t.go('#/checkout');
@@ -148,8 +148,8 @@ test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confi
 });
 
 test('different CEP regions change the confirmed total; invalid data keeps the cart', function () {
-  const t = boot('#/produto/hoodie');
-  byClass(t.app, 'size-button')[2].listeners.click();
+  const t = boot('#/produto/brake-pads');
+  byClass(t.app, 'size-button')[0].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   t.go('#/checkout');
   fill(t, Object.assign({}, VALID, { cep: '123' }));
@@ -160,12 +160,12 @@ test('different CEP regions change the confirmed total; invalid data keeps the c
   assert.equal(t.badge.textContent, '1');
   fill(t, Object.assign({}, VALID, { cep: '90010000' }));
   submit(t);
-  assert.match(text(t, 'order-confirmation'), /R\$ 246,80/);
+  assert.match(text(t, 'order-confirmation'), /R\$ 346,80/);
 });
 
 test('without checkout.js a valid order is blocked instead of confirmed with no shipping', function () {
-  const t = boot('#/produto/hoodie', ['products.js', 'cart.js', 'script.js']);
-  byClass(t.app, 'size-button')[2].listeners.click();
+  const t = boot('#/produto/brake-pads', ['products.js', 'cart.js', 'script.js']);
+  byClass(t.app, 'size-button')[0].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   t.go('#/checkout');
   fill(t, VALID);

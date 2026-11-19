@@ -56,17 +56,17 @@
     return marquee;
   }
 
-  var BRAND = 'Dan Wear';
+  var BRAND = 'Dan Motors';
 
   // Meta description per route (SEO); the views below attach theirs.
   var DESCRIPTIONS = {
-    home: 'Dan Wear is a simulated clothing store: tees, pants and jackets in sizes PP to GG.',
-    about: 'About Dan Wear, a simulated online clothing store built as a small single-page app.',
-    catalog: 'Browse every Dan Wear piece, filter by category and pick your size.',
-    cart: 'Review the pieces in your Dan Wear cart, adjust quantities and apply a coupon.',
-    checkout: 'Enter your details to place a simulated Dan Wear order.',
-    confirmed: 'Your simulated Dan Wear order was received.',
-    product: 'Details, sizes, measurements and price for this Dan Wear piece.',
+    home: 'Dan Motors is a simulated auto repair shop: servicing, brakes, tires and diagnostics for every vehicle size.',
+    about: 'About Dan Motors, a simulated auto repair shop built as a small single-page app.',
+    catalog: 'Browse every Dan Motors service, filter by specialty and pick your vehicle size.',
+    cart: 'Review the services in your Dan Motors cart, adjust quantities and apply a coupon.',
+    checkout: 'Enter your details to place a simulated Dan Motors order.',
+    confirmed: 'Your simulated Dan Motors order was received.',
+    product: 'Details, vehicle sizes, bay time and price for this Dan Motors service.',
     notFound: 'The page you are looking for does not exist.'
   };
 
@@ -86,9 +86,9 @@
     var heading = el('h1', 'hero-title', BRAND);
     heading.id = 'hero-title';
     hero.appendChild(heading);
-    hero.appendChild(el('p', 'hero-eyebrow', 'Dan Wear collection'));
-    hero.appendChild(el('p', 'hero-tagline', 'Everyday clothing, cut for comfort. Sizes PP to GG.'));
-    var cta = el('a', 'action-button hero-cta', 'Shop the collection');
+    hero.appendChild(el('p', 'hero-eyebrow', 'Dan Motors workshop'));
+    hero.appendChild(el('p', 'hero-tagline', 'Servicing, brakes, tires and diagnostics for hatchbacks, SUVs and utility vehicles.'));
+    var cta = el('a', 'action-button hero-cta', 'Browse the services');
     cta.href = '#/catalog';
     hero.appendChild(cta);
     stage.appendChild(hero);
@@ -97,7 +97,7 @@
     var categories = window.DanProducts && window.DanProducts.categories ? window.DanProducts.categories() : [];
     if (categories.length) {
       var nav = el('nav', 'home-categories container');
-      nav.setAttribute('aria-label', 'Shop by category');
+      nav.setAttribute('aria-label', 'Browse by specialty');
       categories.forEach(function (category) {
         var link = el('a', 'category-link', category);
         link.href = '#/catalog?category=' + encodeURIComponent(category);
@@ -110,7 +110,7 @@
     if (featured.length) {
       var showcase = el('section', 'showcase container');
       showcase.setAttribute('aria-labelledby', 'showcase-title');
-      var showcaseTitle = el('h2', 'showcase-title', 'New in');
+      var showcaseTitle = el('h2', 'showcase-title', 'Popular services');
       showcaseTitle.id = 'showcase-title';
       showcase.appendChild(showcaseTitle);
       var grid = el('ul', 'product-grid');
@@ -123,7 +123,7 @@
       showcase.appendChild(all);
       home.appendChild(showcase);
     }
-    return { title: BRAND + ' \u2013 Clothing store', description: DESCRIPTIONS.home, node: home };
+    return { title: BRAND + ' \u2013 Auto repair shop', description: DESCRIPTIONS.home, node: home };
   }
 
   function contentView(title, paragraph) {
@@ -137,7 +137,7 @@
     return {
       title: 'About \u2013 ' + BRAND,
       description: DESCRIPTIONS.about,
-      node: contentView('About', 'Dan Wear is a simulated online clothing store: nothing is sold and no payment is taken.')
+      node: contentView('About', 'Dan Motors is a simulated auto repair shop: no service is performed and no payment is taken.')
     };
   }
 
@@ -177,8 +177,11 @@
       link.appendChild(el('span', 'product-category', product.category));
     }
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
+    if (product.boxTime) {
+      link.appendChild(el('span', 'product-box-time', 'Tempo de box: ' + product.boxTime));
+    }
     if (product.sizes && product.sizes.length) {
-      link.appendChild(el('span', 'product-sizes', 'Tamanhos: ' + product.sizes.join(', ')));
+      link.appendChild(el('span', 'product-sizes', 'Portes: ' + product.sizes.join(', ')));
     }
     item.appendChild(link);
     return item;
@@ -245,17 +248,17 @@
 
   function measurementsTable(product, rowNodes) {
     var section = el('section', 'measurements');
-    section.appendChild(el('h2', 'measurements-title', 'Size guide'));
+    section.appendChild(el('h2', 'measurements-title', 'Technical table'));
     var data = product.measurements;
     if (!data || !data.rows || !data.rows.length || !data.columns) {
-      section.appendChild(el('p', null, 'This piece has no size chart: one size fits all.'));
+      section.appendChild(el('p', null, 'This service has no technical table.'));
       return section;
     }
     var table = el('table', 'measurements-table');
-    table.appendChild(el('caption', null, 'Body measurements in ' + data.unit));
+    table.appendChild(el('caption', null, (data.unit || 'Technical specifications')));
     var head = el('thead');
     var headRow = el('tr');
-    var corner = el('th', null, 'Size');
+    var corner = el('th', null, 'Vehicle size');
     corner.setAttribute('scope', 'col');
     headRow.appendChild(corner);
     data.columns.forEach(function (column) {
@@ -317,7 +320,7 @@
     var selected = null;
     var sizeButtons = [];
     var picker = el('div', 'size-picker');
-    var sizeLegend = el('p', 'size-label', 'Size');
+    var sizeLegend = el('p', 'size-label', 'Vehicle size');
     sizeLegend.id = 'size-label';
     picker.setAttribute('role', 'group');
     picker.setAttribute('aria-labelledby', 'size-label');
@@ -329,7 +332,7 @@
         selected = size;
         picker.className = 'size-picker';
         picker.removeAttribute('aria-describedby');
-        summary.textContent = 'Selected size: ' + size;
+        summary.textContent = 'Selected vehicle size: ' + size;
         markGuideRow(size);
         for (var b = 0; b < sizeButtons.length; b++) {
           sizeButtons[b].node.setAttribute('aria-pressed', sizeButtons[b].size === size ? 'true' : 'false');
@@ -340,7 +343,7 @@
       sizeButtons.push({ size: size, node: button });
       picker.appendChild(button);
     });
-    var summary = el('p', 'size-selected', 'No size selected');
+    var summary = el('p', 'size-selected', 'No vehicle size selected');
     function markGuideRow(size) {
       for (var r = 0; r < guideRows.length; r++) {
         guideRows[r].className = guideRows[r].getAttribute('data-size') === size ? 'is-selected' : '';
@@ -365,7 +368,7 @@
       status.textContent = '';
       status.className = 'cart-status';
       if (!selected) {
-        status.textContent = 'Select a size first.';
+        status.textContent = 'Select a vehicle size first.';
         status.className = 'cart-status is-error';
         picker.className = 'size-picker needs-size';
         picker.setAttribute('aria-describedby', 'cart-status');
@@ -373,7 +376,7 @@
           sizeButtons[0].node.focus();
         }
       } else if (window.DanCart.add(product.id, 1, selected)) {
-        status.textContent = 'Added size ' + selected + ' to cart.';
+        status.textContent = 'Added ' + selected + ' to cart.';
         status.className = 'cart-status is-success';
       } else {
         status.textContent = 'Maximum quantity reached.';
@@ -399,7 +402,7 @@
   }
 
   function lineLabel(line) {
-    return line.product.name + ' (size ' + line.size + ')';
+    return line.product.name + ' (' + line.size + ')';
   }
 
   function cartLine(line) {
@@ -408,7 +411,7 @@
     var name = el('a', 'cart-name', line.product.name);
     name.href = '#/produto/' + encodeURIComponent(line.id);
     item.appendChild(name);
-    item.appendChild(el('span', 'cart-size', 'Size: ' + line.size));
+    item.appendChild(el('span', 'cart-size', 'Vehicle size: ' + line.size));
     item.appendChild(el('span', 'cart-unit', formatPrice(line.product.priceCents)));
 
     var qty = el('span', 'cart-qty');
