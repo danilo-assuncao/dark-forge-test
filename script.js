@@ -100,7 +100,7 @@
       path = '/' + path;
     }
     if (path.length > 1) {
-      path = path.replace(/\/+$/, '');
+      path = path.replace(/\/+$/, '') || '/';
     }
     return path;
   }
@@ -137,7 +137,21 @@
     hasRendered = true;
   }
 
+  // The skip link must not touch location.hash (that would route to a 404).
+  function bindSkipLink() {
+    var skip = document.querySelector('.skip-link');
+    var app = document.getElementById('app');
+    if (!skip || !app) {
+      return;
+    }
+    skip.addEventListener('click', function (event) {
+      event.preventDefault();
+      app.focus();
+    });
+  }
+
   function start() {
+    bindSkipLink();
     window.addEventListener('hashchange', render);
     render();
   }
