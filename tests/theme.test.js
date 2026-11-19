@@ -48,7 +48,7 @@ const REQUIRED_TOKEN_USES = [
 const COLOUR_PROPERTY = /^(color|background(-color|-image)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|(box|text)-shadow|fill|stroke|caret-color|accent-color|text-decoration(-color)?)$/;
 const NON_COLOUR_KEYWORDS = new Set([
   'none', 'solid', 'dashed', 'dotted', 'double', 'inset',
-  'inherit', 'initial', 'unset', 'revert', 'currentcolor', 'transparent',
+  'inherit', 'initial', 'unset', 'revert', 'currentcolor', 'transparent', 'underline',
 ]);
 const COLOUR_LITERAL = /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i;
 

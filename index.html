@@ -8,9 +8,23 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <h1 class="visually-hidden">Dan</h1>
-    <main class="marquee" id="marquee" aria-hidden="true"></main>
-    <button type="button" class="action-button">Dan</button>
+    <a class="skip-link" href="#app">Skip to content</a>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="brand" href="#/">Dan</a>
+        <nav aria-label="Main">
+          <ul class="nav-list">
+            <li><a class="nav-link" href="#/">Home</a></li>
+            <li><a class="nav-link" href="#/about">About</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+    <main class="app" id="app" tabindex="-1"></main>
+    <footer class="site-footer">
+      <p class="site-footer__inner">Dan</p>
+    </footer>
+    <noscript><p class="container">This site needs JavaScript enabled.</p></noscript>
     <script src="script.js" defer></script>
   </body>
 </html>
