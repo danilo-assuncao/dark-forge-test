@@ -612,3 +612,38 @@ test('detail page shows a specifications fallback when a product has none or emp
     assert.equal(collect(t.app, function (n) { return n.tagName === 'dl'; }).length, 0);
   });
 });
+
+test('catalog cards add to the cart without navigating and update the counter', function () {
+  const store = {};
+  const t = boot('#/catalog', { cartStorage: store });
+  const adds = collect(t.app, function (n) { return n.className === 'catalog-add'; });
+  const cards = collect(t.app, function (n) { return n.className === 'product-card'; });
+  assert.equal(adds.length, cards.length);
+  adds[0].listeners.click();
+  adds[0].listeners.click();
+  assert.equal(t.win.DanCart.count(), 2);
+  assert.equal(t.cartBadge.textContent, '2');
+  assert.equal(t.win.DanCart.lines()[0].id, 'whey-protein');
+  assert.ok(Object.keys(store).length > 0);
+  const status = collect(t.app, function (n) { return n.className === 'cart-status'; })[0];
+  assert.equal(status.textContent, 'Added to cart.');
+  assert.equal(t.win.location.hash, '#/catalog');
+  assert.equal(adds[0].attrs['aria-label'], 'Add Whey Protein 900g to cart');
+  adds[1].listeners.click();
+  assert.equal(t.win.DanCart.lines().length, 2);
+  const statuses = collect(t.app, function (n) { return n.className === 'cart-status'; });
+  assert.equal(statuses[1].textContent, 'Added to cart.');
+  assert.equal(statuses[2].textContent, '');
+});
+
+test('catalog add button reports the maximum quantity', function () {
+  const t = boot('#/catalog', { cartStorage: {} });
+  const max = t.win.DanCart.MAX_QTY;
+  const add = collect(t.app, function (n) { return n.className === 'catalog-add'; })[0];
+  for (let i = 0; i < max; i++) { add.listeners.click(); }
+  const status = collect(t.app, function (n) { return n.className === 'cart-status'; })[0];
+  assert.equal(status.textContent, 'Added to cart.');
+  add.listeners.click();
+  assert.equal(t.win.DanCart.count(), max);
+  assert.equal(status.textContent, 'Maximum quantity reached.');
+});

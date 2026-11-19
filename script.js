@@ -114,6 +114,22 @@
     link.appendChild(el('span', 'product-name', product.name));
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
     item.appendChild(link);
+    // Sibling of the link (interactive content must not nest inside an anchor).
+    var add = el('button', 'catalog-add', 'Add to cart');
+    add.type = 'button';
+    add.setAttribute('aria-label', 'Add ' + product.name + ' to cart');
+    var status = el('p', 'cart-status');
+    status.setAttribute('role', 'status');
+    add.addEventListener('click', function () {
+      if (!window.DanCart) {
+        return;
+      }
+      // Clear first so repeated messages are announced again.
+      status.textContent = '';
+      status.textContent = window.DanCart.add(product.id, 1) ? 'Added to cart.' : 'Maximum quantity reached.';
+    });
+    item.appendChild(add);
+    item.appendChild(status);
     return item;
   }
 
