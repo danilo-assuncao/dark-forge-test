@@ -19,7 +19,8 @@
 
   // Plausible human limits; anything outside is rejected as invalid input.
   var LIMITS = { weightKg: 500, heightCm: 300, age: 120 };
-  var MINIMUMS = { weightKg: 2, heightCm: 30, age: 1 };
+  // Mifflin-St Jeor is validated for adults; the age floor excludes children.
+  var MINIMUMS = { weightKg: 2, heightCm: 30, age: 15 };
 
   function positive(value, name) {
     if (typeof value !== 'number' || !isFinite(value) || value < MINIMUMS[name] || value > LIMITS[name]) {
@@ -32,8 +33,10 @@
 
   function rawBmi(weightKg, heightCm) {
     positive(weightKg, 'weightKg');
-    var m = positive(heightCm, 'heightCm') / 100;
-    return weightKg / (m * m);
+    positive(heightCm, 'heightCm');
+    // Integer-friendly form: avoids float error at exact thresholds
+    // (e.g. 64 kg / 160 cm is exactly 25, not 24.999999999999996).
+    return (weightKg * 10000) / (heightCm * heightCm);
   }
 
   function bmi(weightKg, heightCm) {

@@ -79,11 +79,12 @@ test('accepts inputs exactly at the limits and rejects tiny ones', () => {
   assert.doesNotThrow(() => calc.bmi(500, 300));
   assert.doesNotThrow(() => calc.bmi(2, 30));
   assert.doesNotThrow(() => calc.bmr({ ...man, age: 120 }));
-  assert.doesNotThrow(() => calc.bmr({ ...man, age: 1 }));
+  assert.doesNotThrow(() => calc.bmr({ ...man, age: 15 }));
   assert.equal(calc.bmiCategory(0), 'Abaixo do peso');
   assert.throws(() => calc.bmi(80, 0.001), RangeError);
   assert.throws(() => calc.bmi(0.1, 180), RangeError);
   assert.throws(() => calc.bmr({ ...man, age: 0.1 }), RangeError);
+  assert.throws(() => calc.bmr({ ...man, age: 14 }), RangeError);
 });
 
 test('rejects invalid input', () => {
@@ -179,4 +180,27 @@ test('suggestProducts fails clearly when the catalog is not loaded', () => {
   vm.runInNewContext(src, { window: win });
   assert.throws(() => win.DanNutriCalculator.suggestProducts('Saude'), /DanNutriProducts must be loaded/);
   assert.equal(win.DanNutriCalculator.bmr(man), 1780);
+});
+
+test('exact BMI thresholds are not misclassified by float error', () => {
+  assert.equal(calc.bmiClassification(64, 160), 'Sobrepeso');
+  assert.equal(calc.bmiClassification(76.8, 160), 'Obesidade');
+  assert.equal(calc.calculate({ ...man, weightKg: 64, heightCm: 160 }, 'Saude').bmiCategory, 'Sobrepeso');
+});
+
+test('suggestProducts filters a stub catalog independently of real data', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'calculator.js'), 'utf8');
+  const items = [
+    { id: 'a', category: 'C1', goals: ['Saude'] },
+    { id: 'b', category: 'C2', goals: ['Saude', 'Hipertrofia'] },
+    { id: 'c', category: 'C2', goals: ['Hipertrofia'] }
+  ];
+  const stub = { byGoal: (g) => items.filter((p) => p.goals.includes(g)) };
+  const win = { DanNutriProducts: stub };
+  vm.runInNewContext(src, { window: win });
+  const c = win.DanNutriCalculator;
+  assert.deepEqual(c.suggestProducts('Saude').map((p) => p.id), ['a', 'b']);
+  assert.deepEqual(c.suggestProducts('Saude', { category: 'C2' }).map((p) => p.id), ['b']);
+  assert.deepEqual(c.suggestProducts('Emagrecimento'), []);
+  assert.deepEqual(c.suggestProducts('Hipertrofia', { category: 'C1' }), []);
 });
