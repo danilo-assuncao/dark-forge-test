@@ -472,6 +472,8 @@
   function totalsBlock(cart) {
     var block = el('div', 'cart-totals');
     var discount = cart.discountCents();
+    block.appendChild(el('p', 'cart-parts', 'Pe\u00e7as: ' + formatPrice(cart.partsCents())));
+    block.appendChild(el('p', 'cart-labor', 'M\u00e3o de obra: ' + formatPrice(cart.laborCents())));
     if (discount > 0) {
       block.appendChild(el('p', 'cart-subtotal-line', 'Subtotal: ' + formatPrice(cart.subtotalCents())));
       var coupon = cart.coupon();

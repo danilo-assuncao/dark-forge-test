@@ -16,6 +16,19 @@
     DAN50: { type: 'fixed', valueCents: 5000, minCents: 25000, label: 'R$ 50,00 off orders from R$ 250,00' }
   };
 
+  // Share of each service price that is labour (mao de obra); the remainder is
+  // parts (pecas). Services without an entry use DEFAULT_LABOR_PERCENT.
+  var DEFAULT_LABOR_PERCENT = 40;
+  var LABOR_PERCENT = {
+    'wheel-alignment': 100,
+    'scanner-diagnosis': 100,
+    'tire-rotation': 100,
+    'major-service': 35,
+    'timing-belt': 35,
+    'battery-replacement': 15,
+    'brake-discs': 30
+  };
+
   var items = [];
   var couponCode = null;
   var listeners = [];
@@ -174,7 +187,14 @@
     changed();
   }
 
-  // Lines with the product resolved: [{ id, size, qty, product, subtotalCents }].
+  // Labour portion of a unit price in cents; parts are the remainder.
+  function unitLaborCents(product) {
+    var pct = Object.prototype.hasOwnProperty.call(LABOR_PERCENT, product.id) ? LABOR_PERCENT[product.id] : DEFAULT_LABOR_PERCENT;
+    return Math.round(product.priceCents * pct / 100);
+  }
+
+  // Lines with the product resolved:
+  // [{ id, size, qty, product, subtotalCents, laborCents, partsCents }].
   function lines() {
     var out = [];
     for (var i = 0; i < items.length; i++) {
@@ -184,7 +204,9 @@
         size: items[i].size,
         qty: items[i].qty,
         product: product,
-        subtotalCents: product.priceCents * items[i].qty
+        subtotalCents: product.priceCents * items[i].qty,
+        laborCents: unitLaborCents(product) * items[i].qty,
+        partsCents: (product.priceCents - unitLaborCents(product)) * items[i].qty
       });
     }
     return out;
@@ -196,6 +218,18 @@
       total += findProduct(items[i].id).priceCents * items[i].qty;
     }
     return total;
+  }
+
+  function laborCents() {
+    var total = 0;
+    for (var i = 0; i < items.length; i++) {
+      total += unitLaborCents(findProduct(items[i].id)) * items[i].qty;
+    }
+    return total;
+  }
+
+  function partsCents() {
+    return subtotalCents() - laborCents();
   }
 
   // A stored coupon whose minimum is no longer met stays saved but discounts
@@ -276,6 +310,8 @@
     clear: clear,
     lines: lines,
     subtotalCents: subtotalCents,
+    laborCents: laborCents,
+    partsCents: partsCents,
     discountCents: discountCents,
     totalCents: totalCents,
     applyCoupon: applyCoupon,

@@ -884,3 +884,13 @@ test('every service has a technical checklist and the detail route renders it', 
   });
   assert.equal(byClass(t, 'bay-time')[0].textContent, 'Estimated bay time (Hatch/Sedan): ' + product.boxTime);
 });
+
+test('cart summary shows parts and labour before the subtotal and discount', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'oil-change', size: 'Hatch/Sedan', qty: 2 }]) };
+  const t = boot('#/cart', { cartStorage: store });
+  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 299,88');
+  assert.equal(byClass(t, 'cart-labor')[0].textContent, 'Mão de obra: R$ 199,92');
+  couponSubmit(t, 'DAN10');
+  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 299,88');
+  assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 499,80');
+});
