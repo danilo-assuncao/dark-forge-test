@@ -873,3 +873,14 @@ test('technical table caption falls back when the table has no unit', function (
   const table = collect(t.app, function (n) { return n.tagName === 'table'; })[0];
   assert.equal(collect(table, function (n) { return n.tagName === 'caption'; })[0].textContent, 'Technical specifications');
 });
+
+test('every service has a technical checklist and the detail route renders it', function () {
+  const t = boot('#/produto/brake-pads');
+  const items = byClass(t, 'checklist-item').map(function (n) { return n.textContent; });
+  const product = t.win.DanProducts.find('brake-pads');
+  assert.deepEqual(items, Array.from(product.checklist));
+  Array.from(t.win.DanProducts.all()).forEach(function (p) {
+    assert.ok(p.checklist.length >= 3, p.id);
+  });
+  assert.equal(byClass(t, 'bay-time')[0].textContent, 'Estimated bay time (Hatch/Sedan): ' + product.boxTime);
+});
