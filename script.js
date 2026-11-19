@@ -88,10 +88,86 @@
     return { title: '404 \u2013 Dan', node: container };
   }
 
+  // ----- Catalog -----
+
+  function formatPrice(cents) {
+    var reais = Math.floor(cents / 100);
+    var rest = String(cents % 100);
+    if (rest.length < 2) {
+      rest = '0' + rest;
+    }
+    return 'R$ ' + String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + rest;
+  }
+
+  function productImage(product) {
+    // Placeholder tile with the product initial; no image assets needed.
+    var tile = el('div', 'product-image', product.name.charAt(0));
+    tile.setAttribute('aria-hidden', 'true');
+    return tile;
+  }
+
+  function productCard(product) {
+    var item = el('li', 'product-item');
+    var link = el('a', 'product-card');
+    link.href = '#/catalog/' + encodeURIComponent(product.id);
+    link.appendChild(productImage(product));
+    link.appendChild(el('span', 'product-name', product.name));
+    link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
+    item.appendChild(link);
+    return item;
+  }
+
+  function catalogView() {
+    var container = el('div', 'container');
+    container.appendChild(el('h1', 'page-title', 'Catalog'));
+    var grid = el('ul', 'product-grid');
+    var products = window.DanProducts ? window.DanProducts.all() : [];
+    for (var i = 0; i < products.length; i++) {
+      grid.appendChild(productCard(products[i]));
+    }
+    container.appendChild(grid);
+    return { title: 'Catalog \u2013 Dan', node: container };
+  }
+
+  function productView(product) {
+    var container = el('div', 'container');
+    container.appendChild(el('h1', 'page-title', product.name));
+    container.appendChild(productImage(product));
+    container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
+    container.appendChild(el('p', null, product.description));
+    var back = el('a', 'text-link', 'Back to catalog');
+    back.href = '#/catalog';
+    container.appendChild(back);
+    return { title: product.name + ' \u2013 Dan', node: container };
+  }
+
   var ROUTES = {
     '/': homeView,
-    '/about': aboutView
+    '/about': aboutView,
+    '/catalog': catalogView
   };
+
+  var PRODUCT_ROUTE = /^\/catalog\/([^/]+)$/;
+
+  function resolveView(path) {
+    if (Object.prototype.hasOwnProperty.call(ROUTES, path)) {
+      return ROUTES[path]();
+    }
+    var match = PRODUCT_ROUTE.exec(path);
+    if (match && window.DanProducts) {
+      var id;
+      try {
+        id = decodeURIComponent(match[1]);
+      } catch (e) {
+        id = null;
+      }
+      var product = id === null ? null : window.DanProducts.find(id);
+      if (product) {
+        return productView(product);
+      }
+    }
+    return notFoundView();
+  }
 
   function currentPath() {
     var hash = window.location.hash.replace(/^#/, '');
@@ -113,8 +189,7 @@
       return;
     }
     var path = currentPath();
-    var factory = Object.prototype.hasOwnProperty.call(ROUTES, path) ? ROUTES[path] : notFoundView;
-    var view = factory();
+    var view = resolveView(path);
 
     app.textContent = '';
     app.appendChild(view.node);
@@ -123,7 +198,7 @@
     var links = document.querySelectorAll('.nav-link');
     for (var i = 0; i < links.length; i++) {
       var linkPath = links[i].getAttribute('href').replace(/^#/, '');
-      if (linkPath === path) {
+      if (linkPath === path || (linkPath !== '/' && path.indexOf(linkPath + '/') === 0)) {
         links[i].setAttribute('aria-current', 'page');
       } else {
         links[i].removeAttribute('aria-current');
