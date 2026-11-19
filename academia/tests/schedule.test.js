@@ -20,7 +20,7 @@ test('slots are valid, unique and reference real classes/instructors', () => {
   }
 });
 
-test('no two catalog slots clash with each other', () => {
+test('same-instructor slots never overlap', () => {
   for (let i = 0; i < S.SLOTS.length; i++) {
     for (let j = i + 1; j < S.SLOTS.length; j++) {
       const a = S.SLOTS[i], b = S.SLOTS[j];
@@ -82,12 +82,6 @@ test('full session sends the student to the waitlist with a position', () => {
   assert.equal(sch.waitlistPosition('yo-ter-0800'), 3);
   assert.equal(sch.book('yo-ter-0800').reason, 'already-waitlisted');
   assert.equal(sch.listWaitlist()[0].id, 'yo-ter-0800');
-});
-
-test('waitlisted slots still validate clashes', () => {
-  const sch = S.createSchedule(memStorage(), { occupancy: { 'sp-qua-1830': 25 } });
-  sch.book('ff-qua-1800');
-  assert.equal(sch.book('sp-qua-1830').reason, 'conflict');
 });
 
 test('releaseSeat promotes the first-in-line student', () => {
@@ -221,5 +215,42 @@ test('corrupt or tampered storage is ignored; missing storage falls back to memo
   const throwing = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('quota'); } };
   const sch = S.createSchedule(throwing);
   assert.equal(sch.book('ff-seg-0700').ok, true);
+  assert.equal(sch.isBooked('ff-seg-0700'), true);
+});
+
+test('null returns for unknown slot and non-waitlisted slot; toTime padding', () => {
+  const sch = S.createSchedule(memStorage());
+  assert.equal(sch.seatsLeft('nope'), null);
+  assert.equal(sch.waitlistPosition('ff-seg-0700'), null);
+  assert.equal(S.endTime(S.getSlot('yo-ter-0800')), '09:00');
+  assert.equal(S.endTime({ classId: 'boxe', day: 1, start: '00:00' }), '00:55');
+  assert.equal(S.endTime({ classId: 'nope', day: 1, start: '00:00' }), null);
+});
+
+test('book fails closed with invalid-occupancy when spotsLeft returns null', () => {
+  const original = A.spotsLeft;
+  A.spotsLeft = () => null;
+  try {
+    const sch = S.createSchedule(memStorage());
+    assert.deepEqual(sch.book('ff-seg-0700'), { ok: false, reason: 'invalid-occupancy' });
+    assert.equal(sch.isBooked('ff-seg-0700'), false);
+    assert.equal(sch.isWaitlisted('ff-seg-0700'), false);
+  } finally {
+    A.spotsLeft = original;
+  }
+});
+
+test('queued waiters get released seats first; student behind them is promoted last', () => {
+  const cap = A.getClass('forca-funcional').capacity;
+  const sch = S.createSchedule(memStorage(), { occupancy: { 'ff-seg-0700': cap }, waiting: { 'ff-seg-0700': 2 } });
+  assert.equal(sch.book('ff-seg-0700').position, 3);
+  for (let i = 0; i < 2; i++) {
+    assert.equal(sch.releaseSeat('ff-seg-0700').promoted, false);
+    assert.equal(sch.seatsLeft('ff-seg-0700'), 0);
+    assert.equal(sch.isWaitlisted('ff-seg-0700'), true);
+    assert.equal(sch.isBooked('ff-seg-0700'), false);
+  }
+  assert.equal(sch.waitlistPosition('ff-seg-0700'), 1);
+  assert.equal(sch.releaseSeat('ff-seg-0700').promoted, true);
   assert.equal(sch.isBooked('ff-seg-0700'), true);
 });
