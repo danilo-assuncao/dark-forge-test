@@ -266,6 +266,7 @@
       var row = el('tr');
       var label = el('th', null, entry.size);
       label.setAttribute('scope', 'row');
+      row.setAttribute('data-size', entry.size);
       row.appendChild(label);
       entry.values.forEach(function (value) {
         row.appendChild(el('td', null, value));
@@ -300,8 +301,10 @@
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
     container.appendChild(specsSection(product));
+    var guide = null;
     if (product.sizes && product.sizes.length) {
-      container.appendChild(measurementsTable(product));
+      guide = measurementsTable(product);
+      container.appendChild(guide);
     }
 
     // Size picker: nothing is preselected, so the shopper must choose.
@@ -318,17 +321,29 @@
       button.setAttribute('aria-pressed', 'false');
       button.addEventListener('click', function () {
         selected = size;
+        picker.className = 'size-picker';
+        summary.textContent = 'Selected size: ' + size;
+        markGuideRow(size);
         for (var b = 0; b < sizeButtons.length; b++) {
           sizeButtons[b].node.setAttribute('aria-pressed', sizeButtons[b].size === size ? 'true' : 'false');
         }
         status.textContent = '';
+        status.className = 'cart-status';
       });
       sizeButtons.push({ size: size, node: button });
       picker.appendChild(button);
     });
+    var summary = el('p', 'size-selected', 'No size selected');
+    function markGuideRow(size) {
+      var rows = guide && guide.children[1] && guide.children[1].children ? guide.children[1].children : [];
+      for (var r = 0; r < rows.length; r++) {
+        rows[r].className = rows[r].getAttribute('data-size') === size ? 'is-selected' : '';
+      }
+    }
     if (sizeButtons.length) {
       container.appendChild(sizeLegend);
       container.appendChild(picker);
+      container.appendChild(summary);
     }
 
     var add = el('button', 'action-button add-to-cart', 'Add to cart');
@@ -341,12 +356,20 @@
       }
       // Clear first so repeated messages are announced again.
       status.textContent = '';
+      status.className = 'cart-status';
       if (!selected) {
         status.textContent = 'Select a size first.';
+        status.className = 'cart-status is-error';
+        picker.className = 'size-picker needs-size';
+        if (sizeButtons.length) {
+          sizeButtons[0].node.focus();
+        }
       } else if (window.DanCart.add(product.id, 1, selected)) {
         status.textContent = 'Added size ' + selected + ' to cart.';
+        status.className = 'cart-status is-success';
       } else {
         status.textContent = 'Maximum quantity reached.';
+        status.className = 'cart-status is-error';
       }
     });
     container.appendChild(add);
