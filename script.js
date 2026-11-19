@@ -239,7 +239,7 @@
     return { title: 'Catalog \u2013 ' + BRAND, description: DESCRIPTIONS.catalog, node: container };
   }
 
-  function measurementsTable(product) {
+  function measurementsTable(product, rowNodes) {
     var section = el('section', 'measurements');
     section.appendChild(el('h2', 'measurements-title', 'Size guide'));
     var data = product.measurements;
@@ -267,6 +267,9 @@
       var label = el('th', null, entry.size);
       label.setAttribute('scope', 'row');
       row.setAttribute('data-size', entry.size);
+      if (rowNodes) {
+        rowNodes.push(row);
+      }
       row.appendChild(label);
       entry.values.forEach(function (value) {
         row.appendChild(el('td', null, value));
@@ -301,10 +304,9 @@
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
     container.appendChild(specsSection(product));
-    var guide = null;
+    var guideRows = [];
     if (product.sizes && product.sizes.length) {
-      guide = measurementsTable(product);
-      container.appendChild(guide);
+      container.appendChild(measurementsTable(product, guideRows));
     }
 
     // Size picker: nothing is preselected, so the shopper must choose.
@@ -335,9 +337,8 @@
     });
     var summary = el('p', 'size-selected', 'No size selected');
     function markGuideRow(size) {
-      var rows = guide && guide.children[1] && guide.children[1].children ? guide.children[1].children : [];
-      for (var r = 0; r < rows.length; r++) {
-        rows[r].className = rows[r].getAttribute('data-size') === size ? 'is-selected' : '';
+      for (var r = 0; r < guideRows.length; r++) {
+        guideRows[r].className = guideRows[r].getAttribute('data-size') === size ? 'is-selected' : '';
       }
     }
     if (sizeButtons.length) {
