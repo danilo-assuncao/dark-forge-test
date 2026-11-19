@@ -13,7 +13,7 @@
 
   var SIZES = [
     { id: 'mini', name: 'Mini', weightRange: 'ate 10 kg', minKg: 0, maxKg: 10 },
-    { id: 'medio', name: 'Medio', weightRange: '10 a 25 kg', minKg: 10, maxKg: 25 },
+    { id: 'medio', name: 'Medio', weightRange: 'acima de 10 ate 25 kg', minKg: 10, maxKg: 25 },
     { id: 'grande', name: 'Grande', weightRange: 'acima de 25 kg', minKg: 25, maxKg: Infinity },
   ];
 
@@ -35,7 +35,8 @@
   // Size price multipliers for services (larger pets cost more to groom).
   var SIZE_PRICE_FACTOR = { mini: 1, medio: 1.4, grande: 1.8 };
 
-  // Weight bands and the dose (tablets per administration) for Farmacia Pet.
+  // Generic, illustrative weight bands (upper bound inclusive) for Farmacia Pet.
+  // NOT product-specific: always follow the product leaflet / veterinarian.
   var DOSAGE_TABLE = [
     { size: 'mini', minKg: 0, maxKg: 5, dose: '1/2 comprimido' },
     { size: 'mini', minKg: 5, maxKg: 10, dose: '1 comprimido' },
