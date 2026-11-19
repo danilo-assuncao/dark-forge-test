@@ -344,6 +344,41 @@ body {
   text-decoration: none;
 }
 
+.product-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.product-item .product-card {
+  flex: 1;
+}
+
+.catalog-add {
+  min-height: 44px;
+  padding: 0.5em 1em;
+  border: 2px solid var(--button-border);
+  border-radius: 0.5rem;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.catalog-add:hover {
+  background-color: var(--button-bg-hover);
+}
+
+.catalog-add:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.product-item .cart-status {
+  margin: 0;
+}
+
 .product-card:hover {
   text-decoration: underline;
 }

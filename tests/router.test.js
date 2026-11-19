@@ -612,3 +612,19 @@ test('detail page shows a specifications fallback when a product has none or emp
     assert.equal(collect(t.app, function (n) { return n.tagName === 'dl'; }).length, 0);
   });
 });
+
+test('catalog cards add to the cart without navigating and update the counter', function () {
+  const store = {};
+  const t = boot('#/catalog', { cartStorage: store });
+  const adds = collect(t.app, function (n) { return n.className === 'catalog-add'; });
+  const cards = collect(t.app, function (n) { return n.className === 'product-card'; });
+  assert.equal(adds.length, cards.length);
+  adds[0].listeners.click();
+  adds[0].listeners.click();
+  assert.equal(t.win.DanCart.count(), 2);
+  assert.equal(t.cartBadge.textContent, '2');
+  assert.equal(t.win.DanCart.lines()[0].id, 'whey-protein');
+  assert.ok(Object.keys(store).length > 0);
+  const status = collect(t.app, function (n) { return n.className === 'cart-status'; })[0];
+  assert.equal(status.textContent, 'Added to cart.');
+});
