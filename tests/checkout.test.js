@@ -217,3 +217,51 @@ test('CEP validation blocks the booking and nothing is cleared', function () {
   });
   assert.equal(t.badge.textContent, '1');
 });
+
+function api() {
+  const ctx = { window: {} };
+  vm.runInNewContext(read('checkout.js'), ctx);
+  return ctx.window.DanCheckout;
+}
+
+test('quote estimates delivery minutes for every CEP range', function () {
+  const expected = [45, 75, 120, 150, 180, 210, 300, 180, 150, 165];
+  const actual = expected.map(function (_, d) { return api().quote(d + '1310-100').minutes; });
+  assert.deepEqual(actual, expected);
+});
+
+test('fulfillment pickup is free, needs no CEP and has fixed minutes', function () {
+  const a = api();
+  [undefined, null, 'invalid', '01310-100'].forEach(function (cep) {
+    const f = a.fulfillment('pickup', cep);
+    assert.deepEqual([f.mode, f.cents, f.minutes, f.region, f.cep], ['pickup', 0, 20, null, null]);
+  });
+});
+
+test('fulfillment delivery prices by CEP and validates inputs', function () {
+  const a = api();
+  const d = a.fulfillment('delivery', '01310-100');
+  assert.deepEqual([d.mode, d.cents, d.minutes, d.region, d.cep], ['delivery', 1490, 45, 'Grande São Paulo', '01310100']);
+  assert.equal(a.fulfillment('delivery', '01310100').cep, '01310100');
+  ['123', '', null, undefined].forEach(function (bad) { assert.equal(a.fulfillment('delivery', bad), null, String(bad)); });
+  assert.equal(a.fulfillment('delivery'), null);
+  assert.equal(a.fulfillment(undefined, '01310-100'), null);
+  assert.equal(a.fulfillment('teleport', '01310-100'), null);
+});
+
+test('trackingCode is deterministic with an injected rng and uses the safe alphabet', function () {
+  const a = api();
+  assert.equal(a.trackingCode(function () { return 0; }), 'DAN-AAAA');
+  assert.equal(a.trackingCode(function () { return 0.999999; }), 'DAN-9999');
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let i = 0; i < 32; i++) {
+    const c = a.trackingCode(function () { return i / 32; });
+    assert.equal(c, 'DAN-' + alphabet[i].repeat(4));
+    assert.match(c, /^DAN-[A-HJ-NP-Z2-9]{4}$/);
+  }
+});
+
+test('trackingCode without rng yields well-formed codes', function () {
+  const a = api();
+  for (let i = 0; i < 50; i++) { assert.match(a.trackingCode(), /^DAN-[A-HJ-NP-Z2-9]{4}$/); }
+});
