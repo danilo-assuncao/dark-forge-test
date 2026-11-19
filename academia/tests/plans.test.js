@@ -22,6 +22,9 @@ test('looks up plans and cycles leniently', () => {
   assert.equal(p.getPlan('Black Vip').id, 'black_vip');
   assert.equal(p.getPlan('black-vip').id, 'black_vip');
   assert.equal(p.getPlan('toString'), null);
+  assert.equal(p.getPlan('__proto__'), null);
+  assert.equal(p.getPlan('constructor'), null);
+  assert.equal(p.getCycle('__proto__'), null);
   assert.equal(p.getCycle(' ANUAL ').id, 'anual');
   assert.equal(p.getCycle('x'), null);
   assert.equal(p.getPlan(null), null);
@@ -60,7 +63,10 @@ test('DANFIT10 is rejected on Mensal and for unknown codes', () => {
   assert.equal(m.totalCents, 8990);
   assert.equal(m.couponDiscountCents, 0);
   assert.equal(m.couponError, 'cycle_not_eligible');
-  assert.equal(p.price('start', 'anual', 'OUTRO').couponError, 'unknown');
+  assert.equal(m.couponCode, null);
+  const u = p.price('start', 'anual', 'OUTRO');
+  assert.equal(u.couponError, 'unknown');
+  assert.equal(u.couponCode, null);
   assert.equal(p.price('start', 'anual', '').couponError, null);
 });
 
@@ -123,7 +129,10 @@ test('discounts never exceed the amount they apply to', () => {
   p.listPlans().forEach((pl) => p.listCycles().forEach((c) => {
     const r = p.price(pl.id, c.id, 'DANFIT10');
     assert.ok(r.cycleDiscountCents >= 0 && r.couponDiscountCents >= 0);
-    assert.ok(r.totalCents > 0 && r.totalCents <= r.listCents);
+    assert.equal(r.subtotalCents, r.listCents - r.cycleDiscountCents);
+    assert.equal(r.totalCents, r.subtotalCents - r.couponDiscountCents);
+    assert.ok(r.couponDiscountCents <= r.subtotalCents);
+    assert.ok(r.totalCents > 0);
   }));
 });
 
@@ -153,9 +162,16 @@ test('exposes window.DanFitPlans in a browser-like context', () => {
   const vm = require('node:vm');
   const fs = require('node:fs');
   const src = fs.readFileSync(require.resolve('../plans.js'), 'utf8');
+  // Unmodified source; the context has `window` but no `module`/`require`.
   const ctx = { window: {} };
-  ctx.window.window = ctx.window;
-  vm.runInNewContext(src.replace('})(typeof window !== \'undefined\' ? window : this);', '})(window);'), ctx);
+  vm.runInNewContext(src, ctx);
+  assert.equal(typeof ctx.module, 'undefined');
   assert.equal(typeof ctx.window.DanFitPlans.price, 'function');
   assert.equal(ctx.window.DanFitPlans.price('start', 'mensal').totalCents, 8990);
+});
+
+test('non-string coupons are stringified and rejected; bad plan wins over coupon', () => {
+  [10, 0, {}].forEach((v) => assert.equal(p.price('start', 'anual', v).couponError, 'unknown'));
+  assert.equal(p.price('start', 'anual', 10).couponCode, null);
+  assert.throws(() => p.price('gold', 'anual', 'DANFIT10'), RangeError);
 });
