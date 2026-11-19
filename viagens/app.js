@@ -110,7 +110,7 @@
   function renderDetail(container, route) {
     container.textContent = '';
     var d = data.getDestination(route.id);
-    container.appendChild(link('← Voltar aos destinos', '#/', 'back'));
+    container.appendChild(link('← Voltar aos destinos', route.backHash || '#/', 'back'));
     var article = el('article', undefined, 'detail');
     article.appendChild(el('h2', d.name));
     article.appendChild(el('p', d.category + ' - ' + d.climate.summary, 'muted'));
@@ -162,15 +162,20 @@
 
     function currentHash() { return root.location ? root.location.hash : ''; }
 
+    var lastListHash = '#/';
+
     function route() {
       var r = parseHash(currentHash());
       if (filters) { filters.hidden = r.name !== 'list'; }
       if (r.name === 'detail') {
+        r.backHash = lastListHash;
         renderDetail(container, r);
+        if (root.scrollTo) { root.scrollTo(0, 0); }
       } else if (r.name === 'notfound') {
         renderNotFound(container);
       } else {
-        searchIn.value = r.query;
+        lastListHash = buildHash(r);
+        if (searchIn.value.trim() !== r.query) { searchIn.value = r.query; }
         catSel.value = r.category;
         durSel.value = r.duration;
         renderList(container, r);
@@ -178,17 +183,24 @@
       return r;
     }
 
-    function fromFilters() {
+    // Search typing replaces the current history entry (no entry per keystroke);
+    // select changes push a new entry. replaceState does not fire hashchange,
+    // so the view is re-rendered directly.
+    function fromFilters(replace) {
       var h = buildHash({ name: 'list', query: searchIn.value.trim(), category: catSel.value, duration: durSel.value });
-      if (root.location && root.location.hash !== h) {
+      if (!root.location || root.location.hash === h) { return; }
+      if (replace === true && root.history && root.history.replaceState) {
+        root.history.replaceState(null, '', h);
+        route();
+      } else {
         root.location.hash = h; // triggers hashchange in browsers
+        if (!root.addEventListener) { route(); }
       }
-      if (!root.addEventListener) { route(); }
     }
 
-    searchIn.addEventListener('input', fromFilters);
-    catSel.addEventListener('change', fromFilters);
-    durSel.addEventListener('change', fromFilters);
+    searchIn.addEventListener('input', function () { fromFilters(true); });
+    catSel.addEventListener('change', function () { fromFilters(false); });
+    durSel.addEventListener('change', function () { fromFilters(false); });
     if (root.addEventListener) { root.addEventListener('hashchange', route); }
     route();
   }
