@@ -37,7 +37,8 @@ function walk(node, fn) {
   node.children.forEach(function (c) { walk(c, fn); });
 }
 
-function boot(hash) {
+function boot(hash, opts) {
+  opts = opts || {};
   const app = makeNode('main');
   const skip = makeNode('a');
   const navLinks = ['#/', '#/catalog', '#/about'].map(function (href) {
@@ -58,7 +59,14 @@ function boot(hash) {
   };
   const ctx = { window: win, document: doc };
   vm.createContext(ctx);
-  vm.runInContext(productsJs, ctx);
+  if (opts.products) {
+    ctx.window.DanProducts = {
+      all() { return opts.products.slice(); },
+      find(id) { return opts.products.find(function (p) { return p.id === id; }) || null; },
+    };
+  } else if (!opts.noProducts) {
+    vm.runInContext(productsJs, ctx);
+  }
   vm.runInContext(js, ctx);
   return {
     app, skip, navLinks, doc, win,
@@ -143,6 +151,32 @@ test('products.js holds well-formed mock data', function () {
   assert.ok(all.some(function (p) { return /whey/i.test(p.name); }));
   assert.ok(all.some(function (p) { return /creatine/i.test(p.name); }));
   assert.equal(ctx.window.DanProducts.find('nope'), null);
+  assert.equal(ctx.window.DanProducts.find('creatine').id, 'creatine');
+  const n = ctx.window.DanProducts.all().length;
+  const copy = ctx.window.DanProducts.all();
+  copy.push({ id: 'x' });
+  copy.pop();
+  copy.length = 0;
+  assert.equal(ctx.window.DanProducts.all().length, n, 'all() must return a copy');
+});
+
+test('formatPrice pads cents and groups thousands', function () {
+  const cases = [[5, 'R$ 0,05'], [100, 'R$ 1,00'], [100005, 'R$ 1.000,05'],
+    [123456789, 'R$ 1.234.567,89'], [99900, 'R$ 999,00']];
+  const products = cases.map(function (c, i) {
+    return { id: 'p' + i, name: 'P' + i, description: 'd', priceCents: c[0] };
+  });
+  const t = boot('#/catalog', { products: products });
+  const prices = collect(t.app, function (n) { return n.className === 'product-price'; })
+    .map(function (n) { return n.textContent; });
+  assert.deepEqual(prices, cases.map(function (c) { return c[1]; }));
+});
+
+test('without product data the catalog is empty and details give a 404', function () {
+  const t = boot('#/catalog', { noProducts: true });
+  assert.equal(t.heading(), 'Catalog');
+  assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 0);
+  assert.match(boot('#/catalog/creatine', { noProducts: true }).heading(), /404/);
 });
 
 test('the catalog grid shows name, placeholder image and price, linking to detail', function () {
@@ -170,6 +204,21 @@ test('a product detail route renders the product; unknown ids give a 404', funct
   assert.match(t.heading(), /Creatine/);
   assert.match(t.doc.title, /Creatine/);
   assert.equal(t.navLinks[1].attrs['aria-current'], 'page');
+  assert.equal(t.navLinks[0].attrs['aria-current'], undefined);
+  assert.equal(t.navLinks[2].attrs['aria-current'], undefined);
+  const texts = [];
+  walk(t.app, function (n) { if (n.textContent) { texts.push(n.textContent); } });
+  assert.ok(texts.indexOf('R$ 89,90') !== -1, 'price shown');
+  assert.ok(texts.some(function (x) { return /micronized creatine/.test(x); }), 'description shown');
+  assert.equal(collect(t.app, function (n) { return n.className === 'product-image'; }).length, 1);
+  const back = collect(t.app, function (n) { return n.tagName === 'a'; })[0];
+  assert.equal(back.href, '#/catalog');
+  assert.equal(back.textContent, 'Back to catalog');
+  ['#/catalog/nope', '#/catalogue', '#/catalog/creatine/x', '#/catalog/%E0%A4%A'].forEach(function (h) {
+    const u = boot(h);
+    assert.match(u.heading(), /404/, h);
+    u.navLinks.forEach(function (l) { assert.equal(l.attrs['aria-current'], undefined, h); });
+  });
   ['#/catalog/nope', '#/catalog/%E0%A4%A', '#/catalog/constructor', '#/catalog/creatine/x'].forEach(function (h) {
     assert.match(boot(h).heading(), /404/, h);
   });

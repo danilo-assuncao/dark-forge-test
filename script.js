@@ -149,9 +149,14 @@
 
   var PRODUCT_ROUTE = /^\/catalog\/([^/]+)$/;
 
+  // Returns { title, node, navPath }; navPath is the nav link to mark current
+  // (null for the 404 view).
   function resolveView(path) {
+    var view;
     if (Object.prototype.hasOwnProperty.call(ROUTES, path)) {
-      return ROUTES[path]();
+      view = ROUTES[path]();
+      view.navPath = path;
+      return view;
     }
     var match = PRODUCT_ROUTE.exec(path);
     if (match && window.DanProducts) {
@@ -163,10 +168,14 @@
       }
       var product = id === null ? null : window.DanProducts.find(id);
       if (product) {
-        return productView(product);
+        view = productView(product);
+        view.navPath = '/catalog';
+        return view;
       }
     }
-    return notFoundView();
+    view = notFoundView();
+    view.navPath = null;
+    return view;
   }
 
   function currentPath() {
@@ -198,7 +207,7 @@
     var links = document.querySelectorAll('.nav-link');
     for (var i = 0; i < links.length; i++) {
       var linkPath = links[i].getAttribute('href').replace(/^#/, '');
-      if (linkPath === path || (linkPath !== '/' && path.indexOf(linkPath + '/') === 0)) {
+      if (linkPath === view.navPath) {
         links[i].setAttribute('aria-current', 'page');
       } else {
         links[i].removeAttribute('aria-current');
