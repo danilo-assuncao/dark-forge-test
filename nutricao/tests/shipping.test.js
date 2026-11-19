@@ -48,3 +48,43 @@ test('generates NUTRI-XXXX protocols', () => {
   for (let i = 0; i < 50; i++) { assert.ok(s.isProtocol(s.generateProtocol())); }
   assert.equal(s.isProtocol('NUTRI-12'), false);
 });
+
+test('free-standard threshold boundary and subtotal coercion', () => {
+  assert.equal(s.quote('01310-100', 'standard', 29899).priceCents, 1490);
+  assert.equal(s.quote('01310-100', 'standard', 29900).priceCents, 0);
+  assert.equal(s.quote('01310-100', 'standard').priceCents, 1490);
+  assert.equal(s.quote('01310-100', 'standard', NaN).priceCents, 1490);
+  assert.equal(s.quote('01310-100', 'standard', '29900').priceCents, 0);
+});
+
+test('rejects unknown shipping methods', () => {
+  assert.equal(s.quote('01310-100', 'sedex', 0).error, 'invalid-method');
+  assert.equal(s.quote('01310-100', 'Express', 0).error, 'invalid-method');
+  assert.equal(s.quote('01310-100').method, 'standard');
+});
+
+test('region edge digits', () => {
+  const regions = '0123456789'.split('').map((d) => s.quote(d + '0000-000', 'standard', 0).region);
+  assert.deepEqual(regions, ['Sudeste', 'Sudeste', 'Sudeste', 'Sudeste', 'Nordeste', 'Nordeste',
+    'Centro-Oeste/Norte', 'Centro-Oeste/Norte', 'Sul', 'Sul']);
+});
+
+test('teleconsult slots validate inputs and do not truncate', () => {
+  const d = new Date(2026, 10, 19);
+  assert.equal(s.teleconsultSlots(d, 60).length, 300);
+  assert.equal(s.teleconsultSlots(d, 0).length, 0);
+  assert.equal(s.teleconsultSlots(d, -3).length, 0);
+  assert.equal(s.teleconsultSlots(d, NaN).length, 0);
+  const bad = s.teleconsultSlots(new Date(NaN), 1);
+  assert.equal(bad.length, 5);
+  assert.ok(bad.every((x) => !x.date.includes('NaN')));
+  assert.ok(s.teleconsultSlots('x', 1).every((x) => !x.date.includes('NaN')));
+});
+
+test('protocol stays well-formed for out-of-range rng', () => {
+  for (const v of [NaN, -1, 1, 5, Infinity, -Infinity]) {
+    assert.ok(s.isProtocol(s.generateProtocol(() => v)), String(v));
+  }
+  assert.equal(s.generateProtocol(() => NaN), 'NUTRI-0000');
+  assert.equal(s.generateProtocol(() => 1), 'NUTRI-9999');
+});

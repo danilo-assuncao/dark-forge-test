@@ -39,12 +39,15 @@
   function quote(cepInput, method, subtotalCents) {
     var cep = normalizeCep(cepInput);
     if (!cep) { return { ok: false, error: 'invalid-cep' }; }
-    var mode = method === 'express' ? 'express' : 'standard';
+    var mode = method === undefined || method === null ? 'standard' : method;
+    if (mode !== 'standard' && mode !== 'express') { return { ok: false, error: 'invalid-method' }; }
+    var subtotal = Number(subtotalCents);
+    if (!isFinite(subtotal)) { subtotal = 0; }
     var region = regionFor(cep);
     var opt = region[mode];
     if (!opt) { return { ok: false, error: 'express-unavailable', cep: cep, region: region.name }; }
     var cents = opt.cents;
-    if (mode === 'standard' && subtotalCents >= FREE_STANDARD_CENTS) { cents = 0; }
+    if (mode === 'standard' && subtotal >= FREE_STANDARD_CENTS) { cents = 0; }
     return { ok: true, cep: cep, region: region.name, method: mode, priceCents: cents, days: opt.days };
   }
 
@@ -62,12 +65,14 @@
 
   // Deterministic simulated slots: weekdays only, starting the day after `from`.
   function teleconsultSlots(from, days) {
-    var start = from instanceof Date ? new Date(from.getTime()) : new Date();
-    var count = days === undefined ? 5 : days;
+    var start = from instanceof Date && !isNaN(from.getTime()) ? new Date(from.getTime()) : new Date();
+    var count = days === undefined ? 5 : Math.floor(Number(days));
+    if (isNaN(count) || count < 0) { count = 0; }
+    if (!isFinite(count)) { count = 0; }
     var out = [];
     var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
     var guard = 0;
-    while (out.length < count * SLOT_HOURS.length && guard < 60) {
+    while (out.length < count * SLOT_HOURS.length && guard < count * 7 + 7) {
       guard++;
       cursor.setDate(cursor.getDate() + 1);
       var dow = cursor.getDay();
@@ -84,9 +89,13 @@
     return out;
   }
 
+  // Protocols are non-secret display identifiers (10,000 values, Math.random).
+  // Never use them as lookup keys or proof of ownership; use a server-issued
+  // random ID plus authorization for that. Likewise, quote() trusts the
+  // caller's subtotal: recompute shipping server-side before charging.
   function generateProtocol(rng) {
     var r = typeof rng === 'function' ? rng() : Math.random();
-    var n = Math.min(9999, Math.floor(r * 10000));
+    var n = Math.max(0, Math.min(9999, Math.floor(r * 10000) || 0));
     return 'NUTRI-' + ('000' + n).slice(-4);
   }
 
