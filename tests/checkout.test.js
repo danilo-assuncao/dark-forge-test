@@ -106,8 +106,8 @@ test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz,
   const t = boot('#/');
   t.go('#/catalog');
   assert.ok(byClass(t.app, 'product-card').length >= 10);
-  t.go('#/produto/oil-change');
-  byClass(t.app, 'size-button').filter(function (b) { return b.textContent === 'Hatch/Sedan'; })[0].listeners.click();
+  t.go('#/produto/file-parmegiana');
+  byClass(t.app, 'size-button').filter(function (b) { return b.textContent === 'Individual'; })[0].listeners.click();
   const add = byClass(t.app, 'add-to-cart')[0];
   add.listeners.click();
   add.listeners.click();
@@ -117,16 +117,16 @@ test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz,
   const input = find(t.app, function (n) { return n.tagName === 'input'; })[0];
   input.value = 'dan10';
   find(t.app, function (n) { return n.tagName === 'form'; })[0].listeners.submit({ preventDefault() {} });
-  assert.equal(text(t, 'cart-total'), 'Total: R$ 449,82');
+  assert.equal(text(t, 'cart-total'), 'Total: R$ 71,82');
 
   t.go('#/checkout');
-  assert.equal(text(t, 'cart-name'), '2 × Troca de oleo e filtros (Hatch/Sedan)');
-  assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 49,98');
+  assert.equal(text(t, 'cart-name'), '2 × File a parmegiana (Individual)');
+  assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 7,98');
   assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho: informe o CEP');
-  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 449,82 + leva-e-traz');
+  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 71,82 + leva-e-traz');
   typeCep(t, '01310-100');
   assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho para Grande São Paulo: R$ 14,90');
-  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 464,72');
+  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 86,72');
   typeCep(t, '9001');
   assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho: informe o CEP');
   const cepInput = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
@@ -137,7 +137,7 @@ test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz,
   fill(t, VALID);
   submit(t);
   assert.equal(find(t.app, function (n) { return n.tagName === 'h1'; })[0].textContent, 'OS confirmada');
-  assert.match(text(t, 'order-confirmation'), /Maria Silva.*R\$ 464,72/);
+  assert.match(text(t, 'order-confirmation'), /Maria Silva.*R\$ 86,72/);
   assert.match(text(t, 'order-protocol'), /^Protocolo: OS-[0-9A-Z]+$/);
   assert.equal(text(t, 'order-plate'), 'Placa: ABC1D23');
   assert.equal(text(t, 'order-shift'), 'Turno: Manhã (08h às 12h)');
@@ -148,7 +148,7 @@ test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz,
 });
 
 test('different CEP regions change the confirmed total; invalid data keeps the cart', function () {
-  const t = boot('#/produto/brake-pads');
+  const t = boot('#/produto/frango-grelhado');
   byClass(t.app, 'size-button')[0].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   t.go('#/checkout');
@@ -160,11 +160,11 @@ test('different CEP regions change the confirmed total; invalid data keeps the c
   assert.equal(t.badge.textContent, '1');
   fill(t, Object.assign({}, VALID, { cep: '90010000' }));
   submit(t);
-  assert.match(text(t, 'order-confirmation'), /R\$ 346,80/);
+  assert.match(text(t, 'order-confirmation'), /R\$ 59,80/);
 });
 
 test('without checkout.js a valid order is blocked instead of confirmed with no shipping', function () {
-  const t = boot('#/produto/brake-pads', ['products.js', 'cart.js', 'script.js']);
+  const t = boot('#/produto/frango-grelhado', ['products.js', 'cart.js', 'script.js']);
   byClass(t.app, 'size-button')[0].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   t.go('#/checkout');
@@ -181,21 +181,17 @@ test('index.html loads checkout.js before script.js', function () {
   assert.ok(html.indexOf('checkout.js') < html.indexOf('script.js'));
 });
 
-test('home highlights preventive review packages linking to detail, with a catalog call', function () {
+test('home hides the preventive review showcase when the menu has no review packages', function () {
   const t = boot('#/');
-  const section = byClass(t.app, 'revision-showcase')[0];
-  assert.ok(section);
-  const cards = byClass(section, 'revision-card');
-  assert.deepEqual(cards.map(function (c) { return c.href; }),
-    ['#/produto/oil-change', '#/produto/major-service', '#/produto/timing-belt']);
-  assert.equal(byClass(section, 'revision-cta')[0].href, '#/catalog');
+  assert.equal(byClass(t.app, 'revision-showcase').length, 0);
+  assert.equal(byClass(t.app, 'revision-card').length, 0);
 });
 
 test('plate validation accepts Mercosul and old plates only', function () {
   const accepted = ['ABC1D23', 'abc1d23', 'ABC-1234', 'ABC1234', 'BRA2E19'];
   const rejected = ['', 'ABC', 'ABC12', '1234567', 'AB1D234', 'ABC-1D23', 'ABC12345', 'ABC 1234'];
   function plateError(plate) {
-    const t = boot('#/produto/brake-pads');
+    const t = boot('#/produto/frango-grelhado');
     byClass(t.app, 'size-button')[0].listeners.click();
     byClass(t.app, 'add-to-cart')[0].listeners.click();
     t.go('#/checkout');
@@ -209,7 +205,7 @@ test('plate validation accepts Mercosul and old plates only', function () {
 });
 
 test('CEP validation blocks the booking and nothing is cleared', function () {
-  const t = boot('#/produto/brake-pads');
+  const t = boot('#/produto/frango-grelhado');
   byClass(t.app, 'size-button')[0].listeners.click();
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   t.go('#/checkout');

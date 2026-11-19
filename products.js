@@ -1,13 +1,16 @@
-/* Mock service catalog for Dan Motors: mechanical services grouped by
-   specialty, with the vehicle sizes (portes) served, estimated bay time and a
-   technical table. Prices are in BRL cents. Exposed as window.DanProducts;
-   loaded before cart.js and script.js. The "sizes" field holds the portes. */
+/* Mock menu for Dan Food: dishes grouped by category, with the portion sizes
+   served, estimated preparation time and a nutrition table. Prices are in BRL
+   cents. Exposed as window.DanProducts; loaded before cart.js and script.js.
+   The "sizes" field holds the portions; "boxTime" holds the preparation time
+   of the base (first) portion and "checklist" the main ingredients. */
 (function () {
   'use strict';
 
-  var PORTES = ['Hatch/Sedan', 'SUV/Picape', 'Utilitario'];
-  // Bay-time multiplier per porte, relative to the Hatch/Sedan base time.
-  var PORTE_FACTOR = [1, 1.25, 1.5];
+  var PORTIONS = ['Individual', 'Duplo', 'Familia'];
+  var SINGLE = ['Porcao unica'];
+  // Preparation-time and nutrition multipliers per portion, relative to Individual.
+  var TIME_FACTOR = { 'Individual': 1, 'Duplo': 1.25, 'Familia': 1.5, 'Porcao unica': 1 };
+  var AMOUNT_FACTOR = { 'Individual': 1, 'Duplo': 2, 'Familia': 3.5, 'Porcao unica': 1 };
 
   function formatMinutes(total) {
     var rounded = Math.round(total / 5) * 5;
@@ -19,45 +22,50 @@
     return m === 0 ? h + 'h' : h + 'h' + (m < 10 ? '0' : '') + m;
   }
 
-  // Technical table: one row per porte with bay time, warranty and interval.
-  function technicalTable(baseMinutes, warranty, interval) {
+  // Nutrition table: one row per portion with prep time, energy, macros and sodium.
+  // nutrition = [kcal, carbs (g), protein (g), fat (g), sodium (mg)] for the base portion.
+  function nutritionTable(sizes, baseMinutes, nutrition) {
     var rows = [];
-    for (var i = 0; i < PORTES.length; i++) {
-      rows.push({ size: PORTES[i], values: [formatMinutes(baseMinutes * PORTE_FACTOR[i]), warranty, interval] });
+    for (var i = 0; i < sizes.length; i++) {
+      var f = AMOUNT_FACTOR[sizes[i]];
+      rows.push({ size: sizes[i], values: [formatMinutes(baseMinutes * TIME_FACTOR[sizes[i]]),
+        Math.round(nutrition[0] * f) + ' kcal', Math.round(nutrition[1] * f) + ' g',
+        Math.round(nutrition[2] * f) + ' g', Math.round(nutrition[3] * f) + ' g',
+        Math.round(nutrition[4] * f) + ' mg'] });
     }
-    return { unit: 'Tempo de box por porte', columns: ['Tempo de box', 'Garantia', 'Intervalo recomendado'], rows: rows };
+    return { unit: 'Informacao nutricional por porcao',
+      columns: ['Tempo de preparo', 'Calorias', 'Carboidratos', 'Proteinas', 'Gorduras', 'Sodio'], rows: rows };
   }
 
-  function service(id, name, category, priceCents, baseMinutes, warranty, interval, description, checklist) {
-    var boxTime = formatMinutes(baseMinutes);
+  function dish(id, name, category, priceCents, baseMinutes, sizes, nutrition, description, ingredients) {
+    var prepTime = formatMinutes(baseMinutes);
     return { id: id, name: name, category: category, priceCents: priceCents, description: description,
-      boxTime: boxTime, checklist: checklist.slice(),
-      specs: [{ label: 'Especialidade', value: category },
-        { label: 'Portes atendidos', value: PORTES.join(', ') },
-        { label: 'Tempo de box (Hatch/Sedan)', value: boxTime },
-        { label: 'Garantia', value: warranty },
-        { label: 'Intervalo recomendado', value: interval }],
-      sizes: PORTES.slice(), measurements: technicalTable(baseMinutes, warranty, interval) };
+      boxTime: prepTime, checklist: ingredients.slice(),
+      specs: [{ label: 'Categoria', value: category },
+        { label: 'Porcoes', value: sizes.join(', ') },
+        { label: 'Tempo de preparo (' + sizes[0] + ')', value: prepTime },
+        { label: 'Calorias (' + sizes[0] + ')', value: nutrition[0] + ' kcal' }],
+      sizes: sizes.slice(), measurements: nutritionTable(sizes, baseMinutes, nutrition) };
   }
 
-  var REVISAO = 'Revisao & Motor';
-  var FREIOS = 'Freios & Suspensao';
-  var PNEUS = 'Pneus & Alinhamento';
-  var ELETRICA = 'Eletrica & Diagnostico';
+  var EXECUTIVOS = 'Pratos Executivos';
+  var MASSAS = 'Massas & Risotos';
+  var BURGERS = 'Burgers Artesanais';
+  var SOBREMESAS = 'Sobremesas & Bebidas';
 
   var PRODUCTS = [
-    service('oil-change', 'Troca de oleo e filtros', REVISAO, 24990, 60, '90 dias', '10.000 km ou 12 meses', 'Oleo do motor, filtro de oleo e filtro de ar com checklist de 20 itens.', ['Oleo do motor','Filtro de oleo','Filtro de ar','Nivel dos fluidos','Vazamentos visiveis']),
-    service('major-service', 'Revisao completa', REVISAO, 54990, 180, '6 meses', '20.000 km ou 12 meses', 'Revisao por quilometragem: fluidos, correias, velas, filtros e inspecao geral.', ['Fluidos e filtros','Correias e mangueiras','Velas de ignicao','Freios e suspensao','Inspecao geral']),
-    service('timing-belt', 'Troca da correia dentada', REVISAO, 79990, 240, '12 meses', '60.000 km', 'Correia dentada, tensor e bomba dagua substituidos com ajuste de ponto.', ['Correia dentada','Tensor','Bomba dagua','Ajuste de ponto','Teste de funcionamento']),
-    service('brake-pads', 'Troca de pastilhas de freio', FREIOS, 31990, 75, '6 meses', '30.000 km', 'Pastilhas dianteiras com limpeza das pincas e teste em pista.', ['Pastilhas dianteiras','Limpeza das pincas','Espessura dos discos','Nivel do fluido','Teste em pista']),
-    service('brake-discs', 'Troca de discos e fluido de freio', FREIOS, 64990, 120, '12 meses', '50.000 km', 'Discos dianteiros, pastilhas e sangria completa do fluido de freio.', ['Discos dianteiros','Pastilhas','Sangria do fluido','Pincas e mangueiras','Teste em pista']),
-    service('shock-absorbers', 'Troca de amortecedores', FREIOS, 89990, 210, '12 meses', '60.000 km', 'Par de amortecedores com coxins e batentes, seguido de alinhamento.', ['Amortecedores (par)','Coxins','Batentes','Alinhamento final','Teste em pista']),
-    service('tire-fitting', 'Montagem e balanceamento de pneus', PNEUS, 19990, 60, '30 dias', 'A cada 10.000 km', 'Montagem de quatro pneus com balanceamento computadorizado.', ['Montagem dos quatro pneus','Balanceamento computadorizado','Calibragem','Valvulas','Aperto das rodas']),
-    service('wheel-alignment', 'Alinhamento e cambagem', PNEUS, 14990, 45, '30 dias', 'A cada 10.000 km', 'Alinhamento 3D das quatro rodas com relatorio antes e depois.', ['Alinhamento 3D','Cambagem e caster','Convergencia','Relatorio antes e depois','Pressao dos pneus']),
-    service('tire-rotation', 'Rodizio e calibragem', PNEUS, 8990, 30, '15 dias', 'A cada 10.000 km', 'Rodizio dos pneus, calibragem e verificacao de desgaste.', ['Rodizio dos pneus','Calibragem','Desgaste da banda','Aperto das rodas','Estado do estepe']),
-    service('scanner-diagnosis', 'Diagnostico com scanner', ELETRICA, 17990, 45, '30 dias', 'Quando a luz de injecao acender', 'Leitura de falhas, dados em tempo real e laudo tecnico impresso.', ['Leitura de falhas','Dados em tempo real','Limpeza dos codigos','Laudo tecnico impresso','Inspecao visual']),
-    service('battery-replacement', 'Troca de bateria e teste do alternador', ELETRICA, 42990, 40, '12 meses', 'A cada 24 meses', 'Bateria nova com teste de carga, alternador e motor de partida.', ['Teste de carga da bateria','Alternador','Motor de partida','Terminais e cabos','Bateria nova instalada']),
-    service('ac-service', 'Higienizacao e recarga do ar-condicionado', ELETRICA, 38990, 90, '6 meses', 'A cada 12 meses', 'Recarga de gas, troca do filtro de cabine e higienizacao do sistema.', ['Recarga de gas','Filtro de cabine','Higienizacao do sistema','Teste de pressao','Temperatura na saida'])
+    dish('file-parmegiana', 'File a parmegiana', EXECUTIVOS, 3990, 30, PORTIONS, [780, 62, 46, 38, 1250], 'File de carne empanado com molho de tomate, queijo gratinado, arroz e batata frita.', ['File de carne','Molho de tomate','Queijo mussarela','Arroz','Batata frita']),
+    dish('frango-grelhado', 'Frango grelhado com legumes', EXECUTIVOS, 3290, 25, PORTIONS, [520, 38, 48, 18, 780], 'Peito de frango grelhado, arroz integral, legumes salteados e salada verde.', ['Peito de frango','Arroz integral','Legumes salteados','Salada verde','Azeite']),
+    dish('feijoada-completa', 'Feijoada completa', EXECUTIVOS, 4590, 50, PORTIONS, [950, 78, 52, 46, 1850], 'Feijao preto com carnes selecionadas, arroz, couve, farofa e laranja.', ['Feijao preto','Carnes selecionadas','Arroz','Couve refogada','Farofa']),
+    dish('fettuccine-alfredo', 'Fettuccine ao molho alfredo', MASSAS, 3690, 25, PORTIONS, [720, 78, 24, 34, 890], 'Massa fresca com molho cremoso de queijo parmesao e manteiga.', ['Fettuccine fresco','Creme de leite','Parmesao','Manteiga','Salsa']),
+    dish('risoto-cogumelos', 'Risoto de cogumelos', MASSAS, 4190, 35, PORTIONS, [640, 84, 16, 24, 820], 'Arroz arboreo cremoso com mix de cogumelos, vinho branco e parmesao.', ['Arroz arboreo','Mix de cogumelos','Vinho branco','Parmesao','Caldo de legumes']),
+    dish('lasanha-bolonhesa', 'Lasanha a bolonhesa', MASSAS, 3890, 30, PORTIONS, [810, 66, 42, 40, 1320], 'Camadas de massa, molho bolonhesa, presunto e queijo gratinado.', ['Massa de lasanha','Molho bolonhesa','Presunto','Queijo mussarela','Molho branco']),
+    dish('burger-classico', 'Burger classico', BURGERS, 3290, 20, PORTIONS, [740, 48, 36, 44, 1100], 'Hamburguer de 180 g, queijo cheddar, alface, tomate e molho da casa no pao brioche.', ['Hamburguer 180 g','Queijo cheddar','Alface e tomate','Molho da casa','Pao brioche']),
+    dish('burger-bacon', 'Burger bacon crocante', BURGERS, 3790, 22, PORTIONS, [890, 50, 42, 56, 1480], 'Hamburguer de 180 g, bacon crocante, cheddar e cebola caramelizada.', ['Hamburguer 180 g','Bacon crocante','Cheddar','Cebola caramelizada','Pao brioche']),
+    dish('burger-veggie', 'Burger veggie de grao-de-bico', BURGERS, 3490, 20, PORTIONS, [610, 62, 22, 28, 920], 'Burger de grao-de-bico e beterraba com rucula, tomate seco e maionese de ervas.', ['Burger de grao-de-bico','Rucula','Tomate seco','Maionese de ervas','Pao integral']),
+    dish('petit-gateau', 'Petit gateau com sorvete', SOBREMESAS, 2490, 15, SINGLE, [520, 62, 8, 28, 180], 'Bolo quente de chocolate com recheio cremoso e sorvete de creme.', ['Chocolate meio amargo','Manteiga','Ovos','Sorvete de creme','Calda de chocolate']),
+    dish('pudim-leite', 'Pudim de leite', SOBREMESAS, 1490, 10, ['Individual', 'Familia'], [320, 52, 7, 9, 110], 'Pudim de leite condensado com calda de caramelo.', ['Leite condensado','Leite','Ovos','Calda de caramelo']),
+    dish('suco-natural', 'Suco natural da fruta', SOBREMESAS, 990, 5, ['Individual', 'Duplo'], [110, 26, 1, 0, 10], 'Suco da fruta do dia, sem adicao de acucar, servido gelado.', ['Fruta do dia','Agua gelada','Gelo','Folhas de hortela'])
   ];
 
   window.DanProducts = {
