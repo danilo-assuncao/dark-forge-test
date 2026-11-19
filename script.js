@@ -198,8 +198,8 @@
     container.appendChild(productImage(product));
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
-    // Nutrition facts only apply to supplements.
-    if (!product.category || product.category === 'Supplements') {
+    // Only products that carry nutrition data (supplements) show the table.
+    if (product.nutrition) {
       container.appendChild(nutritionTable(product));
     }
     var add = el('button', 'action-button add-to-cart', 'Add to cart');

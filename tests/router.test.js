@@ -238,11 +238,29 @@ test('category filter shows only matching products and All restores the grid', f
   assert.equal(cards().length, all.length);
 });
 
-test('equipment detail pages omit the nutrition section', function () {
-  const t = boot('#/produto/yoga-mat');
-  assert.match(t.heading(), /Yoga/);
-  assert.equal(collect(t.app, function (n) { return n.tagName === 'table'; }).length, 0);
-  assert.equal(t.has('nutrition'), false);
+test('nutrition section appears exactly for products with nutrition data', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(productsJs, ctx);
+  Array.from(ctx.window.DanProducts.all()).forEach(function (p) {
+    const t = boot('#/produto/' + p.id);
+    const tables = collect(t.app, function (n) { return n.tagName === 'table'; }).length;
+    if (p.category === 'Supplements') {
+      assert.equal(tables, 1, p.id);
+      assert.equal(t.has('nutrition'), true, p.id);
+    } else {
+      assert.equal(tables, 0, p.id);
+      assert.equal(t.has('nutrition'), false, p.id);
+    }
+  });
+  const bare = boot('#/produto/x', { products: [{ id: 'x', name: 'X', description: 'd', priceCents: 100 }] });
+  assert.equal(bare.has('nutrition'), false);
+});
+
+test('catalog without categories() renders the grid and no filter', function () {
+  const products = [{ id: 'a', name: 'A', description: 'd', priceCents: 100, category: 'C' }];
+  const t = boot('#/catalog', { products: products });
+  assert.equal(collect(t.app, function (n) { return n.className === 'filter-button'; }).length, 0);
+  assert.equal(collect(t.app, function (n) { return n.className === 'product-card'; }).length, 1);
 });
 
 test('a product detail route renders the product; unknown ids give a 404', function () {
