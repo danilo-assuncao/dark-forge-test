@@ -55,13 +55,10 @@ function boot(hash, load) {
   return { app, win, doc, badge, store, go(h) { win.location.hash = h; win.listeners.hashchange(); } };
 }
 
-const VALID = {
-  name: 'Maria Silva', email: 'maria@example.com', phone: '(11) 91234-5678',
-  cep: '01310-100', address: 'Av. Paulista 1000', city: 'Sao Paulo',
-};
+const VALID = { name: 'Maria Silva', plate: 'ABC1D23', shift: 'manha', cep: '01310-100' };
 
 function fill(t, values) {
-  find(t.app, function (n) { return n.tagName === 'input'; }).forEach(function (i) { i.value = values[i.name] || ''; });
+  find(t.app, function (n) { return n.tagName === 'input' || n.tagName === 'select'; }).forEach(function (i) { i.value = values[i.name] || ''; });
 }
 function typeCep(t, value) {
   const cep = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
@@ -105,7 +102,7 @@ test('home shows the workshop hero, featured services linking to detail, and a c
   assert.equal(byClass(t.app, 'showcase-link')[0].href, '#/catalog');
 });
 
-test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confirmation', function () {
+test('full flow: catalog, detail, cart with DAN10, box booking with leva-e-traz, OS protocol', function () {
   const t = boot('#/');
   t.go('#/catalog');
   assert.ok(byClass(t.app, 'product-card').length >= 10);
@@ -125,22 +122,25 @@ test('full flow: catalog, detail, cart with DAN10, checkout with shipping, confi
   t.go('#/checkout');
   assert.equal(text(t, 'cart-name'), '2 × Troca de oleo e filtros (Hatch/Sedan)');
   assert.equal(text(t, 'cart-discount'), 'Coupon DAN10: −R$ 49,98');
-  assert.equal(text(t, 'shipping-line'), 'Shipping: enter your CEP');
-  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 449,82 + shipping');
+  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho: informe o CEP');
+  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 449,82 + leva-e-traz');
   typeCep(t, '01310-100');
-  assert.equal(text(t, 'shipping-line'), 'Shipping to Grande São Paulo: R$ 14,90');
-  assert.equal(text(t, 'grand-total'), 'Total with shipping: R$ 464,72');
+  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho para Grande São Paulo: R$ 14,90');
+  assert.equal(text(t, 'grand-total'), 'Total com leva-e-traz: R$ 464,72');
   typeCep(t, '9001');
-  assert.equal(text(t, 'shipping-line'), 'Shipping: enter your CEP');
+  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho: informe o CEP');
   const cepInput = find(t.app, function (n) { return n.tagName === 'input' && n.name === 'cep'; })[0];
   cepInput.value = '90010-000';
   cepInput.listeners.change();
-  assert.equal(text(t, 'shipping-line'), 'Shipping to Rio Grande do Sul: R$ 26,90');
+  assert.equal(text(t, 'shipping-line'), 'Leva-e-traz/guincho para Rio Grande do Sul: R$ 26,90');
 
   fill(t, VALID);
   submit(t);
-  assert.equal(find(t.app, function (n) { return n.tagName === 'h1'; })[0].textContent, 'Order confirmed');
+  assert.equal(find(t.app, function (n) { return n.tagName === 'h1'; })[0].textContent, 'OS confirmada');
   assert.match(text(t, 'order-confirmation'), /Maria Silva.*R\$ 464,72/);
+  assert.match(text(t, 'order-protocol'), /^Protocolo: OS-[0-9A-Z]+$/);
+  assert.equal(text(t, 'order-plate'), 'Placa: ABC1D23');
+  assert.equal(text(t, 'order-shift'), 'Turno: Manhã (08h às 12h)');
   assert.equal(t.badge.textContent, '0');
   assert.deepEqual(JSON.parse(t.store['dan-cart']), []);
   t.go('#/checkout');
@@ -155,7 +155,7 @@ test('different CEP regions change the confirmed total; invalid data keeps the c
   fill(t, Object.assign({}, VALID, { cep: '123' }));
   submit(t);
   const cepError = find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0];
-  assert.match(cepError.textContent, /CEP with 8 digits/);
+  assert.match(cepError.textContent, /CEP com 8 d/);
   assert.equal(byClass(t.app, 'order-confirmation').length, 0);
   assert.equal(t.badge.textContent, '1');
   fill(t, Object.assign({}, VALID, { cep: '90010000' }));
@@ -171,7 +171,7 @@ test('without checkout.js a valid order is blocked instead of confirmed with no 
   fill(t, VALID);
   submit(t);
   assert.equal(byClass(t.app, 'order-confirmation').length, 0);
-  assert.match(find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0].textContent, /Shipping is unavailable/);
+  assert.match(find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0].textContent, /leva-e-traz está indispon/);
   assert.equal(t.badge.textContent, '1');
 });
 
@@ -179,4 +179,45 @@ test('index.html loads checkout.js before script.js', function () {
   const html = read('index.html');
   assert.ok(html.indexOf('checkout.js') !== -1);
   assert.ok(html.indexOf('checkout.js') < html.indexOf('script.js'));
+});
+
+test('home highlights preventive review packages linking to detail, with a catalog call', function () {
+  const t = boot('#/');
+  const section = byClass(t.app, 'revision-showcase')[0];
+  assert.ok(section);
+  const cards = byClass(section, 'revision-card');
+  assert.deepEqual(cards.map(function (c) { return c.href; }),
+    ['#/produto/oil-change', '#/produto/major-service', '#/produto/timing-belt']);
+  assert.equal(byClass(section, 'revision-cta')[0].href, '#/catalog');
+});
+
+test('plate validation accepts Mercosul and old plates only', function () {
+  const accepted = ['ABC1D23', 'abc1d23', 'ABC-1234', 'ABC1234', 'BRA2E19'];
+  const rejected = ['', 'ABC', 'ABC12', '1234567', 'AB1D234', 'ABC-1D23', 'ABC12345', 'ABC 1234'];
+  function plateError(plate) {
+    const t = boot('#/produto/brake-pads');
+    byClass(t.app, 'size-button')[0].listeners.click();
+    byClass(t.app, 'add-to-cart')[0].listeners.click();
+    t.go('#/checkout');
+    fill(t, Object.assign({}, VALID, { plate: plate }));
+    submit(t);
+    const err = find(t.app, function (n) { return n.id === 'checkout-plate-error'; })[0];
+    return err ? err.textContent : ''; // no error element: the OS was confirmed
+  }
+  accepted.forEach(function (p) { assert.equal(plateError(p), '', p); });
+  rejected.forEach(function (p) { assert.notEqual(plateError(p), '', JSON.stringify(p)); });
+});
+
+test('CEP validation blocks the booking and nothing is cleared', function () {
+  const t = boot('#/produto/brake-pads');
+  byClass(t.app, 'size-button')[0].listeners.click();
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  t.go('#/checkout');
+  ['', '1234567', '123456789', '01310-10a', '0131-0100'].forEach(function (cep) {
+    fill(t, Object.assign({}, VALID, { cep: cep }));
+    submit(t);
+    assert.notEqual(find(t.app, function (n) { return n.id === 'checkout-cep-error'; })[0].textContent, '', cep);
+    assert.equal(byClass(t.app, 'order-protocol').length, 0);
+  });
+  assert.equal(t.badge.textContent, '1');
 });
