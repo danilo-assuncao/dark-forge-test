@@ -931,3 +931,17 @@ test('cart summary shows packaging (parts) and food (labour) before the subtotal
   assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Embalagem térmica: R$ 6,00');
   assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 79,80');
 });
+
+test('cart and checkout show the dish note as text, and omit it when empty', function () {
+  const store = { 'dan-cart': JSON.stringify([
+    { id: 'file-parmegiana', size: 'Individual', qty: 1, note: 'sem cebola <i>' },
+    { id: 'frango-grelhado', size: 'Individual', qty: 1, note: '' }]) };
+  const t = boot('#/cart', { cartStorage: store });
+  let notes = byClass(t, 'cart-note');
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].textContent, 'Obs.: sem cebola <i>');
+  t.go('#/checkout');
+  notes = byClass(t, 'cart-note');
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].textContent, 'Obs.: sem cebola <i>');
+});

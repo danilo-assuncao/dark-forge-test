@@ -85,9 +85,9 @@
     card.appendChild(el('h3', 'product-name', combo.name));
     card.appendChild(el('p', 'combo-description', combo.description));
     var list = el('ul', 'combo-dishes');
-    combo.dishes.forEach(function (dish) {
+    combo.dishes.forEach(function (dish, i) {
       var li = el('li');
-      var link = el('a', 'text-link', dish.name + ' (' + dish.sizes[0] + ')');
+      var link = el('a', 'text-link', dish.name + ' (' + combo.portions[i] + ')');
       link.href = '#/produto/' + encodeURIComponent(dish.id);
       li.appendChild(link);
       list.appendChild(li);
@@ -100,13 +100,24 @@
     add.type = 'button';
     add.addEventListener('click', function () {
       status.textContent = '';
-      var ok = !!window.DanCart;
-      combo.dishes.forEach(function (dish) {
-        if (ok && !window.DanCart.add(dish.id, 1, dish.sizes[0])) {
-          ok = false;
-        }
+      var cart = window.DanCart;
+      if (!cart) {
+        status.textContent = 'Sacola indispon\u00edvel no momento.';
+        return;
+      }
+      // All-or-nothing: verify every dish has room before adding any.
+      var lines = cart.lines();
+      var blocked = combo.dishes.some(function (dish, i) {
+        return lines.some(function (l) { return l.id === dish.id && l.size === combo.portions[i] && l.qty >= cart.MAX_QTY; });
       });
-      status.textContent = ok ? combo.name + ' adicionado \u00e0 sacola.' : 'Quantidade m\u00e1xima atingida.';
+      if (blocked) {
+        status.textContent = 'Quantidade m\u00e1xima atingida: nada foi adicionado.';
+        return;
+      }
+      combo.dishes.forEach(function (dish, i) {
+        cart.add(dish.id, 1, combo.portions[i]);
+      });
+      status.textContent = combo.name + ' adicionado \u00e0 sacola.';
     });
     card.appendChild(add);
     card.appendChild(status);

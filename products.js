@@ -88,13 +88,16 @@
   }
 
   window.DanProducts = {
-    // [{ id, name, description, dishes: [dish], size (portion per dish), priceCents }]
+    // [{ id, name, description, dishes: [dish], portions: [portion per dish], priceCents }]
+    // portions[i] is dishes[i].sizes[0], the base portion that priceCents (the sum of the dishes' prices) refers to.
+    // The same value must be used to add the combo to the bag.
     combos: function () {
       return COMBOS.map(function (combo) {
         var dishes = comboDishes(combo);
         var total = 0;
         dishes.forEach(function (d) { total += d.priceCents; });
-        return { id: combo.id, name: combo.name, description: combo.description, dishes: dishes, priceCents: total };
+        return { id: combo.id, name: combo.name, description: combo.description, dishes: dishes,
+          portions: dishes.map(function (d) { return d.sizes[0]; }), priceCents: total };
       });
     },
     all: function () {

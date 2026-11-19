@@ -191,8 +191,43 @@ test('home shows the combos of the day with their dishes and a combo add button'
   byClass(combos[0], 'combo-add')[0].listeners.click();
   assert.equal(byClass(combos[0], 'combo-status')[0].textContent, 'Combo Executivo adicionado à sacola.');
   assert.equal(t.badge.textContent, '2');
-  assert.deepEqual(JSON.parse(t.store['dan-cart']).map(function (i) { return i.id + ':' + i.size; }),
-    ['frango-grelhado:Individual', 'suco-natural:Individual']);
+  assert.deepEqual(t.win.DanCart.lines().map(function (l) { return l.id + ':' + l.size + ':' + l.qty; }),
+    ['frango-grelhado:Individual:1', 'suco-natural:Individual:1']);
+});
+
+test('combo add is all-or-nothing: a dish at the cap blocks the whole combo', function () {
+  const t = boot('#/');
+  const cart = t.win.DanCart;
+  for (let i = 0; i < cart.MAX_QTY; i++) { cart.add('suco-natural', 1, 'Individual'); }
+  const card = byClass(t.app, 'combo-card')[0];
+  byClass(card, 'combo-add')[0].listeners.click();
+  assert.equal(byClass(card, 'combo-status')[0].textContent, 'Quantidade máxima atingida: nada foi adicionado.');
+  assert.equal(cart.lines().filter(function (l) { return l.id === 'frango-grelhado'; }).length, 0);
+  assert.equal(cart.count(), cart.MAX_QTY);
+});
+
+test('combo add without cart.js reports the bag as unavailable', function () {
+  const t = boot('#/', ['products.js', 'checkout.js', 'script.js']);
+  const card = byClass(t.app, 'combo-card')[0];
+  byClass(card, 'combo-add')[0].listeners.click();
+  assert.equal(byClass(card, 'combo-status')[0].textContent, 'Sacola indisponível no momento.');
+});
+
+test('DanProducts.combos() resolves every dish, sums prices and exposes addable portions', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(read('products.js') + read('cart.js'), ctx);
+  const combos = ctx.window.DanProducts.combos();
+  assert.ok(combos.length > 0);
+  combos.forEach(function (c) {
+    assert.ok(c.dishes.length >= 2, c.id);
+    c.dishes.forEach(function (d) { assert.ok(d && d.id, c.id + ' has an unresolved dish'); });
+    assert.equal(c.priceCents, c.dishes.reduce(function (n, d) { return n + d.priceCents; }, 0), c.id);
+    assert.equal(c.portions.length, c.dishes.length, c.id);
+    c.dishes.forEach(function (d, i) {
+      assert.equal(c.portions[i], d.sizes[0], c.id);
+      assert.equal(ctx.window.DanCart.add(d.id, 1, c.portions[i]), true, c.id + ' ' + d.id);
+    });
+  });
 });
 
 test('pickup without checkout.js reports the unavailable calculation instead of confirming', function () {

@@ -170,3 +170,13 @@ test('multi-size services still require a porte before adding', function () {
   byClass(t.app, 'add-to-cart')[0].listeners.click();
   assert.equal(text(t, 'cart-status'), 'Escolha uma porção primeiro.');
 });
+
+test('the dish note is stored as plain text with the line and cleaned', function () {
+  const t = boot('#/produto/file-parmegiana');
+  buttons(t).filter(function (b) { return b.textContent === 'Duplo'; })[0].listeners.click();
+  const input = byClass(t.app, 'dish-note')[0];
+  assert.equal(input.maxLength, 140);
+  input.value = '  sem   cebola <b>x</b>  ';
+  byClass(t.app, 'add-to-cart')[0].listeners.click();
+  assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'file-parmegiana', size: 'Duplo', qty: 1, note: 'sem cebola <b>x</b>' }]);
+});
