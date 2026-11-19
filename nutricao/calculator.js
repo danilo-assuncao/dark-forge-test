@@ -39,11 +39,20 @@
     return round1(rawBmi(weightKg, heightCm));
   }
 
+  // Expects the unrounded BMI; prefer bmiClassification(weightKg, heightCm),
+  // since bmi() is rounded and can sit on the other side of a threshold.
   function bmiCategory(value) {
+    if (typeof value !== 'number' || !isFinite(value) || value < 0) {
+      throw new RangeError('BMI must be a non-negative finite number');
+    }
     if (value < 18.5) { return 'Abaixo do peso'; }
     if (value < 25) { return 'Peso normal'; }
     if (value < 30) { return 'Sobrepeso'; }
     return 'Obesidade';
+  }
+
+  function bmiClassification(weightKg, heightCm) {
+    return bmiCategory(rawBmi(weightKg, heightCm));
   }
 
   // Mifflin-St Jeor: 10w + 6.25h - 5a + 5 (male) / - 161 (female)
@@ -109,6 +118,7 @@
     activityLevels: ACTIVITY,
     bmi: bmi,
     bmiCategory: bmiCategory,
+    bmiClassification: bmiClassification,
     bmr: bmr,
     tdee: tdee,
     dailyTargets: dailyTargets,

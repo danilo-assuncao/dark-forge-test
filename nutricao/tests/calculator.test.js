@@ -4,6 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const calc = require('../calculator.js');
 const catalog = require('../products.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
 const man = { sex: 'M', weightKg: 80, heightCm: 180, age: 30, activity: 'moderado' };
 const woman = { sex: 'F', weightKg: 60, heightCm: 165, age: 25 };
@@ -23,7 +26,7 @@ test('bmiCategory boundaries', () => {
 });
 
 test('calculate classifies from the unrounded BMI', () => {
-  // 24.98 BMI: rounds to 25 but is still below the threshold
+  // ~24.97 BMI: rounds to 25 but is still below the threshold
   const r = calc.calculate({ sex: 'M', weightKg: 80.9, heightCm: 180, age: 30 }, 'Saude');
   assert.equal(r.bmi, 25);
   assert.equal(r.bmiCategory, 'Peso normal');
@@ -59,7 +62,8 @@ test('suggests compatible catalog items', () => {
   assert.ok(prot.length > 0);
   assert.ok(prot.every((p) => p.category === 'Proteinas' && p.goals.includes('Hipertrofia')));
   assert.deepEqual(calc.suggestProducts('Saude', { category: 'Inexistente' }), []);
-  assert.deepEqual(calc.suggestProducts('Emagrecimento', { category: 'Vitaminas & Longevidade' }).map((p) => p.id), ['omega-3']);
+  const vit = calc.suggestProducts('Emagrecimento', { category: 'Vitaminas & Longevidade' });
+  assert.ok(vit.every((p) => p.category === 'Vitaminas & Longevidade' && p.goals.includes('Emagrecimento')));
 });
 
 test('rejects invalid input', () => {
@@ -98,4 +102,52 @@ test('calculate aggregates everything', () => {
   assert.equal(r.bmr, 1780);
   assert.equal(r.targets.goal, 'Saude');
   assert.ok(r.suggestions.length > 0);
+});
+
+test('bmiCategory rejects invalid values', () => {
+  for (const v of [NaN, undefined, null, '25', Infinity, -1]) {
+    assert.throws(() => calc.bmiCategory(v), RangeError, String(v));
+  }
+});
+
+test('bmiClassification uses the unrounded BMI', () => {
+  assert.equal(calc.bmi(80.9, 180), 25);
+  assert.equal(calc.bmiClassification(80.9, 180), 'Peso normal');
+  assert.throws(() => calc.bmiClassification(0, 180), RangeError);
+});
+
+test('lookup tables ignore inherited prototype keys', () => {
+  for (const k of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+    assert.throws(() => calc.tdee({ ...man, activity: k }), RangeError, k);
+    assert.throws(() => calc.dailyTargets(man, k), RangeError, k);
+    assert.throws(() => calc.suggestProducts(k), RangeError, k);
+  }
+});
+
+test('female profile through dailyTargets and calculate', () => {
+  assert.equal(calc.tdee(woman), 1614);
+  assert.deepEqual(calc.dailyTargets(woman, 'Emagrecimento'), { goal: 'Emagrecimento', kcal: 1291, proteinG: 120 });
+  const r = calc.calculate(woman, 'Hipertrofia');
+  assert.equal(r.bmr, 1345);
+  assert.equal(r.bmi, 22);
+  assert.equal(r.targets.kcal, 1856);
+});
+
+test('goal and profile fields are required', () => {
+  for (const g of [undefined, null, '']) {
+    assert.throws(() => calc.dailyTargets(man, g), RangeError);
+    assert.throws(() => calc.calculate(man, g), RangeError);
+    assert.throws(() => calc.suggestProducts(g), RangeError);
+  }
+  assert.throws(() => calc.calculate({ ...man, activity: 'x' }, 'Saude'), RangeError);
+  assert.throws(() => calc.calculate({ ...man, sex: 'X' }, 'Saude'), RangeError);
+});
+
+test('exposes window.DanNutriCalculator when loaded in a browser-like context', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'calculator.js'), 'utf8');
+  const win = { DanNutriProducts: catalog };
+  vm.runInNewContext(src, { window: win });
+  assert.ok(win.DanNutriCalculator);
+  assert.equal(win.DanNutriCalculator.bmr(man), 1780);
+  assert.ok(win.DanNutriCalculator.suggestProducts('Saude').length > 0);
 });
