@@ -86,6 +86,7 @@
     var heading = el('h1', 'hero-title', BRAND);
     heading.id = 'hero-title';
     hero.appendChild(heading);
+    hero.appendChild(el('p', 'hero-eyebrow', 'Dan Wear collection'));
     hero.appendChild(el('p', 'hero-tagline', 'Everyday clothing, cut for comfort. Sizes PP to GG.'));
     var cta = el('a', 'action-button hero-cta', 'Shop the collection');
     cta.href = '#/catalog';
@@ -117,6 +118,9 @@
         grid.appendChild(productCard(product));
       });
       showcase.appendChild(grid);
+      var all = el('a', 'text-link showcase-link', 'See the full catalog');
+      all.href = '#/catalog';
+      showcase.appendChild(all);
       home.appendChild(showcase);
     }
     return { title: BRAND + ' \u2013 Clothing store', description: DESCRIPTIONS.home, node: home };
@@ -568,6 +572,10 @@
     return '';
   }
 
+  function shippingQuote(raw) {
+    return window.DanCheckout ? window.DanCheckout.quote(raw) : null;
+  }
+
   function orderSummary(cart, lines) {
     var section = el('section', 'order-summary');
     section.appendChild(el('h2', 'order-summary-title', 'Order summary'));
@@ -581,6 +589,17 @@
     section.appendChild(list);
     section.appendChild(totalsBlock(cart));
     return section;
+  }
+
+  // Shipping and grand total lines, refreshed as the CEP changes.
+  function shippingBlock() {
+    var block = el('div', 'shipping-block');
+    var shipping = el('p', 'shipping-line', 'Shipping: enter your CEP');
+    var grand = el('p', 'grand-total', '');
+    block.appendChild(shipping);
+    block.appendChild(grand);
+    block.setAttribute('aria-live', 'polite');
+    return { node: block, shipping: shipping, grand: grand };
   }
 
   function confirmationView(customerName, orderId, total) {
@@ -616,6 +635,9 @@
     var total = cart.totalCents();
     var count = cart.count();
     container.appendChild(orderSummary(cart, lines));
+    var ship = shippingBlock();
+    ship.grand.textContent = 'Total with shipping: ' + formatPrice(total) + ' + shipping';
+    container.appendChild(ship.node);
 
     var form = el('form', 'checkout-form');
     form.setAttribute('novalidate', 'novalidate');
@@ -643,6 +665,18 @@
       inputs[field.name] = input;
       errors[field.name] = error;
     }
+    function refreshShipping() {
+      var quote = shippingQuote(inputs.cep.value);
+      if (quote) {
+        ship.shipping.textContent = 'Shipping to ' + quote.region + ': ' + formatPrice(quote.cents);
+        ship.grand.textContent = 'Total with shipping: ' + formatPrice(total + quote.cents);
+      } else {
+        ship.shipping.textContent = 'Shipping: enter your CEP';
+        ship.grand.textContent = 'Total with shipping: ' + formatPrice(total) + ' + shipping';
+      }
+    }
+    inputs.cep.addEventListener('input', refreshShipping);
+    inputs.cep.addEventListener('change', refreshShipping);
     var submit = el('button', 'action-button checkout-submit', 'Place order');
     submit.type = 'submit';
     form.appendChild(submit);
@@ -680,8 +714,10 @@
         host.focus();
         return;
       }
+      var quote = shippingQuote(inputs.cep.value);
+      var grandTotal = total + (quote ? quote.cents : 0);
       var orderId = '#' + Date.now().toString(36).toUpperCase();
-      var done = confirmationView(String(inputs.name.value).trim(), orderId, total);
+      var done = confirmationView(String(inputs.name.value).trim(), orderId, grandTotal);
       cart.clear();
       var app = document.getElementById('app');
       app.textContent = '';

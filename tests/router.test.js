@@ -13,6 +13,7 @@ const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const js = fs.readFileSync(path.join(ROOT, 'script.js'), 'utf8');
 const productsJs = fs.readFileSync(path.join(ROOT, 'products.js'), 'utf8');
 const cartJs = fs.readFileSync(path.join(ROOT, 'cart.js'), 'utf8');
+const checkoutJs = fs.readFileSync(path.join(ROOT, 'checkout.js'), 'utf8');
 
 function makeNode(tag) {
   const node = {
@@ -84,6 +85,7 @@ function boot(hash, opts) {
     vm.runInContext(productsJs, ctx);
     if (!opts.noCart) {
       vm.runInContext(cartJs, ctx);
+      vm.runInContext(checkoutJs, ctx);
     }
   }
   vm.runInContext(js, ctx);
@@ -546,7 +548,7 @@ test('valid checkout shows a simulated confirmation and clears the cart', functi
   fillCheckout(t, VALID);
   submitForm(t);
   assert.equal(t.heading(), 'Order confirmed');
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 159,80/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 174,70/);
   assert.equal(t.cartBadge.textContent, '0');
   assert.deepEqual(JSON.parse(store['dan-cart']), []);
   t.go('#/checkout');
@@ -720,7 +722,7 @@ test('a coupon persists across reloads and checkout confirms the discounted tota
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 143,82/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 158,72/);
   assert.equal(t.win.DanCart.coupon(), null, 'coupon is consumed by the order');
 });
 
@@ -816,7 +818,7 @@ test('checkout confirms the undiscounted total for a stale fixed coupon', functi
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
   submitForm(t);
-  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 79,90/);
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /R\$ 94,80/);
 });
 
 test('a legacy size-less cart is discarded and shows the empty state', function () {
