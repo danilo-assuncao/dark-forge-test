@@ -81,7 +81,9 @@
     if (typeof note !== 'string') {
       return '';
     }
-    return note.replace(/\s+/g, ' ').trim().slice(0, MAX_NOTE);
+    // Collapse whitespace, cap by code points (never splitting an emoji), then
+    // trim, so the result is stable when sanitised again on reload.
+    return Array.from(note.replace(/\s+/g, ' ')).slice(0, MAX_NOTE).join('').trim();
   }
 
   function indexOf(id, size) {
@@ -143,9 +145,10 @@
     }
   }
 
-  // add(id, qty, size, note): notes are backend-only until the UI passes one; render them with textContent only.
-  // add(id, qty, size, note):
-  // non-empty note replaces the line's note; omitting it keeps the existing one.
+  // add(id, qty, size, note): the size must be a portion the dish offers. A
+  // non-empty note replaces the line's note; omitting it (or a blank one) keeps
+  // the existing one; use setNote to clear. A capped add changes nothing. Notes
+  // are free text: render them with textContent only, never innerHTML.
   function add(id, qty, size, note) {
     var amount = clampQty(qty === undefined ? 1 : qty);
     var product = findProduct(id);
