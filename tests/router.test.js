@@ -627,4 +627,23 @@ test('catalog cards add to the cart without navigating and update the counter', 
   assert.ok(Object.keys(store).length > 0);
   const status = collect(t.app, function (n) { return n.className === 'cart-status'; })[0];
   assert.equal(status.textContent, 'Added to cart.');
+  assert.equal(t.win.location.hash, '#/catalog');
+  assert.equal(adds[0].attrs['aria-label'], 'Add Whey Protein to cart');
+  adds[1].listeners.click();
+  assert.equal(t.win.DanCart.lines().length, 2);
+  const statuses = collect(t.app, function (n) { return n.className === 'cart-status'; });
+  assert.equal(statuses[1].textContent, 'Added to cart.');
+  assert.equal(statuses[2].textContent, '');
+});
+
+test('catalog add button reports the maximum quantity', function () {
+  const t = boot('#/catalog', { cartStorage: {} });
+  const max = t.win.DanCart.MAX_QTY;
+  const add = collect(t.app, function (n) { return n.className === 'catalog-add'; })[0];
+  for (let i = 0; i < max; i++) { add.listeners.click(); }
+  const status = collect(t.app, function (n) { return n.className === 'cart-status'; })[0];
+  assert.equal(status.textContent, 'Added to cart.');
+  add.listeners.click();
+  assert.equal(t.win.DanCart.count(), max);
+  assert.equal(status.textContent, 'Maximum quantity reached.');
 });
