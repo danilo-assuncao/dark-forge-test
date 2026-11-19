@@ -11,6 +11,7 @@ function mem(initial) {
     getItem: (k) => (m.has(k) ? m.get(k) : null),
     setItem: (k, v) => { m.set(k, String(v)); },
     raw: () => m.get(S.STORAGE_KEY),
+    wipe: () => m.clear(),
   };
 }
 const make = (storage) => S.create({ storage: storage || mem(), catalog: B });
@@ -296,4 +297,77 @@ test('browser: storage event from another tab reloads the shelf', () => {
   assert.equal(win.DanBooksShelf.items().length, 0);
   handlers[0][1]({ key: S.STORAGE_KEY });
   assert.equal(win.DanBooksShelf.items().length, 1);
+});
+
+test('browser: storage event handler covers clear, other areas, notification and bad events', () => {
+  const st = mem();
+  const handlers = [];
+  const win = runBrowser({ localStorage: st, addEventListener: (t, f) => handlers.push([t, f]) }, true);
+  const fire = handlers[0][1];
+  const sh = win.DanBooksShelf;
+  let n = 0;
+  sh.subscribe(() => { n++; });
+  const other = make(st);
+  other.add('lideranca-essencial', 'capa-dura');
+  other.applyCoupon('DANBOOK10');
+  other.setGiftWrap(true);
+  fire({ key: 'other' });
+  assert.equal(n, 0);
+  fire({ key: S.STORAGE_KEY, storageArea: {} }); // e.g. sessionStorage
+  assert.equal(n, 0);
+  assert.equal(sh.items().length, 0);
+  fire({ key: S.STORAGE_KEY, storageArea: st });
+  assert.equal(n, 1);
+  assert.equal(sh.items().length, 1);
+  assert.equal(sh.totals().coupon, 'DANBOOK10');
+  assert.equal(sh.totals().giftWrap, true);
+  st.wipe(); // another tab ran localStorage.clear()
+  fire({ key: null });
+  assert.equal(n, 2);
+  assert.deepEqual(sh.items().length, 0);
+  assert.equal(sh.totals().coupon, null);
+  assert.equal(sh.totals().giftWrap, false);
+  assert.doesNotThrow(() => fire(undefined));
+  assert.equal(n, 2);
+});
+
+test('browser: storage event before books.js loads does nothing until the catalog appears', () => {
+  const st = mem();
+  make(st).add('lideranca-essencial', 'ebook');
+  const handlers = [];
+  const win = runBrowser({ localStorage: st, addEventListener: (t, f) => handlers.push([t, f]) }, false);
+  let n = 0;
+  win.DanBooksShelf.subscribe(() => { n++; });
+  assert.doesNotThrow(() => handlers[0][1]({ key: S.STORAGE_KEY }));
+  assert.equal(n, 0);
+  win.DanBooksCatalog = B;
+  assert.equal(win.DanBooksShelf.items().length, 1);
+});
+
+test('reload keeps in-memory state when the storage read throws', () => {
+  let failing = false;
+  const inner = mem();
+  const st = {
+    getItem: (k) => { if (failing) throw new Error('denied'); return inner.getItem(k); },
+    setItem: (k, v) => inner.setItem(k, v),
+  };
+  const s = make(st);
+  s.add('lideranca-essencial', 'capa-dura');
+  s.applyCoupon('DANBOOK10');
+  failing = true;
+  s.reload();
+  assert.equal(s.items().length, 1);
+  assert.equal(s.totals().coupon, 'DANBOOK10');
+});
+
+test('coupon plus gift wrap: discount applies to the subtotal only (literal cents)', () => {
+  const s = make();
+  s.add('lideranca-essencial', 'capa-dura'); // 8235
+  s.applyCoupon('DANBOOK10');
+  s.setGiftWrap(true);
+  const t = s.totals();
+  assert.equal(t.subtotalCents, 8235);
+  assert.equal(t.discountCents, 824); // round(823.5), wrap excluded
+  assert.equal(t.giftWrapCents, 890);
+  assert.equal(t.totalCents, 8301); // 8235 - 824 + 890
 });

@@ -80,11 +80,12 @@
     }
 
     function load() {
+      var raw = null;
+      // A failed read keeps the current in-memory state (matters on reload()).
+      try { raw = store ? store.getItem(STORAGE_KEY) : null; } catch (e) { return; }
       items = [];
       couponCode = null;
       giftWrap = false;
-      var raw = null;
-      try { raw = store ? store.getItem(STORAGE_KEY) : null; } catch (e) { raw = null; }
       if (!raw) return;
       var data;
       try { data = JSON.parse(raw); } catch (e) { return; }
@@ -229,7 +230,10 @@
     // Keep tabs in sync: another tab wrote the shelf (or cleared storage, key === null).
     if (typeof root.addEventListener === 'function') {
       root.addEventListener('storage', function (e) {
-        if (e && (e.key === null || e.key === STORAGE_KEY)) root.DanBooksShelf.reload();
+        if (!e || (e.key !== null && e.key !== STORAGE_KEY)) return;
+        // Ignore sessionStorage events that share the key name.
+        if (e.storageArea && e.storageArea !== defaultStorage()) return;
+        root.DanBooksShelf.reload();
       });
     }
   }
