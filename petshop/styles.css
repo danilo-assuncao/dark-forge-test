@@ -32,3 +32,18 @@ th, td { padding: .5rem; border: 1px solid var(--border); text-align: left; }
 .cta:disabled { background: #d6cbbd; color: #4b3f33; cursor: not-allowed; }
 .back { display: inline-block; margin-bottom: 1rem; color: #92400e; }
 [hidden] { display: none !important; }
+.promos { margin-bottom: 1.5rem; }
+.promo { position: relative; border-color: var(--accent); }
+.badge { display: inline-block; margin-bottom: .5rem; padding: .15rem .6rem; border-radius: 999px; background: #92400e; color: #fff; font-size: .85rem; font-weight: 600; }
+.cta-link { display: inline-block; padding: .6rem 1.2rem; border-radius: .5rem; background: #b45309; color: #fff; text-decoration: none; }
+.booking { display: grid; gap: .75rem; max-width: 32rem; }
+.field { display: grid; gap: .25rem; }
+.field input, .field select, .field textarea { padding: .5rem .75rem; border: 1px solid var(--border); border-radius: .5rem; font: inherit; max-width: 100%; }
+.slots { display: flex; flex-wrap: wrap; gap: .5rem; }
+.slots button { padding: .5rem 1rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); cursor: pointer; }
+.slots button[aria-pressed="true"] { background: #92400e; color: #fff; border-color: #92400e; }
+.error { color: #b91c1c; }
+.summary { padding: .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: .5rem; }
+.result { margin-top: 1rem; max-width: 32rem; }
+.protocol { font-size: 1.5rem; font-weight: 700; color: #92400e; }
+@media (max-width: 30rem) { header { padding: 1rem; } main { padding: .75rem; } }

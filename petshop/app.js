@@ -36,6 +36,7 @@
       try { id = decodeURIComponent(m[1]); } catch (e) { id = m[1]; }
       return { view: 'detail', id: id, size: query.size || null, cat: query.cat || null, q: query.q || '' };
     }
+    if (path === '/agendar' || path === '/agendar/') return { view: 'booking', service: query.service || null };
     if (path === '' || path === '/') return { view: 'list', cat: query.cat || null, q: query.q || '' };
     return { view: 'notfound' };
   }
@@ -85,7 +86,152 @@
     return !!(item && sizeId && item.sizes.indexOf(sizeId) !== -1 && findSize(sizeId));
   }
 
+  // ---- Booking (banho e tosa): pet profile, slots, CEP delivery, protocol ----
+  var BOOKING_KEY = 'dan-pets-bookings';
+  var SPECIES = [{ id: 'cao', name: 'Cao' }, { id: 'gato', name: 'Gato' }];
+  var NOTES_MAX = 300;
+  var DELIVERY_MODES = [
+    { id: 'loja', name: 'Levo e busco na loja' },
+    { id: 'entrega', name: 'Entrega (busca e devolve)' },
+    { id: 'taxi', name: 'Taxi-dog (ida e volta)' },
+  ];
+
+  // Showcase of promotional prices on the Home (percent off the catalog price).
+  // Only bookable services: the discount is applied in the booking flow (#/agendar).
+  var PROMOS = [
+    { itemId: 'banho-e-tosa', percent: 15 },
+    { itemId: 'banho-simples', percent: 10 },
+    { itemId: 'tosa-higienica', percent: 5 },
+  ];
+
+  function promoPrice(cents, percent) {
+    return Math.round(cents * (100 - percent) / 100);
+  }
+
+  function cleanCep(cep) { return String(cep == null ? '' : cep).replace(/\D/g, ''); }
+
+  // Simulated delivery quote by CEP region (first digit). Returns null for an
+  // invalid CEP. fee is in cents; taxi-dog is a round trip (2x the base fee).
+  function deliveryQuote(cep, modeId) {
+    var d = cleanCep(cep);
+    if (!/^\d{8}$/.test(d) || /^0{8}$/.test(d)) return null;
+    var zone = d[0] <= '1' ? { id: 'local', base: 800, days: 1 }
+      : d[0] <= '5' ? { id: 'regional', base: 1800, days: 2 }
+      : { id: 'distante', base: 3500, days: 3 };
+    var fee = modeId === 'entrega' ? zone.base : modeId === 'taxi' ? zone.base * 2 : 0;
+    return { cep: d.slice(0, 5) + '-' + d.slice(5), zone: zone.id, mode: modeId, fee: fee, days: zone.days };
+  }
+
+  function parseDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+    if (!m) return null;
+    var dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    if (dt.getUTCFullYear() !== +m[1] || dt.getUTCMonth() !== +m[2] - 1 || dt.getUTCDate() !== +m[3]) return null;
+    return dt;
+  }
+
+  // Mon-Fri 09-17h, Sat 09-12h, Sun closed; the last slot starts one hour before
+  // closing. Some slots are "taken" (simulated) and booked ones are excluded.
+  function availableSlots(dateStr, bookings) {
+    var dt = parseDate(dateStr);
+    if (!dt) return [];
+    var dow = dt.getUTCDay();
+    if (dow === 0) return [];
+    var last = dow === 6 ? 12 : 17;
+    var out = [];
+    for (var h = 9; h < last; h++) {
+      if ((dt.getUTCDate() + h) % 5 === 0) continue;
+      var t = (h < 10 ? '0' : '') + h + ':00';
+      var booked = (bookings || []).some(function (b) { return b && b.date === dateStr && b.time === t; });
+      if (!booked) out.push(t);
+    }
+    return out;
+  }
+
+  function bookingServices() {
+    return C.ITEMS.filter(function (i) { return i.service; });
+  }
+
+  function nextProtocol(rng, taken) {
+    var r = typeof rng === 'function' ? rng : Math.random;
+    for (var i = 0; i < 200; i++) {
+      var n = Math.min(9999, Math.floor(r() * 10000));
+      var p = 'PET-' + ('000' + n).slice(-4);
+      if (!taken || taken.indexOf(p) === -1) return p;
+    }
+    return null;
+  }
+
+  // input: { petName, species, size, notes, serviceId, date, time, mode, cep }
+  // -> { ok, errors } or { ok, booking } with price breakdown and protocol.
+  function localDateStr(d) {
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  // Earliest bookable date: tomorrow in local time (now is injectable for tests).
+  function minBookingDate(now) {
+    var d = new Date(now == null ? Date.now() : now);
+    d.setDate(d.getDate() + 1);
+    return localDateStr(d);
+  }
+
+  // ctx: { now, bookings } (both optional).
+  function validateBooking(input, ctx) {
+    ctx = ctx || {};
+    var errors = {};
+    var inp = input || {};
+    var name = String(inp.petName == null ? '' : inp.petName).trim();
+    if (!name) errors.petName = 'Informe o nome do pet.';
+    if (!SPECIES.some(function (s) { return s.id === inp.species; })) errors.species = 'Escolha a especie.';
+    if (!findSize(inp.size)) errors.size = 'Escolha o porte.';
+    if (String(inp.notes == null ? '' : inp.notes).length > NOTES_MAX) errors.notes = 'Observacoes: no maximo ' + NOTES_MAX + ' caracteres.';
+    var svc = findItem(inp.serviceId);
+    if (!svc || !svc.service) errors.serviceId = 'Escolha o servico.';
+    else if (findSize(inp.size) && svc.sizes.indexOf(inp.size) === -1) errors.size = 'Servico indisponivel para este porte.';
+    if (!parseDate(inp.date)) errors.date = 'Escolha a data.';
+    else if (inp.date < minBookingDate(ctx.now)) errors.date = 'Escolha uma data a partir de amanha.';
+    else if (availableSlots(inp.date, ctx.bookings).indexOf(inp.time) === -1) errors.time = 'Escolha um horario disponivel.';
+    if (!DELIVERY_MODES.some(function (m) { return m.id === inp.mode; })) errors.mode = 'Escolha a forma de atendimento.';
+    else if (inp.mode !== 'loja' && !deliveryQuote(inp.cep, inp.mode)) errors.cep = 'CEP invalido (8 digitos).';
+    return errors;
+  }
+
+  function createBooking(input, storage, rng, now) {
+    var list = loadBookings(storage);
+    var errors = validateBooking(input, { now: now, bookings: list });
+    if (Object.keys(errors).length) return { ok: false, errors: errors };
+    var protocol = nextProtocol(rng, list.map(function (b) { return b.protocol; }));
+    if (!protocol) return { ok: false, errors: { protocol: 'Nao foi possivel gerar o protocolo.' } };
+    var svc = findItem(input.serviceId);
+    var promo = PROMOS.filter(function (p) { return p.itemId === svc.id; })[0];
+    var base = C.priceFor(svc, input.size);
+    var servicePrice = promo ? promoPrice(base, promo.percent) : base;
+    var quote = input.mode === 'loja' ? null : deliveryQuote(input.cep, input.mode);
+    var fee = quote ? quote.fee : 0;
+    var booking = {
+      protocol: protocol,
+      pet: { name: String(input.petName).trim(), species: input.species, size: input.size, notes: String(input.notes || '').trim() },
+      serviceId: svc.id, date: input.date, time: input.time, mode: input.mode,
+      cep: quote ? quote.cep : null, deliveryDays: quote ? quote.days : 0,
+      servicePrice: servicePrice, deliveryFee: fee, total: servicePrice + fee,
+    };
+    list.push(booking);
+    if (storage) { try { storage.setItem(BOOKING_KEY, JSON.stringify(list)); } catch (e) { /* ignore quota */ } }
+    return { ok: true, booking: booking };
+  }
+
+  function loadBookings(storage) {
+    try {
+      var v = JSON.parse(storage && storage.getItem(BOOKING_KEY));
+      return Array.isArray(v) ? v.filter(function (b) { return b && typeof b.protocol === 'string'; }) : [];
+    } catch (e) { return []; }
+  }
+
   var api = {
+    SPECIES: SPECIES, DELIVERY_MODES: DELIVERY_MODES, PROMOS: PROMOS, BOOKING_KEY: BOOKING_KEY,
+    promoPrice: promoPrice, minBookingDate: minBookingDate, deliveryQuote: deliveryQuote, availableSlots: availableSlots,
+    nextProtocol: nextProtocol, validateBooking: validateBooking, createBooking: createBooking,
+    loadBookings: loadBookings, bookingServices: bookingServices,
     normalize: normalize, parseHash: parseHash, listHash: listHash, detailHash: detailHash,
     filterItems: filterItems, rangeLabel: rangeLabel, findItem: findItem, validSize: validSize,
   };
@@ -110,6 +256,7 @@
   var listView = $('list-view');
   var detailView = $('detail-view');
   var cartEl = $('cart');
+  var bookingView = $('booking-view');
   var focusSize = null;
   var storage = null;
   try { storage = root.localStorage || null; } catch (e) { storage = null; }
@@ -195,6 +342,7 @@
     var cat = route.cat && C.CATEGORIES.some(function (c) { return c.id === route.cat; }) ? route.cat : null;
     listView.hidden = false;
     detailView.hidden = true;
+    if (bookingView) bookingView.hidden = true;
     Array.prototype.forEach.call(nav.children, function (b) {
       b.setAttribute('aria-pressed', String((b.dataset.id || '') === (cat || '')));
     });
@@ -219,6 +367,7 @@
   function renderDetail(route) {
     listView.hidden = true;
     detailView.hidden = false;
+    if (bookingView) bookingView.hidden = true;
     clear(detailView);
     var back = el('a', 'back', '← Voltar a listagem');
     back.href = listHash(route.cat, route.q);
@@ -301,6 +450,193 @@
     });
     detailView.appendChild(cta);
     detailView.appendChild(msg);
+    if (item.service) {
+      var book = el('a', 'back', 'Agendar horario com ficha do pet');
+      book.href = '#/agendar?service=' + encodeURIComponent(item.id);
+      detailView.appendChild(book);
+    }
+  }
+
+  function renderPromos() {
+    var box = $('promos');
+    if (!box) return;
+    clear(box);
+    box.appendChild(el('h2', null, 'Promocoes da semana'));
+    var g = el('div', 'grid');
+    PROMOS.forEach(function (p) {
+      var it = findItem(p.itemId);
+      if (!it) return;
+      var sid = it.sizes[0];
+      var base = C.priceFor(it, sid);
+      var card = el('article', 'card promo');
+      card.appendChild(el('span', 'badge', p.percent + '% OFF'));
+      var h3 = el('h3');
+      var a = el('a', null, it.name);
+      a.href = '#/agendar?service=' + encodeURIComponent(it.id);
+      h3.appendChild(a);
+      card.appendChild(h3);
+      card.appendChild(el('p', 'muted', 'Porte ' + findSize(sid).name + ' - de ' + C.formatBRL(base)));
+      card.appendChild(el('p', 'price', 'por ' + C.formatBRL(promoPrice(base, p.percent))));
+      card.appendChild(el('p', 'muted', 'Desconto aplicado no agendamento.'));
+      g.appendChild(card);
+    });
+    box.appendChild(g);
+  }
+
+  function renderBooking(route) {
+    listView.hidden = true;
+    detailView.hidden = true;
+    bookingView.hidden = false;
+    clear(bookingView);
+    var back = el('a', 'back', '← Voltar a loja');
+    back.href = '#/';
+    bookingView.appendChild(back);
+    bookingView.appendChild(el('h2', null, 'Agendar banho e tosa'));
+    var svcs = bookingServices();
+    var st = {
+      petName: '', species: 'cao', size: 'mini', notes: '',
+      serviceId: findItem(route.service) && findItem(route.service).service ? route.service : svcs[0].id,
+      date: '', time: '', mode: 'loja', cep: '',
+    };
+    var form = el('form', 'booking');
+    form.noValidate = true;
+    var summary = el('div', 'summary');
+    summary.setAttribute('aria-live', 'polite');
+    var slotsBox = el('div', 'slots');
+    slotsBox.setAttribute('role', 'group');
+    slotsBox.setAttribute('aria-label', 'Horarios disponiveis');
+    var cepField;
+    var errEls = {};
+
+    function field(key, label, control) {
+      var wrap = el('label', 'field');
+      wrap.appendChild(el('span', null, label));
+      wrap.appendChild(control);
+      var er = el('small', 'error');
+      er.setAttribute('role', 'alert');
+      errEls[key] = er;
+      wrap.appendChild(er);
+      form.appendChild(wrap);
+      return wrap;
+    }
+    function select(opts, key) {
+      var s = el('select');
+      s.dataset.field = key;
+      opts.forEach(function (o) {
+        var op = el('option', null, o[1]);
+        op.value = o[0];
+        s.appendChild(op);
+      });
+      s.value = st[key];
+      s.addEventListener('change', function () { st[key] = s.value; refresh(); });
+      return s;
+    }
+
+    form.appendChild(el('h3', null, 'Ficha do pet'));
+    var nameIn = el('input');
+    nameIn.type = 'text';
+    nameIn.dataset.field = 'petName';
+    nameIn.addEventListener('input', function () { st.petName = nameIn.value; });
+    field('petName', 'Nome do pet', nameIn);
+    field('species', 'Especie', select(SPECIES.map(function (s) { return [s.id, s.name]; }), 'species'));
+    field('size', 'Porte', select(C.SIZES.map(function (s) { return [s.id, s.name + ' (' + s.weightRange + ')']; }), 'size'));
+    var notesIn = el('textarea');
+    notesIn.dataset.field = 'notes';
+    notesIn.maxLength = NOTES_MAX;
+    notesIn.addEventListener('input', function () { st.notes = notesIn.value; });
+    field('notes', 'Observacoes (alergias, comportamento...)', notesIn);
+
+    form.appendChild(el('h3', null, 'Servico e horario'));
+    field('serviceId', 'Servico', select(svcs.map(function (s) { return [s.id, s.name]; }), 'serviceId'));
+    var dateIn = el('input');
+    dateIn.type = 'date';
+    dateIn.dataset.field = 'date';
+    dateIn.min = minBookingDate();
+    dateIn.addEventListener('change', function () { st.date = dateIn.value; st.time = ''; renderSlots(); refresh(); });
+    field('date', 'Data', dateIn);
+    form.appendChild(slotsBox);
+    var timeErr = el('small', 'error');
+    timeErr.setAttribute('role', 'alert');
+    errEls.time = timeErr;
+    form.appendChild(timeErr);
+
+    form.appendChild(el('h3', null, 'Atendimento'));
+    field('mode', 'Forma de atendimento', select(DELIVERY_MODES.map(function (m) { return [m.id, m.name]; }), 'mode'));
+    var cepIn = el('input');
+    cepIn.type = 'text';
+    cepIn.inputMode = 'numeric';
+    cepIn.placeholder = '00000-000';
+    cepIn.dataset.field = 'cep';
+    cepIn.addEventListener('input', function () { st.cep = cepIn.value; refresh(); });
+    cepField = field('cep', 'CEP', cepIn);
+
+    function renderSlots() {
+      clear(slotsBox);
+      if (!st.date) { slotsBox.appendChild(el('p', 'muted', 'Escolha uma data para ver os horarios.')); return; }
+      var slots = availableSlots(st.date, loadBookings(storage));
+      if (!slots.length) { slotsBox.appendChild(el('p', 'muted', 'Sem horarios nesta data (domingo ou lotado).')); return; }
+      slots.forEach(function (t) {
+        var b = el('button', null, t);
+        b.type = 'button';
+        b.dataset.time = t;
+        b.setAttribute('aria-pressed', String(st.time === t));
+        b.addEventListener('click', function () {
+          st.time = t;
+          Array.prototype.forEach.call(slotsBox.children, function (x) { x.setAttribute('aria-pressed', String(x.dataset.time === t)); });
+          refresh();
+        });
+        slotsBox.appendChild(b);
+      });
+    }
+
+    function refresh() {
+      cepField.hidden = st.mode === 'loja';
+      clear(summary);
+      var svc = findItem(st.serviceId);
+      var promo = PROMOS.filter(function (p) { return p.itemId === st.serviceId; })[0];
+      var base = svc && svc.sizes.indexOf(st.size) !== -1 ? C.priceFor(svc, st.size) : null;
+      if (base == null) { summary.appendChild(el('p', 'muted', 'Servico indisponivel para este porte.')); return; }
+      var sp = promo ? promoPrice(base, promo.percent) : base;
+      summary.appendChild(el('p', null, 'Servico: ' + C.formatBRL(sp) + (promo ? ' (' + promo.percent + '% OFF)' : '')));
+      var fee = 0;
+      if (st.mode !== 'loja') {
+        var q = deliveryQuote(st.cep, st.mode);
+        if (q) {
+          fee = q.fee;
+          summary.appendChild(el('p', null, (st.mode === 'taxi' ? 'Taxi-dog' : 'Entrega') + ' para ' + q.cep + ' (regiao ' + q.zone +
+            ', ate ' + q.days + (q.days > 1 ? ' dias' : ' dia') + '): ' + C.formatBRL(q.fee)));
+        } else {
+          summary.appendChild(el('p', 'muted', 'Informe um CEP valido para calcular a entrega (simulado).'));
+        }
+      }
+      summary.appendChild(el('p', 'price', 'Total: ' + C.formatBRL(sp + fee)));
+    }
+
+    var submit = el('button', 'cta', 'Confirmar agendamento');
+    submit.type = 'submit';
+    form.appendChild(summary);
+    form.appendChild(submit);
+    var result = el('div', 'result');
+    result.setAttribute('role', 'status');
+    form.addEventListener('submit', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      var r = createBooking(st, storage);
+      Object.keys(errEls).forEach(function (k) { errEls[k].textContent = (r.errors && r.errors[k]) || ''; });
+      clear(result);
+      if (!r.ok) {
+        result.appendChild(el('p', 'error', r.errors.protocol || 'Revise os campos destacados.'));
+        return;
+      }
+      var b = r.booking;
+      result.appendChild(el('h3', null, 'Agendamento confirmado'));
+      result.appendChild(el('p', 'protocol', 'Protocolo: ' + b.protocol));
+      result.appendChild(el('p', null, b.pet.name + ' - ' + findItem(b.serviceId).name + ' em ' + b.date + ' as ' + b.time + '. Total: ' + C.formatBRL(b.total) + '.'));
+      submit.disabled = true;
+    });
+    renderSlots();
+    refresh();
+    bookingView.appendChild(form);
+    bookingView.appendChild(result);
   }
 
   function renderStatic() {
@@ -341,11 +677,13 @@
 
   function render() {
     var route = parseHash(root.location.hash);
-    if (route.view === 'detail') renderDetail(route);
+    if (route.view === 'booking' && bookingView) renderBooking(route);
+    else if (route.view === 'detail') renderDetail(route);
     else renderList(route.view === 'list' ? route : { cat: null, q: '' });
   }
 
   renderStatic();
+  renderPromos();
   renderCart();
   // Another tab changed the cart: reload from storage and re-render.
   root.addEventListener('storage', function (e) {
