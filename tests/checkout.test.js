@@ -191,8 +191,8 @@ test('home shows the combos of the day with their dishes and a combo add button'
   byClass(combos[0], 'combo-add')[0].listeners.click();
   assert.equal(byClass(combos[0], 'combo-status')[0].textContent, 'Combo Executivo adicionado à sacola.');
   assert.equal(t.badge.textContent, '2');
-  assert.deepEqual(t.win.DanCart.lines().map(function (l) { return l.id + ':' + l.size + ':' + l.qty; }),
-    ['frango-grelhado:Individual:1', 'suco-natural:Individual:1']);
+  assert.deepEqual(t.win.DanCart.lines().map(function (l) { return l.id + ':' + l.size + ':' + l.qty; }).join(','),
+    'frango-grelhado:Individual:1,suco-natural:Individual:1');
 });
 
 test('combo add is all-or-nothing: a dish at the cap blocks the whole combo', function () {
