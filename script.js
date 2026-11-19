@@ -336,11 +336,16 @@
     return { title: 'Order confirmed \u2013 Dan', node: container, heading: heading };
   }
 
-  function checkoutView() {
+  function checkoutView(notice) {
     var cart = window.DanCart;
     var lines = cart ? cart.lines() : [];
     var container = el('div', 'container');
     container.appendChild(el('h1', 'page-title', 'Checkout'));
+    if (notice) {
+      var alert = el('p', 'checkout-notice', notice);
+      alert.setAttribute('role', 'status');
+      container.appendChild(alert);
+    }
     if (!lines.length) {
       container.appendChild(el('p', 'cart-empty', 'Your cart is empty.'));
       var shop = el('a', 'text-link', 'Browse the catalog');
@@ -349,6 +354,7 @@
       return { title: 'Checkout \u2013 Dan', node: container };
     }
     var total = cart.totalCents();
+    var count = cart.count();
     container.appendChild(orderSummary(lines, total));
 
     var form = el('form', 'checkout-form');
@@ -401,6 +407,17 @@
       }
       if (firstInvalid) {
         firstInvalid.focus();
+        return;
+      }
+      // The cart may have changed (another tab, reload) since this view was
+      // rendered: never confirm against a stale snapshot.
+      if (cart.totalCents() !== total || cart.count() !== count) {
+        var fresh = checkoutView('Your cart changed. Review the updated summary and place the order again.');
+        var host = document.getElementById('app');
+        host.textContent = '';
+        host.appendChild(fresh.node);
+        document.title = fresh.title;
+        host.focus();
         return;
       }
       var orderId = '#' + Date.now().toString(36).toUpperCase();

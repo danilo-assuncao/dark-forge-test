@@ -454,3 +454,68 @@ test('valid checkout shows a simulated confirmation and clears the cart', functi
   t.go('#/checkout');
   assert.ok(t.has('cart-empty'));
 });
+
+// ----- Checkout review follow-ups -----
+
+test('checkout re-renders instead of confirming when the cart changed after render', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) };
+  const t = boot('#/checkout', { cartStorage: store });
+  fillCheckout(t, VALID);
+  store['dan-cart'] = JSON.stringify([{ id: 'creatine', qty: 3 }]);
+  t.win.DanCart.reload();
+  submitForm(t);
+  assert.equal(t.heading(), 'Checkout');
+  assert.equal(byClass(t, 'checkout-notice').length, 1);
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 269,70');
+  assert.equal(t.cartBadge.textContent, '3', 'cart must not be cleared');
+
+  const t2 = boot('#/checkout', { cartStorage: { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) } });
+  fillCheckout(t2, VALID);
+  t2.win.DanCart.clear();
+  submitForm(t2);
+  assert.ok(t2.has('cart-empty'));
+  assert.equal(t2.heading(), 'Checkout');
+});
+
+test('checkout validator boundaries', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) };
+  const cases = [
+    ['phone', '1112345678', true], ['phone', '11912345678', true], ['phone', '119123456789', false],
+    ['phone', '11 9123a5678', false], ['cep', '01310100', true], ['cep', '013101000', false],
+    ['cep', '01310-100', true], ['address', 'abcd', false], ['address', 'abcde', true],
+    ['city', 'S', false], ['city', 'SP', true], ['email', 'a@b', false], ['email', 'a@b.co', true],
+    ['name', '   ', false], ['address', '     ', false],
+  ];
+  cases.forEach(function (c) {
+    const t = boot('#/checkout', { cartStorage: Object.assign({}, store) });
+    const inputs = fillCheckout(t, Object.assign({}, VALID, { [c[0]]: c[1] }));
+    submitForm(t);
+    const idx = inputs.findIndex(function (i) { return i.name === c[0]; });
+    const msg = byClass(t, 'form-error')[idx];
+    if (c[2]) {
+      assert.equal(t.heading(), 'Order confirmed', c[0] + ' ' + c[1]);
+    } else {
+      assert.notEqual(msg.textContent, '', c[0] + ' ' + JSON.stringify(c[1]));
+    }
+  });
+});
+
+test('confirmation updates focus, title and order id; errors clear and refocus on retry; multi-line summary', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }, { id: 'whey-protein', qty: 2 }]) };
+  const t = boot('#/checkout', { cartStorage: store });
+  assert.equal(byClass(t, 'cart-name').length, 2);
+  const inputs = fillCheckout(t, Object.assign({}, VALID, { email: 'x', city: '' }));
+  submitForm(t);
+  assert.equal(inputs[1].focusCount, 1);
+  fillCheckout(t, Object.assign({}, VALID, { city: '' }));
+  submitForm(t);
+  assert.equal(byClass(t, 'form-error')[1].textContent, '');
+  assert.equal(inputs[1].attrs['aria-invalid'], undefined);
+  assert.equal(inputs[5].focusCount, 1);
+  const before = t.app.focusCount || 0;
+  fillCheckout(t, VALID);
+  submitForm(t);
+  assert.equal(t.app.focusCount, before + 1);
+  assert.equal(t.doc.title, 'Order confirmed – Dan');
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /#[0-9A-Z]+/);
+});
