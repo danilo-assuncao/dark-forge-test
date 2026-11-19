@@ -451,3 +451,63 @@ body {
   font-size: 1.25rem;
   font-weight: 800;
 }
+
+/* Checkout */
+.checkout-link {
+  position: static;
+  transform: none;
+  display: inline-block;
+  margin-top: 1rem;
+  text-decoration: none;
+}
+
+.order-summary {
+  margin-bottom: 1.5rem;
+}
+
+.checkout-form {
+  max-width: 28rem;
+}
+
+.form-field {
+  margin-bottom: 1rem;
+}
+
+.form-field label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+}
+
+.form-input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  font: inherit;
+  color: var(--text);
+  background-color: var(--button-text);
+  border: 2px solid var(--text);
+  border-radius: 0.25rem;
+}
+
+.form-input[aria-invalid="true"] {
+  border-width: 3px;
+  border-style: dashed;
+}
+
+.form-input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.form-error {
+  margin: 0.25rem 0 0;
+  min-height: 0;
+  font-weight: 700;
+}
+
+.checkout-submit {
+  position: static;
+  transform: none;
+  display: block;
+}

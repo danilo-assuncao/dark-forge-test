@@ -377,3 +377,80 @@ test('script.js degrades gracefully without cart.js', function () {
   t.go('#/cart');
   assert.ok(t.has('cart-empty'));
 });
+
+// ----- Checkout -----
+
+function fillCheckout(t, values) {
+  const inputs = collect(t.app, function (n) { return n.tagName === 'input'; });
+  inputs.forEach(function (i) { i.value = values[i.name] || ''; });
+  return inputs;
+}
+
+const VALID = {
+  name: 'Maria Silva', email: 'maria@example.com', phone: '(11) 91234-5678',
+  cep: '01310-100', address: 'Av. Paulista 1000', city: 'Sao Paulo',
+};
+
+function submitForm(t) {
+  const form = collect(t.app, function (n) { return n.tagName === 'form'; })[0];
+  let prevented = false;
+  form.listeners.submit({ preventDefault() { prevented = true; } });
+  return prevented;
+}
+
+test('checkout with an empty cart shows the empty state and no form', function () {
+  const t = boot('#/checkout', { cartStorage: {} });
+  assert.equal(t.heading(), 'Checkout');
+  assert.ok(t.has('cart-empty'));
+  assert.equal(collect(t.app, function (n) { return n.tagName === 'form'; }).length, 0);
+});
+
+test('checkout summary reflects the cart and the cart view links to checkout', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }]) };
+  const t = boot('#/cart', { cartStorage: store });
+  const link = byClass(t, 'action-button checkout-link')[0];
+  assert.equal(link.href, '#/checkout');
+  t.go('#/checkout');
+  assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 179,80');
+  assert.match(byClass(t, 'cart-name')[0].textContent, /^2 × /);
+});
+
+test('checkout validates required fields and formats, focusing the first invalid field', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 1 }]) };
+  const t = boot('#/checkout', { cartStorage: store });
+  const inputs = fillCheckout(t, {});
+  assert.ok(submitForm(t), 'default submit must be prevented');
+  const errs = byClass(t, 'form-error');
+  assert.equal(errs.length, 6);
+  errs.forEach(function (e) { assert.equal(e.textContent, 'This field is required.'); });
+  assert.equal(inputs[0].focusCount, 1);
+  assert.equal(inputs[0].attrs['aria-invalid'], 'true');
+  assert.equal(t.cartBadge.textContent, '1', 'cart must be kept on invalid submit');
+
+  const bad = Object.assign({}, VALID, { email: 'nope', phone: '123', cep: '1234', name: 'Maria' });
+  fillCheckout(t, bad);
+  submitForm(t);
+  const messages = byClass(t, 'form-error').map(function (e) { return e.textContent; });
+  assert.match(messages[0], /first and last name/);
+  assert.match(messages[1], /valid email/);
+  assert.match(messages[2], /phone/);
+  assert.match(messages[3], /CEP/);
+  assert.equal(messages[4], '');
+  assert.equal(messages[5], '');
+  assert.equal(inputs[1].attrs['aria-invalid'], 'true');
+  assert.equal(inputs[4].attrs['aria-invalid'], undefined);
+  assert.equal(t.cartBadge.textContent, '1');
+});
+
+test('valid checkout shows a simulated confirmation and clears the cart', function () {
+  const store = { 'dan-cart': JSON.stringify([{ id: 'creatine', qty: 2 }]) };
+  const t = boot('#/checkout', { cartStorage: store });
+  fillCheckout(t, VALID);
+  submitForm(t);
+  assert.equal(t.heading(), 'Order confirmed');
+  assert.match(byClass(t, 'order-confirmation')[0].textContent, /Maria Silva.*R\$ 179,80/);
+  assert.equal(t.cartBadge.textContent, '0');
+  assert.deepEqual(JSON.parse(store['dan-cart']), []);
+  t.go('#/checkout');
+  assert.ok(t.has('cart-empty'));
+});
