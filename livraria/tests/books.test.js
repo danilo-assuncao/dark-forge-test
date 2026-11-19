@@ -76,8 +76,8 @@ test('formatBRL returns empty string for invalid input', () => {
   assert.equal(B.formatBRL(B.priceFor('cosmos-em-perspectiva', 'ebook')), '');
 });
 
-test('priceFor rounds fractional results to integer cents', () => {
-  assert.equal(B.priceFor('a-torre-dos-ventos', 'capa-dura'), 7485);
+test('priceFor yields integer cents for all format factors', () => {
+  assert.equal(B.priceFor('cosmos-em-perspectiva', 'capa-dura'), 11235);
   assert.equal(B.priceFor('inteligencia-artificial-simples', 'ebook'), 3894);
   assert.equal(B.priceFor('financas-sem-medo', 'ebook'), 2754);
 });
