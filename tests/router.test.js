@@ -405,7 +405,7 @@ test('cart view lists items with total, and the product button adds the chosen s
   plus.listeners.click();
   assert.equal(byClass(t, 'cart-total')[0].textContent, 'Total: R$ 119,70');
   assert.equal(t.cartBadge.textContent, '3');
-  assert.deepEqual(JSON.parse(store['dan-cart']), [{ id: 'file-parmegiana', size: 'Individual', qty: 3 }]);
+  assert.deepEqual(JSON.parse(store['dan-cart']), [{ id: 'file-parmegiana', size: 'Individual', qty: 3, note: '' }]);
   byClass(t, 'text-button').filter(function (b) { return b.textContent === 'Remove'; })[0].listeners.click();
   assert.ok(t.has('cart-empty'));
   assert.equal(t.cartBadge.textContent, '0');
@@ -566,7 +566,7 @@ test('checkout re-renders instead of confirming when the cart changed after rend
   const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 1 }]) };
   const t = boot('#/checkout', { cartStorage: store });
   fillCheckout(t, VALID);
-  store['dan-cart'] = JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 3 }]);
+  store['dan-cart'] = JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 3, note: '' }]);
   t.win.DanCart.reload();
   submitForm(t);
   assert.equal(t.heading(), 'Agendamento de box');
@@ -887,12 +887,12 @@ test('every service has a technical checklist and the detail route renders it', 
   assert.equal(byClass(t, 'bay-time')[0].textContent, 'Estimated bay time (Hatch/Sedan): ' + product.boxTime);
 });
 
-test('cart summary shows parts and labour before the subtotal and discount', function () {
+test('cart summary shows packaging (parts) and food (labour) before the subtotal and discount', function () {
   const store = { 'dan-cart': JSON.stringify([{ id: 'file-parmegiana', size: 'Individual', qty: 2 }]) };
   const t = boot('#/cart', { cartStorage: store });
-  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 47,88');
-  assert.equal(byClass(t, 'cart-labor')[0].textContent, 'Mão de obra: R$ 31,92');
+  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 6,00');
+  assert.equal(byClass(t, 'cart-labor')[0].textContent, 'Mão de obra: R$ 73,80');
   couponSubmit(t, 'DAN10');
-  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 47,88');
+  assert.equal(byClass(t, 'cart-parts')[0].textContent, 'Peças: R$ 6,00');
   assert.equal(byClass(t, 'cart-subtotal-line')[0].textContent, 'Subtotal: R$ 79,80');
 });

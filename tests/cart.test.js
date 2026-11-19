@@ -246,18 +246,41 @@ test('same service in different portes yields distinct lines and the same porte 
   assert.equal(lines[1].qty, 1);
 });
 
-test('parts and labour split sums to the subtotal and persists across reloads', function () {
+test('food and thermal packaging split sums to the subtotal and persists across reloads', function () {
   const storage = fakeStorage();
   const cart = load(storage);
-  cart.add('file-parmegiana', 2, 'Individual'); // 40% labour (default share)
-  cart.add('pudim-leite', 1, 'Familia'); // 40% labour (default share)
-  assert.equal(cart.laborCents(), 1596 * 2 + 596);
-  assert.equal(cart.partsCents(), (3990 - 1596) * 2 + (1490 - 596));
-  assert.equal(cart.partsCents() + cart.laborCents(), cart.subtotalCents());
-  const lineSum = cart.lines().reduce(function (n, l) { return n + l.partsCents + l.laborCents; }, 0);
+  cart.add('file-parmegiana', 2, 'Individual'); // packaging 300 each
+  cart.add('pudim-leite', 1, 'Familia'); // packaging 700
+  assert.equal(cart.packagingCents(), 300 * 2 + 700);
+  assert.equal(cart.foodCents(), (3990 - 300) * 2 + (1490 - 700));
+  assert.equal(cart.foodCents() + cart.packagingCents(), cart.subtotalCents());
+  const lineSum = cart.lines().reduce(function (n, l) { return n + l.foodCents + l.packagingCents; }, 0);
   assert.equal(lineSum, cart.subtotalCents());
+  assert.equal(cart.laborCents(), cart.foodCents(), 'legacy alias');
+  assert.equal(cart.partsCents(), cart.packagingCents(), 'legacy alias');
   assert.equal(JSON.parse(storage.data['dan-cart']).length, 2);
-  assert.equal(load(storage).laborCents(), cart.laborCents());
+  assert.equal(load(storage).packagingCents(), cart.packagingCents());
+});
+
+test('notes are optional, trimmed, capped, merged per line and persisted', function () {
+  const storage = fakeStorage();
+  const cart = load(storage);
+  cart.add('file-parmegiana', 1, 'Individual');
+  assert.equal(cart.lines()[0].note, '');
+  cart.add('file-parmegiana', 1, 'Individual', '  sem   cebola ');
+  assert.equal(cart.lines()[0].note, 'sem cebola');
+  cart.add('file-parmegiana', 1, 'Individual'); // keeps the note
+  assert.equal(cart.lines()[0].note, 'sem cebola');
+  assert.equal(cart.lines()[0].qty, 3);
+  cart.add('file-parmegiana', 1, 'Duplo', 'ao ponto');
+  assert.equal(cart.lines().length, 2, 'note does not split lines');
+  assert.equal(load(storage).lines()[1].note, 'ao ponto');
+  assert.ok(cart.setNote('file-parmegiana', 'Duplo', 'x'.repeat(500)));
+  assert.equal(cart.lines()[1].note.length, 140);
+  assert.ok(cart.setNote('file-parmegiana', 'Duplo', ''));
+  assert.equal(cart.lines()[1].note, '');
+  assert.equal(cart.setNote('file-parmegiana', 'Familia', 'a'), false);
+  assert.equal(cart.setNote('ghost', 'Duplo', 'a'), false);
 });
 
 test('DAN10 and DAN50 discounts apply to the quote and invalid coupons are reported', function () {
@@ -272,37 +295,29 @@ test('DAN10 and DAN50 discounts apply to the quote and invalid coupons are repor
   assert.equal(cart.coupon().code, 'DAN50', 'invalid code keeps the applied coupon');
 });
 
-test('labour + parts equals the unit price for every service, including rounding and the default share', function () {
-  const products = vm.runInContext('window.DanProducts.all()', (function () {
-    const ctx = { window: {} };
-    vm.createContext(ctx);
-    vm.runInContext(productsJs, ctx);
-    return ctx;
-  })());
-  // The menu has no per-dish labour overrides: every dish uses the default share.
-  const expected = {};
+test('food + packaging equals the unit price for every dish and portion', function () {
+  const ctx = { window: {} };
+  vm.createContext(ctx);
+  vm.runInContext(productsJs, ctx);
+  const products = vm.runInContext('window.DanProducts.all()', ctx);
+  const packaging = { Individual: 300, Duplo: 450, Familia: 700, 'Porcao unica': 300 };
   products.forEach(function (p) {
-    const cart = load(fakeStorage());
-    cart.add(p.id, 1, p.sizes[0]);
-    const pct = Object.prototype.hasOwnProperty.call(expected, p.id) ? expected[p.id] : 40; // 40 = default
-    assert.equal(cart.laborCents(), Math.round(p.priceCents * pct / 100), p.id);
-    assert.equal(cart.laborCents() + cart.partsCents(), p.priceCents, p.id);
+    p.sizes.forEach(function (size) {
+      const cart = load(fakeStorage());
+      cart.add(p.id, 1, size);
+      assert.equal(cart.packagingCents(), packaging[size], p.id + size);
+      assert.equal(cart.foodCents() + cart.packagingCents(), p.priceCents, p.id + size);
+    });
   });
-  const cart = load(fakeStorage());
-  cart.add('burger-classico', 1, 'Individual'); // 3290 * 40% = 1316
-  assert.equal(cart.laborCents(), 1316);
-  assert.equal(cart.partsCents(), 1974);
-  cart.add('risoto-cogumelos', 1, 'Individual'); // 4190 * 40% = 1676
-  assert.equal(cart.laborCents(), 1316 + Math.round(4190 * 0.4));
 });
 
-test('parts and labour are zero on an empty cart and ignore coupon discounts', function () {
+test('food and packaging are zero on an empty cart and ignore coupon discounts', function () {
   const cart = load(fakeStorage());
-  assert.equal(cart.laborCents(), 0);
-  assert.equal(cart.partsCents(), 0);
+  assert.equal(cart.foodCents(), 0);
+  assert.equal(cart.packagingCents(), 0);
   cart.add('frango-grelhado', 1, 'Individual');
   cart.applyCoupon('DAN10');
   assert.ok(cart.discountCents() > 0);
-  assert.equal(cart.partsCents() + cart.laborCents(), cart.subtotalCents());
-  assert.notEqual(cart.partsCents() + cart.laborCents(), cart.totalCents());
+  assert.equal(cart.packagingCents() + cart.foodCents(), cart.subtotalCents());
+  assert.notEqual(cart.packagingCents() + cart.foodCents(), cart.totalCents());
 });

@@ -134,7 +134,7 @@ test('add with a size confirms with a success state and stores the size', functi
   const status = byClass(t.app, 'cart-status')[0];
   assert.equal(status.textContent, 'Added Duplo to cart.');
   assert.match(status.className, /is-success/);
-  assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'frango-grelhado', size: 'Duplo', qty: 1 }]);
+  assert.deepEqual(JSON.parse(t.store['dan-cart']), [{ id: 'frango-grelhado', size: 'Duplo', qty: 1, note: '' }]);
 });
 
 test('unknown piece still renders the 404 state', function () {

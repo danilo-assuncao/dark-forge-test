@@ -1,6 +1,7 @@
 /* Shopping cart state persisted in localStorage. Exposed as window.DanCart;
-   loaded after products.js and before script.js. Items are { id, size, qty };
-   a line is identified by product id plus size. An optional discount coupon is
+   loaded after products.js and before script.js. Items are { id, size, qty, note };
+   a line is identified by dish id plus portion; the note is an optional culinary
+   remark (e.g. "sem cebola"). Totals split food from thermal packaging. An optional discount coupon is
    persisted next to the items. */
 (function () {
   'use strict';
@@ -16,17 +17,16 @@
     DAN50: { type: 'fixed', valueCents: 5000, minCents: 25000, label: 'R$ 50,00 off orders from R$ 250,00' }
   };
 
-  // Share of each service price that is labour (mao de obra); the remainder is
-  // parts (pecas). Services without an entry use DEFAULT_LABOR_PERCENT.
-  var DEFAULT_LABOR_PERCENT = 40;
-  var LABOR_PERCENT = {
-    'wheel-alignment': 100,
-    'scanner-diagnosis': 100,
-    'tire-rotation': 100,
-    'major-service': 35,
-    'timing-belt': 35,
-    'battery-replacement': 15,
-    'brake-discs': 30
+  var MAX_NOTE = 140;
+
+  // Thermal packaging included in each unit price, in cents, by portion; the
+  // remainder of the price is the food itself. Unknown portions use the default.
+  var DEFAULT_PACKAGING_CENTS = 300;
+  var PACKAGING_CENTS = {
+    'Individual': 300,
+    'Duplo': 450,
+    'Familia': 700,
+    'Porcao unica': 300
   };
 
   var items = [];
@@ -77,6 +77,13 @@
     return !!product && Array.isArray(product.sizes) && typeof size === 'string' && product.sizes.indexOf(size) !== -1;
   }
 
+  function cleanNote(note) {
+    if (typeof note !== 'string') {
+      return '';
+    }
+    return note.replace(/\s+/g, ' ').trim().slice(0, MAX_NOTE);
+  }
+
   function indexOf(id, size) {
     for (var i = 0; i < items.length; i++) {
       if (items[i].id === id && items[i].size === size) {
@@ -119,7 +126,7 @@
       }
       var qty = clampQty(entry.qty);
       if (qty > 0 && indexOf(entry.id, entry.size) === -1) {
-        items.push({ id: entry.id, size: entry.size, qty: qty });
+        items.push({ id: entry.id, size: entry.size, qty: qty, note: cleanNote(entry.note) });
       }
     }
   }
@@ -136,8 +143,9 @@
     }
   }
 
-  // add(id, qty, size): the size must be one the product offers.
-  function add(id, qty, size) {
+  // add(id, qty, size, note): the size must be a portion the dish offers. A
+  // non-empty note replaces the line's note; omitting it keeps the existing one.
+  function add(id, qty, size, note) {
     var amount = clampQty(qty === undefined ? 1 : qty);
     var product = findProduct(id);
     if (!amount || !validSize(product, size)) {
@@ -145,11 +153,14 @@
     }
     var idx = indexOf(id, size);
     if (idx === -1) {
-      items.push({ id: id, size: size, qty: amount });
+      items.push({ id: id, size: size, qty: amount, note: cleanNote(note) });
     } else if (items[idx].qty >= MAX_QTY) {
       return false; // already at the cap: nothing changed
     } else {
       items[idx].qty = Math.min(items[idx].qty + amount, MAX_QTY);
+      if (cleanNote(note)) {
+        items[idx].note = cleanNote(note);
+      }
     }
     changed();
     return true;
@@ -171,6 +182,17 @@
     return true;
   }
 
+  // Sets (or clears, with an empty value) the culinary note of a line.
+  function setNote(id, size, note) {
+    var idx = indexOf(id, size);
+    if (idx === -1) {
+      return false;
+    }
+    items[idx].note = cleanNote(note);
+    changed();
+    return true;
+  }
+
   function remove(id, size) {
     var idx = indexOf(id, size);
     if (idx === -1) {
@@ -187,26 +209,29 @@
     changed();
   }
 
-  // Labour portion of a unit price in cents; parts are the remainder.
-  function unitLaborCents(product) {
-    var pct = Object.prototype.hasOwnProperty.call(LABOR_PERCENT, product.id) ? LABOR_PERCENT[product.id] : DEFAULT_LABOR_PERCENT;
-    return Math.round(product.priceCents * pct / 100);
+  // Thermal packaging portion of a unit price in cents, never above the price.
+  function unitPackagingCents(product, size) {
+    var cents = Object.prototype.hasOwnProperty.call(PACKAGING_CENTS, size) ? PACKAGING_CENTS[size] : DEFAULT_PACKAGING_CENTS;
+    return Math.min(cents, product.priceCents);
   }
 
-  // Lines with the product resolved:
-  // [{ id, size, qty, product, subtotalCents, laborCents, partsCents }].
+  // Lines with the dish resolved:
+  // [{ id, size, qty, note, product, subtotalCents, foodCents, packagingCents }].
   function lines() {
     var out = [];
     for (var i = 0; i < items.length; i++) {
       var product = findProduct(items[i].id);
+      var pack = unitPackagingCents(product, items[i].size) * items[i].qty;
+      var subtotal = product.priceCents * items[i].qty;
       out.push({
         id: items[i].id,
         size: items[i].size,
         qty: items[i].qty,
+        note: items[i].note || '',
         product: product,
-        subtotalCents: product.priceCents * items[i].qty,
-        laborCents: unitLaborCents(product) * items[i].qty,
-        partsCents: (product.priceCents - unitLaborCents(product)) * items[i].qty
+        subtotalCents: subtotal,
+        foodCents: subtotal - pack,
+        packagingCents: pack
       });
     }
     return out;
@@ -220,16 +245,16 @@
     return total;
   }
 
-  function laborCents() {
+  function packagingCents() {
     var total = 0;
     for (var i = 0; i < items.length; i++) {
-      total += unitLaborCents(findProduct(items[i].id)) * items[i].qty;
+      total += unitPackagingCents(findProduct(items[i].id), items[i].size) * items[i].qty;
     }
     return total;
   }
 
-  function partsCents() {
-    return subtotalCents() - laborCents();
+  function foodCents() {
+    return subtotalCents() - packagingCents();
   }
 
   // A stored coupon whose minimum is no longer met stays saved but discounts
@@ -310,8 +335,12 @@
     clear: clear,
     lines: lines,
     subtotalCents: subtotalCents,
-    laborCents: laborCents,
-    partsCents: partsCents,
+    foodCents: foodCents,
+    packagingCents: packagingCents,
+    // Legacy names still read by script.js: labour = food, parts = packaging.
+    laborCents: foodCents,
+    partsCents: packagingCents,
+    setNote: setNote,
     discountCents: discountCents,
     totalCents: totalCents,
     applyCoupon: applyCoupon,
