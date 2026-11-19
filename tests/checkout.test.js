@@ -217,3 +217,29 @@ test('CEP validation blocks the booking and nothing is cleared', function () {
   });
   assert.equal(t.badge.textContent, '1');
 });
+
+test('checkout.js estimates delivery minutes by CEP range, pickup is free, tracking codes are DAN-XXXX', function () {
+  const ctx = { window: {} };
+  vm.runInNewContext(read('checkout.js'), ctx);
+  const api = ctx.window.DanCheckout;
+  assert.equal(api.quote('01310-100').minutes, 45);
+  assert.equal(api.quote('60000-000').minutes, 300);
+  for (let d = 0; d < 10; d++) { assert.ok(api.quote(d + '1310-100').minutes > 0); }
+  const pickup = api.fulfillment('pickup');
+  assert.equal(pickup.cents, 0);
+  assert.equal(pickup.mode, 'pickup');
+  assert.equal(api.fulfillment('pickup', 'invalid').cents, 0);
+  const delivery = api.fulfillment('delivery', '01310-100');
+  assert.deepEqual([delivery.cents, delivery.minutes, delivery.region], [1490, 45, 'Grande São Paulo']);
+  assert.equal(api.fulfillment('delivery', '123'), null);
+  assert.equal(api.fulfillment('teleport', '01310-100'), null);
+  const seen = new Set();
+  for (let i = 0; i < 200; i++) {
+    const code = api.trackingCode();
+    assert.match(code, /^DAN-[A-Z0-9]{4}$/);
+    seen.add(code);
+  }
+  assert.ok(seen.size > 1);
+  assert.match(api.trackingCode(function () { return 0.999999; }), /^DAN-[A-Z0-9]{4}$/);
+  assert.equal(api.trackingCode(function () { return 0; }), 'DAN-AAAA');
+});

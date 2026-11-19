@@ -5,18 +5,18 @@
 (function () {
   'use strict';
 
-  // First CEP digit -> { region, cents }.
+  // First CEP digit -> { region, cents, minutes }.
   var REGIONS = {
-    '0': { region: 'Grande São Paulo', cents: 1490 },
-    '1': { region: 'Interior de São Paulo', cents: 1890 },
-    '2': { region: 'Rio de Janeiro e Espírito Santo', cents: 2190 },
-    '3': { region: 'Minas Gerais', cents: 2290 },
-    '4': { region: 'Bahia e Sergipe', cents: 2990 },
-    '5': { region: 'Nordeste', cents: 3290 },
-    '6': { region: 'Norte e Nordeste', cents: 3890 },
-    '7': { region: 'Centro-Oeste', cents: 2890 },
-    '8': { region: 'Paraná e Santa Catarina', cents: 2490 },
-    '9': { region: 'Rio Grande do Sul', cents: 2690 }
+    '0': { region: 'Grande São Paulo', cents: 1490, minutes: 45 },
+    '1': { region: 'Interior de São Paulo', cents: 1890, minutes: 75 },
+    '2': { region: 'Rio de Janeiro e Espírito Santo', cents: 2190, minutes: 120 },
+    '3': { region: 'Minas Gerais', cents: 2290, minutes: 150 },
+    '4': { region: 'Bahia e Sergipe', cents: 2990, minutes: 180 },
+    '5': { region: 'Nordeste', cents: 3290, minutes: 210 },
+    '6': { region: 'Norte e Nordeste', cents: 3890, minutes: 300 },
+    '7': { region: 'Centro-Oeste', cents: 2890, minutes: 180 },
+    '8': { region: 'Paraná e Santa Catarina', cents: 2490, minutes: 150 },
+    '9': { region: 'Rio Grande do Sul', cents: 2690, minutes: 165 }
   };
 
   // Returns the CEP as 8 digits, or null when it is not a valid "12345678" / "12345-678".
@@ -28,15 +28,50 @@
     return value.replace('-', '');
   }
 
-  // Returns { cep, region, cents } or null for an invalid CEP.
+  // Pickup at the counter: free, ready in a fixed time.
+  var PICKUP_MINUTES = 20;
+  var CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  // Returns { cep, region, cents, minutes } or null for an invalid CEP.
+  // minutes = estimated delivery time for the CEP range.
   function quote(raw) {
     var cep = normalizeCep(raw);
     if (!cep) {
       return null;
     }
     var entry = REGIONS[cep.charAt(0)];
-    return { cep: cep, region: entry.region, cents: entry.cents };
+    return { cep: cep, region: entry.region, cents: entry.cents, minutes: entry.minutes };
   }
 
-  window.DanCheckout = { normalizeCep: normalizeCep, quote: quote };
+  // mode 'pickup' (free, no CEP needed) or 'delivery' (priced by CEP).
+  // Returns { mode, cents, minutes, region, cep } or null when the mode is
+  // unknown or delivery has an invalid CEP.
+  function fulfillment(mode, rawCep) {
+    if (mode === 'pickup') {
+      return { mode: 'pickup', cents: 0, minutes: PICKUP_MINUTES, region: null, cep: null };
+    }
+    if (mode !== 'delivery') {
+      return null;
+    }
+    var q = quote(rawCep);
+    if (!q) {
+      return null;
+    }
+    return { mode: 'delivery', cents: q.cents, minutes: q.minutes, region: q.region, cep: q.cep };
+  }
+
+  // Tracking code "DAN-XXXX". Optional rng returns a float in [0, 1).
+  function trackingCode(rng) {
+    var next = typeof rng === 'function' ? rng : Math.random;
+    var out = '';
+    for (var i = 0; i < 4; i++) {
+      var idx = Math.floor(next() * CODE_ALPHABET.length) % CODE_ALPHABET.length;
+      out += CODE_ALPHABET.charAt(idx);
+    }
+    return 'DAN-' + out;
+  }
+
+  window.DanCheckout = {
+    normalizeCep: normalizeCep, quote: quote, fulfillment: fulfillment, trackingCode: trackingCode
+  };
 })();
