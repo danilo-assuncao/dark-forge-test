@@ -3,7 +3,7 @@
 
   var ROW_COUNT = 6;
   var WORDS_PER_HALF = 12;
-  var WORD_TEXT = 'Dan';
+  var WORD_TEXT = 'DAN';
 
   function createWord() {
     var span = document.createElement('span');
@@ -56,34 +56,70 @@
     return marquee;
   }
 
+  var BRAND = 'Dan Wear';
+
   // Meta description per route (SEO); the views below attach theirs.
   var DESCRIPTIONS = {
-    home: 'Dan sells supplements and training gear. Browse the catalog and order in a few clicks.',
-    about: 'About Dan, a small single-page shop with client-side routing.',
-    catalog: 'Browse every Dan product, filter by category and add items to your cart.',
-    cart: 'Review the items in your Dan cart and adjust quantities.',
-    checkout: 'Enter your details to place a simulated Dan order.',
-    confirmed: 'Your simulated Dan order was received.',
-    product: 'Details, specifications and price for this Dan product.',
+    home: 'Dan Wear is a simulated clothing store: tees, pants, outerwear and accessories in sizes PP to GG.',
+    about: 'About Dan Wear, a simulated online clothing store built as a small single-page app.',
+    catalog: 'Browse every Dan Wear piece, filter by category and pick your size.',
+    cart: 'Review the pieces in your Dan Wear cart, adjust quantities and apply a coupon.',
+    checkout: 'Enter your details to place a simulated Dan Wear order.',
+    confirmed: 'Your simulated Dan Wear order was received.',
+    product: 'Details, sizes, measurements and price for this Dan Wear piece.',
     notFound: 'The page you are looking for does not exist.'
   };
 
   // ----- Views: each returns { title, description, node } -----
 
+  function featuredProducts() {
+    var all = window.DanProducts ? window.DanProducts.all() : [];
+    return all.slice(0, 4);
+  }
+
   function homeView() {
     var home = el('div', 'home');
-    home.appendChild(buildMarquee());
+    var stage = el('div', 'home-stage');
+    stage.appendChild(buildMarquee());
     var hero = el('section', 'hero');
     hero.setAttribute('aria-labelledby', 'hero-title');
-    var heading = el('h1', 'hero-title', 'Dan');
+    var heading = el('h1', 'hero-title', BRAND);
     heading.id = 'hero-title';
     hero.appendChild(heading);
-    hero.appendChild(el('p', 'hero-tagline', 'Supplements and training gear, picked for results.'));
-    var cta = el('a', 'action-button hero-cta', 'Shop the catalog');
+    hero.appendChild(el('p', 'hero-tagline', 'Everyday clothing, cut for comfort. Sizes PP to GG.'));
+    var cta = el('a', 'action-button hero-cta', 'Shop the collection');
     cta.href = '#/catalog';
     hero.appendChild(cta);
-    home.appendChild(hero);
-    return { title: 'Dan \u2013 Supplements and training gear', description: DESCRIPTIONS.home, node: home };
+    stage.appendChild(hero);
+    home.appendChild(stage);
+
+    var categories = window.DanProducts && window.DanProducts.categories ? window.DanProducts.categories() : [];
+    if (categories.length) {
+      var nav = el('nav', 'home-categories container');
+      nav.setAttribute('aria-label', 'Shop by category');
+      categories.forEach(function (category) {
+        var link = el('a', 'category-link', category);
+        link.href = '#/catalog?category=' + encodeURIComponent(category);
+        nav.appendChild(link);
+      });
+      home.appendChild(nav);
+    }
+
+    var featured = featuredProducts();
+    if (featured.length) {
+      var showcase = el('section', 'showcase container');
+      showcase.setAttribute('aria-labelledby', 'showcase-title');
+      var showcaseTitle = el('h2', 'showcase-title', 'New in');
+      showcaseTitle.id = 'showcase-title';
+      showcase.appendChild(showcaseTitle);
+      var grid = el('ul', 'product-grid');
+      featured.forEach(function (product) {
+        grid.appendChild(productCard(product));
+      });
+      showcase.appendChild(grid);
+      home.appendChild(showcase);
+    }
+    return { title: BRAND + ' \u2013 Clothing store', description: DESCRIPTIONS.home, node: home };
   }
 
   function contentView(title, paragraph) {
@@ -95,9 +131,9 @@
 
   function aboutView() {
     return {
-      title: 'About \u2013 Dan',
+      title: 'About \u2013 ' + BRAND,
       description: DESCRIPTIONS.about,
-      node: contentView('About', 'Dan is a small single-page app with client-side routing.')
+      node: contentView('About', 'Dan Wear is a simulated online clothing store: nothing is sold and no payment is taken.')
     };
   }
 
@@ -106,7 +142,7 @@
     var link = el('a', 'text-link', 'Back to home');
     link.href = '#/';
     container.appendChild(link);
-    return { title: '404 \u2013 Dan', description: DESCRIPTIONS.notFound, node: container };
+    return { title: '404 \u2013 ' + BRAND, description: DESCRIPTIONS.notFound, node: container };
   }
 
   // ----- Catalog -----
@@ -135,23 +171,24 @@
     link.appendChild(el('span', 'product-name', product.name));
     link.appendChild(el('span', 'product-price', formatPrice(product.priceCents)));
     item.appendChild(link);
-    // Sibling of the link (interactive content must not nest inside an anchor).
-    var add = el('button', 'catalog-add', 'Add to cart');
-    add.type = 'button';
-    add.setAttribute('aria-label', 'Add ' + product.name + ' to cart');
-    var status = el('p', 'cart-status');
-    status.setAttribute('role', 'status');
-    add.addEventListener('click', function () {
-      if (!window.DanCart) {
-        return;
-      }
-      // Clear first so repeated messages are announced again.
-      status.textContent = '';
-      status.textContent = window.DanCart.add(product.id, 1) ? 'Added to cart.' : 'Maximum quantity reached.';
-    });
-    item.appendChild(add);
-    item.appendChild(status);
     return item;
+  }
+
+  // Reads ?category=Name from the hash (used by the home category links).
+  function categoryFromHash() {
+    var query = window.location.hash.split('?')[1] || '';
+    var parts = query.split('&');
+    for (var i = 0; i < parts.length; i++) {
+      var pair = parts[i].split('=');
+      if (pair[0] === 'category') {
+        try {
+          return decodeURIComponent(pair[1] || '');
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
   }
 
   function catalogView() {
@@ -190,40 +227,45 @@
       });
       container.appendChild(filter);
     }
-    show(null);
+    var initial = categoryFromHash();
+    show(categories.indexOf(initial) === -1 ? null : initial);
     container.appendChild(grid);
-    return { title: 'Catalog \u2013 Dan', description: DESCRIPTIONS.catalog, node: container };
+    return { title: 'Catalog \u2013 ' + BRAND, description: DESCRIPTIONS.catalog, node: container };
   }
 
-  function nutritionTable(product) {
-    var section = el('section', 'nutrition');
-    section.appendChild(el('h2', 'nutrition-title', 'Nutrition facts'));
-    var nutrition = product.nutrition;
-    if (!nutrition || !nutrition.rows || !nutrition.rows.length) {
-      section.appendChild(el('p', null, 'Nutrition information not available.'));
+  function measurementsTable(product) {
+    var section = el('section', 'measurements');
+    section.appendChild(el('h2', 'measurements-title', 'Size guide'));
+    var data = product.measurements;
+    if (!data || !data.rows || !data.rows.length || !data.columns) {
+      section.appendChild(el('p', null, 'This piece has no size chart: one size fits all.'));
       return section;
     }
-    var table = el('table', 'nutrition-table');
-    table.appendChild(el('caption', null, 'Per serving: ' + nutrition.serving));
+    var table = el('table', 'measurements-table');
+    table.appendChild(el('caption', null, 'Body measurements in ' + data.unit));
     var head = el('thead');
     var headRow = el('tr');
-    var th1 = el('th', null, 'Nutrient');
-    th1.setAttribute('scope', 'col');
-    var th2 = el('th', null, 'Amount');
-    th2.setAttribute('scope', 'col');
-    headRow.appendChild(th1);
-    headRow.appendChild(th2);
+    var corner = el('th', null, 'Size');
+    corner.setAttribute('scope', 'col');
+    headRow.appendChild(corner);
+    data.columns.forEach(function (column) {
+      var th = el('th', null, column);
+      th.setAttribute('scope', 'col');
+      headRow.appendChild(th);
+    });
     head.appendChild(headRow);
     table.appendChild(head);
     var body = el('tbody');
-    for (var i = 0; i < nutrition.rows.length; i++) {
+    data.rows.forEach(function (entry) {
       var row = el('tr');
-      var label = el('th', null, nutrition.rows[i].label);
+      var label = el('th', null, entry.size);
       label.setAttribute('scope', 'row');
       row.appendChild(label);
-      row.appendChild(el('td', null, nutrition.rows[i].amount));
+      entry.values.forEach(function (value) {
+        row.appendChild(el('td', null, value));
+      });
       body.appendChild(row);
-    }
+    });
     table.appendChild(body);
     section.appendChild(table);
     return section;
@@ -252,10 +294,37 @@
     container.appendChild(el('p', 'product-price', formatPrice(product.priceCents)));
     container.appendChild(el('p', null, product.description));
     container.appendChild(specsSection(product));
-    // Only products that carry nutrition data (supplements) show the table.
-    if (product.nutrition) {
-      container.appendChild(nutritionTable(product));
+    if (product.sizes && product.sizes.length) {
+      container.appendChild(measurementsTable(product));
     }
+
+    // Size picker: nothing is preselected, so the shopper must choose.
+    var selected = null;
+    var sizeButtons = [];
+    var picker = el('div', 'size-picker');
+    var sizeLegend = el('p', 'size-label', 'Size');
+    sizeLegend.id = 'size-label';
+    picker.setAttribute('role', 'group');
+    picker.setAttribute('aria-labelledby', 'size-label');
+    (product.sizes || []).forEach(function (size) {
+      var button = el('button', 'size-button', size);
+      button.type = 'button';
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', function () {
+        selected = size;
+        for (var b = 0; b < sizeButtons.length; b++) {
+          sizeButtons[b].node.setAttribute('aria-pressed', sizeButtons[b].size === size ? 'true' : 'false');
+        }
+        status.textContent = '';
+      });
+      sizeButtons.push({ size: size, node: button });
+      picker.appendChild(button);
+    });
+    if (sizeButtons.length) {
+      container.appendChild(sizeLegend);
+      container.appendChild(picker);
+    }
+
     var add = el('button', 'action-button add-to-cart', 'Add to cart');
     add.type = 'button';
     var status = el('p', 'cart-status');
@@ -266,8 +335,10 @@
       }
       // Clear first so repeated messages are announced again.
       status.textContent = '';
-      if (window.DanCart.add(product.id, 1)) {
-        status.textContent = 'Added to cart.';
+      if (!selected) {
+        status.textContent = 'Select a size first.';
+      } else if (window.DanCart.add(product.id, 1, selected)) {
+        status.textContent = 'Added size ' + selected + ' to cart.';
       } else {
         status.textContent = 'Maximum quantity reached.';
       }
@@ -277,7 +348,7 @@
     var back = el('a', 'text-link', 'Back to catalog');
     back.href = '#/catalog';
     container.appendChild(back);
-    return { title: product.name + ' \u2013 Dan', description: product.name + ': ' + product.description, node: container };
+    return { title: product.name + ' \u2013 ' + BRAND, description: product.name + ': ' + product.description, node: container };
   }
 
   // ----- Cart -----
@@ -290,23 +361,28 @@
     return button;
   }
 
+  function lineLabel(line) {
+    return line.product.name + ' (size ' + line.size + ')';
+  }
+
   function cartLine(line) {
     var cart = window.DanCart;
     var item = el('li', 'cart-item');
     var name = el('a', 'cart-name', line.product.name);
     name.href = '#/produto/' + encodeURIComponent(line.id);
     item.appendChild(name);
+    item.appendChild(el('span', 'cart-size', 'Size: ' + line.size));
     item.appendChild(el('span', 'cart-unit', formatPrice(line.product.priceCents)));
 
     var qty = el('span', 'cart-qty');
-    qty.appendChild(qtyButton('\u2212', 'Decrease quantity of ' + line.product.name, function () {
-      cart.setQty(line.id, line.qty - 1);
+    qty.appendChild(qtyButton('\u2212', 'Decrease quantity of ' + lineLabel(line), function () {
+      cart.setQty(line.id, line.size, line.qty - 1);
     }));
     var value = el('span', 'cart-qty-value', String(line.qty));
     value.setAttribute('aria-label', 'Quantity: ' + line.qty);
     qty.appendChild(value);
-    var plus = qtyButton('+', 'Increase quantity of ' + line.product.name, function () {
-      cart.setQty(line.id, line.qty + 1);
+    var plus = qtyButton('+', 'Increase quantity of ' + lineLabel(line), function () {
+      cart.setQty(line.id, line.size, line.qty + 1);
     });
     if (line.qty >= cart.MAX_QTY) {
       plus.setAttribute('disabled', 'disabled');
@@ -317,12 +393,76 @@
     item.appendChild(el('span', 'cart-subtotal', formatPrice(line.subtotalCents)));
     var remove = el('button', 'text-button', 'Remove');
     remove.type = 'button';
-    remove.setAttribute('aria-label', 'Remove ' + line.product.name + ' from cart');
+    remove.setAttribute('aria-label', 'Remove ' + lineLabel(line) + ' from cart');
     remove.addEventListener('click', function () {
-      cart.remove(line.id);
+      cart.remove(line.id, line.size);
     });
     item.appendChild(remove);
     return item;
+  }
+
+  // Subtotal, discount and total lines shared by the cart and the checkout.
+  function totalsBlock(cart) {
+    var block = el('div', 'cart-totals');
+    var discount = cart.discountCents();
+    if (discount > 0) {
+      block.appendChild(el('p', 'cart-subtotal-line', 'Subtotal: ' + formatPrice(cart.subtotalCents())));
+      var coupon = cart.coupon();
+      block.appendChild(el('p', 'cart-discount', 'Coupon ' + (coupon ? coupon.code : '') + ': \u2212' + formatPrice(discount)));
+    }
+    block.appendChild(el('p', 'cart-total', 'Total: ' + formatPrice(cart.totalCents())));
+    return block;
+  }
+
+  function couponBox(cart) {
+    var box = el('div', 'coupon-box');
+    var applied = cart.coupon();
+    var status = el('p', 'coupon-status');
+    status.setAttribute('role', 'status');
+    if (applied) {
+      var text = cart.discountCents() > 0
+        ? 'Coupon ' + applied.code + ' applied: ' + applied.label + '.'
+        : 'Coupon ' + applied.code + ' is saved but does not apply to the current subtotal (' + applied.label + ').';
+      box.appendChild(el('p', 'coupon-applied', text));
+      var drop = el('button', 'text-button', 'Remove coupon');
+      drop.type = 'button';
+      drop.addEventListener('click', function () {
+        cart.removeCoupon();
+      });
+      box.appendChild(drop);
+      return box;
+    }
+    var form = el('form', 'coupon-form');
+    form.setAttribute('novalidate', 'novalidate');
+    form.setAttribute('aria-label', 'Coupon');
+    var label = el('label', null, 'Coupon code');
+    label.setAttribute('for', 'coupon-code');
+    var input = el('input', 'form-input');
+    input.id = 'coupon-code';
+    input.name = 'coupon';
+    input.type = 'text';
+    input.setAttribute('autocomplete', 'off');
+    var submit = el('button', 'action-button coupon-apply', 'Apply coupon');
+    submit.type = 'submit';
+    form.addEventListener('submit', function (event) {
+      if (event && event.preventDefault) {
+        event.preventDefault();
+      }
+      var result = cart.applyCoupon(input.value);
+      if (!result.ok) {
+        // On success the cart re-renders with the applied coupon instead.
+        status.textContent = '';
+        status.textContent = result.message;
+        input.setAttribute('aria-invalid', 'true');
+        input.focus();
+      }
+    });
+    form.appendChild(label);
+    form.appendChild(input);
+    form.appendChild(submit);
+    box.appendChild(form);
+    box.appendChild(status);
+    return box;
   }
 
   function cartView() {
@@ -335,14 +475,15 @@
       var shop = el('a', 'text-link', 'Browse the catalog');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Cart \u2013 Dan', description: DESCRIPTIONS.cart, node: container };
+      return { title: 'Cart \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
     }
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
       list.appendChild(cartLine(lines[i]));
     }
     container.appendChild(list);
-    container.appendChild(el('p', 'cart-total', 'Total: ' + formatPrice(cart.totalCents())));
+    container.appendChild(couponBox(cart));
+    container.appendChild(totalsBlock(cart));
     var clear = el('button', 'text-button', 'Clear cart');
     clear.type = 'button';
     clear.addEventListener('click', function () {
@@ -352,7 +493,7 @@
     var checkout = el('a', 'action-button checkout-link', 'Checkout');
     checkout.href = '#/checkout';
     container.appendChild(checkout);
-    return { title: 'Cart \u2013 Dan', description: DESCRIPTIONS.cart, node: container };
+    return { title: 'Cart \u2013 ' + BRAND, description: DESCRIPTIONS.cart, node: container };
   }
 
   // ----- Checkout (simulated: no payment, nothing is sent anywhere) -----
@@ -394,18 +535,18 @@
     return '';
   }
 
-  function orderSummary(lines, total) {
+  function orderSummary(cart, lines) {
     var section = el('section', 'order-summary');
     section.appendChild(el('h2', 'order-summary-title', 'Order summary'));
     var list = el('ul', 'cart-list');
     for (var i = 0; i < lines.length; i++) {
       var item = el('li', 'cart-item');
-      item.appendChild(el('span', 'cart-name', lines[i].qty + ' \u00d7 ' + lines[i].product.name));
+      item.appendChild(el('span', 'cart-name', lines[i].qty + ' \u00d7 ' + lineLabel(lines[i])));
       item.appendChild(el('span', 'cart-subtotal', formatPrice(lines[i].subtotalCents)));
       list.appendChild(item);
     }
     section.appendChild(list);
-    section.appendChild(el('p', 'cart-total', 'Total: ' + formatPrice(total)));
+    section.appendChild(totalsBlock(cart));
     return section;
   }
 
@@ -419,7 +560,7 @@
     var link = el('a', 'text-link', 'Back to catalog');
     link.href = '#/catalog';
     container.appendChild(link);
-    return { title: 'Order confirmed \u2013 Dan', description: DESCRIPTIONS.confirmed, node: container, heading: heading };
+    return { title: 'Order confirmed \u2013 ' + BRAND, description: DESCRIPTIONS.confirmed, node: container, heading: heading };
   }
 
   function checkoutView(notice) {
@@ -437,11 +578,11 @@
       var shop = el('a', 'text-link', 'Browse the catalog');
       shop.href = '#/catalog';
       container.appendChild(shop);
-      return { title: 'Checkout \u2013 Dan', description: DESCRIPTIONS.checkout, node: container };
+      return { title: 'Checkout \u2013 ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
     }
     var total = cart.totalCents();
     var count = cart.count();
-    container.appendChild(orderSummary(lines, total));
+    container.appendChild(orderSummary(cart, lines));
 
     var form = el('form', 'checkout-form');
     form.setAttribute('novalidate', 'novalidate');
@@ -516,7 +657,7 @@
       app.focus();
     });
     container.appendChild(form);
-    return { title: 'Checkout \u2013 Dan', description: DESCRIPTIONS.checkout, node: container };
+    return { title: 'Checkout \u2013 ' + BRAND, description: DESCRIPTIONS.checkout, node: container };
   }
 
   function updateCartCount() {
