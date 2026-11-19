@@ -61,6 +61,9 @@
 
   // Filters (all optional): type, modality, neighborhood, minArea, maxArea,
   // minBedrooms, minParking, maxPrice (cents), q (title/neighborhood text).
+  // Numeric filters are applied only when finite numbers (NaN, strings and
+  // undefined are ignored). maxPrice compares the raw listing price (sale
+  // price or monthly rent), so pair it with `modality` to get meaningful results.
   function filterListings(f) {
     f = f || {};
     var q = normalize(f.q);
@@ -69,11 +72,11 @@
       if (f.type && l.type !== f.type) return false;
       if (f.modality && l.modality !== f.modality) return false;
       if (nb && normalize(l.neighborhood) !== nb) return false;
-      if (typeof f.minArea === 'number' && l.areaM2 < f.minArea) return false;
-      if (typeof f.maxArea === 'number' && l.areaM2 > f.maxArea) return false;
-      if (typeof f.minBedrooms === 'number' && l.bedrooms < f.minBedrooms) return false;
-      if (typeof f.minParking === 'number' && l.parking < f.minParking) return false;
-      if (typeof f.maxPrice === 'number' && l.price > f.maxPrice) return false;
+      if (Number.isFinite(f.minArea) && l.areaM2 < f.minArea) return false;
+      if (Number.isFinite(f.maxArea) && l.areaM2 > f.maxArea) return false;
+      if (Number.isFinite(f.minBedrooms) && l.bedrooms < f.minBedrooms) return false;
+      if (Number.isFinite(f.minParking) && l.parking < f.minParking) return false;
+      if (Number.isFinite(f.maxPrice) && l.price > f.maxPrice) return false;
       if (q && normalize(l.title + ' ' + l.neighborhood).indexOf(q) === -1) return false;
       return true;
     });
