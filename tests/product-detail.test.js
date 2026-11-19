@@ -87,9 +87,13 @@ test('size buttons are real buttons with aria-pressed; selection is exclusive', 
 test('selecting a size highlights its row in the size guide', function () {
   const t = boot('#/produto/basic-tee');
   buttons(t)[2].listeners.click();
-  const marked = find(t.app, function (n) { return n.className === 'is-selected'; });
+  let marked = byClass(t.app, 'is-selected');
   assert.equal(marked.length, 1);
   assert.equal(marked[0].attrs['data-size'], 'M');
+  buttons(t)[3].listeners.click();
+  marked = byClass(t.app, 'is-selected');
+  assert.equal(marked.length, 1);
+  assert.equal(marked[0].attrs['data-size'], 'G');
 });
 
 test('add without a size shows an error, flags the picker and focuses it; nothing is added', function () {
@@ -100,10 +104,25 @@ test('add without a size shows an error, flags the picker and focuses it; nothin
   assert.match(status.className, /is-error/);
   assert.match(byClass(t.app, 'size-picker')[0].className, /needs-size/);
   assert.equal(buttons(t)[0].focusCount, 1);
+  assert.equal(byClass(t.app, 'size-picker')[0].attrs['aria-describedby'], status.id);
   assert.equal(t.store['dan-cart'], undefined);
   buttons(t)[1].listeners.click();
   assert.doesNotMatch(byClass(t.app, 'size-picker')[0].className, /needs-size/);
   assert.equal(byClass(t.app, 'cart-status')[0].textContent, '');
+  assert.doesNotMatch(byClass(t.app, 'cart-status')[0].className, /is-error/);
+  assert.equal(byClass(t.app, 'size-picker')[0].attrs['aria-describedby'], undefined);
+});
+
+test('max quantity shows an error status', function () {
+  const t = boot('#/produto/basic-tee');
+  buttons(t)[2].listeners.click();
+  const add = byClass(t.app, 'add-to-cart')[0];
+  for (let i = 0; i < 99; i++) { add.listeners.click(); }
+  assert.match(byClass(t.app, 'cart-status')[0].className, /is-success/);
+  add.listeners.click();
+  const status = byClass(t.app, 'cart-status')[0];
+  assert.equal(status.textContent, 'Maximum quantity reached.');
+  assert.match(status.className, /is-error/);
 });
 
 test('add with a size confirms with a success state and stores the size', function () {

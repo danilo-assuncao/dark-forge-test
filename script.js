@@ -324,6 +324,7 @@
       button.addEventListener('click', function () {
         selected = size;
         picker.className = 'size-picker';
+        picker.removeAttribute('aria-describedby');
         summary.textContent = 'Selected size: ' + size;
         markGuideRow(size);
         for (var b = 0; b < sizeButtons.length; b++) {
@@ -350,6 +351,7 @@
     var add = el('button', 'action-button add-to-cart', 'Add to cart');
     add.type = 'button';
     var status = el('p', 'cart-status');
+    status.id = 'cart-status';
     status.setAttribute('role', 'status');
     add.addEventListener('click', function () {
       if (!window.DanCart) {
@@ -362,6 +364,7 @@
         status.textContent = 'Select a size first.';
         status.className = 'cart-status is-error';
         picker.className = 'size-picker needs-size';
+        picker.setAttribute('aria-describedby', 'cart-status');
         if (sizeButtons.length) {
           sizeButtons[0].node.focus();
         }
