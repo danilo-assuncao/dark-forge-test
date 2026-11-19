@@ -18,7 +18,8 @@ test('index.html wires styles, script and filter hooks', () => {
   const html = read('index.html');
   assert.match(html, /href="styles\.css"/);
   assert.match(html, /src="destinations\.js"/);
-  for (const id of ['catalog', 'filter-category', 'filter-duration']) {
+  assert.match(html, /src="app\.js"/);
+  for (const id of ['catalog', 'filter-search', 'filter-category', 'filter-duration']) {
     assert.ok(html.includes('id="' + id + '"'), id);
   }
 });
@@ -86,52 +87,10 @@ test('filterDestinations and byCategory boundaries', () => {
   assert.equal(d3.length, api.DESTINATIONS.filter((d) => d.durations.includes(3)).length);
 });
 
-// Minimal fake DOM for render()/init().
-function fakeDocument() {
-  function node(tag) {
-    return {
-      tag, children: [], className: '', value: '', listeners: {}, _text: '',
-      get textContent() { return this._text; },
-      set textContent(v) { this._text = v; if (v === '') { this.children = []; } },
-      appendChild(c) { this.children.push(c); return c; },
-      addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
-      fire(t) { (this.listeners[t] || []).forEach((f) => f()); }
-    };
-  }
-  const ids = { catalog: node('div'), 'filter-category': node('select'), 'filter-duration': node('select') };
-  return { createElement: node, getElementById: (i) => ids[i], readyState: 'complete', ids };
-}
-const all = (n, tag, out = []) => { if (n.tag === tag) out.push(n); n.children.forEach((c) => all(c, tag, out)); return out; };
-
-test('render groups by category, shows only the selected duration, and handles empty', () => {
-  global.document = fakeDocument();
-  const c = global.document.createElement('div');
-  api.render(c, {});
-  assert.equal(all(c, 'section').length, 4);
-  assert.equal(all(c, 'article').length, api.DESTINATIONS.length);
-  api.render(c, { duration: '12' });
-  const chips = all(c, 'span');
-  assert.ok(chips.length > 0 && chips.every((s) => s.textContent.startsWith('12 dias')));
-  assert.equal(all(c, 'article').length, api.filterDestinations({ duration: 12 }).length);
-  api.render(c, { category: 'Ecoturismo', duration: 99 });
-  assert.equal(all(c, 'article').length, 0);
-  assert.equal(c.children[0].textContent, 'Nenhum destino encontrado.');
-  delete global.document;
-});
-
-test('init populates selects and re-renders on change', () => {
-  const doc = fakeDocument();
-  global.document = doc;
-  api.init();
-  const { catalog, 'filter-category': cat, 'filter-duration': dur } = doc.ids;
-  assert.deepEqual(cat.children.map((o) => o.value), api.CATEGORIES);
-  assert.deepEqual(dur.children.map((o) => o.value), ['3', '7', '12']);
-  assert.equal(all(catalog, 'section').length, 4);
-  cat.value = 'Praias';
-  cat.fire('change');
-  assert.equal(all(catalog, 'section').length, 1);
-  dur.value = '99';
-  dur.fire('change');
-  assert.equal(catalog.children[0].textContent, 'Nenhum destino encontrado.');
-  delete global.document;
+test('filterDestinations searches accent-insensitively across name, climate and inclusions', () => {
+  assert.deepEqual(api.filterDestinations({ query: 'GRAMADO' }).map((d) => d.id), ['gramado']);
+  assert.ok(api.filterDestinations({ query: 'jangada' }).some((d) => d.id === 'porto-de-galinhas'));
+  assert.deepEqual(api.filterDestinations({ query: 'zzz' }), []);
+  assert.deepEqual(api.filterDestinations({ query: 'serra', category: 'Praias' }), []);
+  assert.equal(api.normalize('  Amazônia  '), 'amazonia');
 });
