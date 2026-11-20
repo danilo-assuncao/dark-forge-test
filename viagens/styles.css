@@ -42,3 +42,11 @@ input[type=search] { min-width: 14rem; }
 .day p { margin: .15rem 0 0; color: var(--muted); }
 [hidden] { display: none !important; }
 @media (max-width: 480px) { input[type=search] { min-width: 0; width: 100%; } .filters label { width: 100%; } }
+
+.quote { margin-top: 2rem; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; }
+.quote-lines { list-style: none; padding: 0; }
+.quote-line { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid #eee; }
+.quote-add { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: 1rem 0; }
+.quote input[type="number"], .quote-add input[type="number"] { width: 4rem; }
+.quote .total { font-weight: bold; }
+.coupon-error { color: #b00020; }
