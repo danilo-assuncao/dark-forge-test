@@ -97,6 +97,7 @@
   }
 
   // Totals (all integer cents): subtotal -> coupon discount -> service fee on discounted amount.
+  // Note: These totals rely on the cart's cached unitCents for display purposes. Any final checkout must re-validate prices server-side.
   function totals(state) {
     var subtotal = 0;
     var tickets = 0;

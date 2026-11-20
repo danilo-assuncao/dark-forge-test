@@ -328,6 +328,22 @@
     app.appendChild(el('h1', 'page-title', 'Sacola'));
     if (!cart) return;
     var state = cart.load();
+    var events = catalog();
+    var revalidated = [];
+    var changed = false;
+    state.items.forEach(function (i) {
+      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
+      if (!ev) { changed = true; return; }
+      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
+      if (!sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
+      if (i.unitCents !== sel.lot.priceCents) { i.unitCents = sel.lot.priceCents; changed = true; }
+      revalidated.push(i);
+    });
+    if (changed) {
+      state.items = revalidated;
+      cart.save(state);
+    }
+
     var saveMessage = el('p', 'coupon-msg');
     saveMessage.setAttribute('role', 'status');
     app.appendChild(saveMessage);
@@ -349,6 +365,7 @@
       li.appendChild(el('span', null, i.eventName + ' – ' + i.sectorName + ' – ' + i.lotName + ' · ' +
         (i.type === 'meia' ? 'Meia' : 'Inteira') + ' · ' + formatPrice(cart.unitPrice(i.unitCents, i.type))));
       var q = el('input'); q.type = 'number'; q.min = '1'; q.max = String(cart.MAX_QTY); q.value = String(i.qty);
+      q.name = 'qtd-' + idx;
       q.setAttribute('aria-label', 'Quantidade');
       q.addEventListener('change', function () {
         var n = Number(q.value);

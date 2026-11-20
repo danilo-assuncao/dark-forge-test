@@ -141,6 +141,9 @@ test('invalid lines and quantities do not change the cart', () => {
   }
   for (const qty of [NaN, Infinity, 1.5]) assert.equal(cart.setQty(state, 0, qty), state);
   assert.equal(cart.setQty(state, '0', 2), state);
+  assert.equal(cart.setQty(state, 0, 99).items[0].qty, cart.MAX_QTY);
+  assert.equal(cart.setQty(state, 5, 2), state);
+  assert.equal(cart.setQty(state, 0, -1).items.length, 0);
 });
 
 test('cart operations preserve their inputs and keep lots and types separate', () => {
@@ -167,14 +170,12 @@ test('odd-cent prices round per ticket and coupon removal restores totals', () =
   assert.equal(cart.totals({ items: state.items, coupon: 'constructor' }).discountCents, 0);
 });
 
-test('cart route round-trips and UI explains the service fee basis', () => {
+test('cart route round-trips', () => {
   const ctx = { window: {} };
   vm.createContext(ctx);
   vm.runInContext(read('app.js'), ctx);
   const sectors = ctx.window.DanSectors;
   assert.equal(sectors.buildHash(sectors.parseHash('#/sacola')), '#/sacola');
-  assert.match(read('app.js'), /Taxa de serviço de 10% sobre o subtotal após descontos/);
-  assert.match(read('app.js'), /if \(!cart.save\(st\)\)/);
   assert.match(read('index.html'), /href="#\/sacola"/);
 });
 
@@ -215,6 +216,7 @@ function mount(storage, hash) {
 test('UI adds both ticket types, reloads the bag, applies and removes coupons, edits and removes lines', () => {
   const storage = memStorage();
   const page = mount(storage, '#/evento/rock-festival?setor=pista&lote=lote-2');
+  assert.match(page.app.textContent, /Taxa de serviço de 10% sobre o subtotal após descontos/);
   const buy = page.find(n => n.tag === 'form');
   buy.fire('submit');
   page.find(n => n.name === 'tipo').value = 'meia';
@@ -267,7 +269,7 @@ test('UI reports partial additions and does not claim success when the line is f
 test('UI reports failed persistence and restores the saved quantity', () => {
   const storage = memStorage();
   const cart = require('../cart.js');
-  cart.save(cart.addItem(cart.emptyState(), line()), storage);
+  cart.save(cart.addItem(cart.emptyState(), line({ eventId: 'rock-festival', sectorId: 'pista', lotId: 'lote-2' })), storage);
   storage.setItem = () => { throw Error('quota'); };
   const bag = mount(storage, '#/sacola');
   const quantity = bag.find(n => n.type === 'number');
