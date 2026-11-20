@@ -180,7 +180,7 @@ test('loader.js sequentially injects modules and handles execution', async () =>
   vm.createContext(sandbox);
   vm.runInContext(loaderSrc, sandbox);
   const loadAppPromise = vm.runInContext('window.loadAppPromise', sandbox);
-  await loadAppPromise;
+  if (loadAppPromise) await loadAppPromise;
   
   assert.equal(appendedScripts.length, 5);
   assert.equal(appendedScripts[0].src, './menu.js');
@@ -224,7 +224,7 @@ test('loader.js stops and renders error on fetch/execution failure', async () =>
   vm.runInContext(loaderSrc, sandbox);
   const loadAppPromise = vm.runInContext('window.loadAppPromise', sandbox);
   try {
-    await loadAppPromise;
+    if (loadAppPromise) await loadAppPromise;
   } catch(e) {}
   
   await new Promise(r => setTimeout(r, 0));
@@ -277,7 +277,7 @@ test('loader.js stops and renders error on script runtime execution failure', as
   vm.runInContext(loaderSrc, sandbox);
   const loadAppPromise = vm.runInContext('window.loadAppPromise', sandbox);
   try {
-    await loadAppPromise;
+    if (loadAppPromise) await loadAppPromise;
   } catch(e) {}
   
   await new Promise(r => setTimeout(r, 0));
