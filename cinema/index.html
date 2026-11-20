@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'">
+  <title>Dan Cineplex</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const moduleMap = {};
+    window.module = { exports: {} };
+    window.require = function(name) {
+      const match = ['movies.js', 'seats.js', 'snacks.js', 'checkout.js'].find(n => name === n || name === './' + n);
+      if (!match || !moduleMap[match]) throw new Error('Module not found: ' + name);
+      return moduleMap[match];
+    };
+  </script>
+  <script type="module" src="movies.js"></script>
+  <script type="module">moduleMap['movies.js'] = window.module.exports; window.module = { exports: {} };</script>
+  <script type="module" src="seats.js"></script>
+  <script type="module">moduleMap['seats.js'] = window.module.exports; window.module = { exports: {} };</script>
+  <script type="module" src="snacks.js"></script>
+  <script type="module">moduleMap['snacks.js'] = window.module.exports; window.module = { exports: {} };</script>
+  <script type="module" src="checkout.js"></script>
+  <script type="module">moduleMap['checkout.js'] = window.module.exports; window.module = { exports: {} };</script>
+  <script type="module" src="app.js"></script>
+  <script type="module">
+    const app = window.module.exports;
+    if (app && typeof app.initApp === 'function') {
+      app.initApp(document.getElementById('app'));
+    }
+  </script>
+</body>
+</html>
