@@ -21,17 +21,23 @@ function computeBudget(items, taxPct) {
   }
 
   let sum = 0;
-  items.forEach((value, i) => {
+  // Indexed loop (not forEach) so holes in sparse arrays are visited as undefined.
+  for (let i = 0; i < items.length; i++) {
+    const value = items[i];
     assertFiniteNumber(value, `items[${i}]`);
     if (value < 0) {
       throw new RangeError(`items[${i}] must not be negative.`);
     }
     sum += value;
-  });
+  }
 
   const subtotal = round2(sum);
   const tax = round2(subtotal * taxPct / 100);
-  return { subtotal, tax, total: round2(subtotal + tax) };
+  const total = round2(subtotal + tax);
+  if (![sum, subtotal, tax, total].every(Number.isFinite)) {
+    throw new RangeError('Budget result is too large to represent.');
+  }
+  return { subtotal, tax, total };
 }
 
 if (typeof module !== 'undefined' && module.exports) {

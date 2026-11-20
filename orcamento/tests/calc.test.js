@@ -38,3 +38,31 @@ test('rejects invalid taxPct', () => {
   }
   assert.throws(() => computeBudget([1], -5), /taxPct must not be negative/);
 });
+
+test('rejects holes in sparse arrays', () => {
+  assert.throws(() => computeBudget([1, , 3], 10), { name: 'TypeError', message: /items\[1\] must be a finite number/ });
+  assert.throws(() => computeBudget(new Array(3), 10), { name: 'TypeError', message: /items\[0\]/ });
+});
+
+test('rejects results that overflow to non-finite values', () => {
+  assert.throws(() => computeBudget([1e308, 1e308], 0), { name: 'RangeError', message: /too large/ });
+  assert.throws(() => computeBudget([1e307], 10), { name: 'RangeError', message: /too large/ });
+});
+
+test('rounds tax and total at fractional-cent boundaries', () => {
+  assert.deepEqual(computeBudget([10.05], 5), { subtotal: 10.05, tax: 0.5, total: 10.55 });
+  assert.deepEqual(computeBudget([0.5], 1), { subtotal: 0.5, tax: 0.01, total: 0.51 });
+  assert.deepEqual(computeBudget([1.01], 50), { subtotal: 1.01, tax: 0.51, total: 1.52 });
+});
+
+test('zero and negative zero items yield positive zeros', () => {
+  assert.deepEqual(computeBudget([0], 10), { subtotal: 0, tax: 0, total: 0 });
+  assert.deepEqual(computeBudget([-0], 10), { subtotal: 0, tax: 0, total: 0 });
+});
+
+test('error classes are asserted', () => {
+  assert.throws(() => computeBudget('x', 1), { name: 'TypeError' });
+  assert.throws(() => computeBudget([1], NaN), { name: 'TypeError' });
+  assert.throws(() => computeBudget([-1], 1), { name: 'RangeError' });
+  assert.throws(() => computeBudget([1], -1), { name: 'RangeError' });
+});
