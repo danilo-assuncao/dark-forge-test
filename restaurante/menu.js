@@ -40,7 +40,8 @@ function copy(d) {
   return { ...d, dietaryTags: [...d.dietaryTags], allergens: [...d.allergens] };
 }
 
-function filterMenu({ category, requiredTag, excludeAllergens = [] } = {}) {
+function filterMenu(opts) {
+  const { category, requiredTag, excludeAllergens = [] } = opts ?? {};
   if (category !== undefined) assertKnown(category, CATEGORIES, 'category');
   if (requiredTag !== undefined) assertKnown(requiredTag, DIETARY_TAGS, 'dietary tag');
   if (!Array.isArray(excludeAllergens)) {

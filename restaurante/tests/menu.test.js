@@ -36,41 +36,60 @@ test('dietary tags are consistent with allergens', () => {
   }
 });
 
+const idsOf = (list) => list.map((d) => d.id);
+
 test('filterMenu with no arguments returns the whole menu', () => {
-  assert.equal(filterMenu().length, MENU.length);
-  assert.equal(filterMenu({}).length, MENU.length);
+  assert.deepEqual(idsOf(filterMenu()), idsOf(MENU));
+  assert.deepEqual(idsOf(filterMenu({})), idsOf(MENU));
 });
 
-test('filterMenu filters by category', () => {
-  const r = filterMenu({ category: 'bebidas' });
-  assert.ok(r.length > 0);
-  assert.ok(r.every((d) => d.category === 'bebidas'));
+test('filterMenu treats null options like no options', () => {
+  assert.deepEqual(idsOf(filterMenu(null)), idsOf(MENU));
 });
 
-test('filterMenu filters by required dietary tag', () => {
-  const r = filterMenu({ requiredTag: 'vegano' });
-  assert.ok(r.length > 0);
-  assert.ok(r.every((d) => d.dietaryTags.includes('vegano')));
+test('filterMenu with an empty excludeAllergens array excludes nothing', () => {
+  assert.deepEqual(idsOf(filterMenu({ excludeAllergens: [] })), idsOf(MENU));
 });
 
-test('filterMenu excludes allergens (any match removes the dish)', () => {
+test('filterMenu filters by category (exact set)', () => {
+  for (const c of CATEGORIES) {
+    assert.deepEqual(idsOf(filterMenu({ category: c })), idsOf(MENU.filter((d) => d.category === c)));
+  }
+});
+
+test('filterMenu filters by required dietary tag (exact set)', () => {
+  for (const t of DIETARY_TAGS) {
+    assert.deepEqual(idsOf(filterMenu({ requiredTag: t })), idsOf(MENU.filter((d) => d.dietaryTags.includes(t))));
+  }
+  assert.ok(filterMenu({ requiredTag: 'vegano' }).length > 0);
+});
+
+test('filterMenu excludes allergens (any match removes the dish, exact set)', () => {
+  const expected = MENU.filter((d) => !d.allergens.includes('lactose') && !d.allergens.includes('gluten'));
   const r = filterMenu({ excludeAllergens: ['lactose', 'gluten'] });
-  assert.ok(r.length > 0);
-  assert.ok(r.every((d) => !d.allergens.includes('lactose') && !d.allergens.includes('gluten')));
+  assert.ok(r.length > 0 && r.length < MENU.length);
+  assert.deepEqual(idsOf(r), idsOf(expected));
 });
 
 test('filterMenu combines all criteria', () => {
   const r = filterMenu({ category: 'sobremesas', requiredTag: 'vegetariano', excludeAllergens: ['lactose'] });
-  assert.deepEqual(r.map((d) => d.id), ['sob-sorbet-manga']);
+  assert.deepEqual(idsOf(r), ['sob-sorbet-manga']);
+});
+
+test('filterMenu combination that keeps exactly one dish', () => {
+  const r = filterMenu({ category: 'bebidas', requiredTag: 'vegano', excludeAllergens: ['lactose'] });
+  assert.deepEqual(idsOf(r), ['beb-suco-laranja']);
 });
 
 test('filterMenu can return an empty list', () => {
-  assert.deepEqual(filterMenu({ category: 'bebidas', requiredTag: 'vegano', excludeAllergens: ['lactose'] }).length, 1);
   assert.deepEqual(filterMenu({ category: 'entradas', requiredTag: 'sem-gluten', excludeAllergens: ['castanhas'] }), []);
 });
 
 test('filterMenu rejects unknown inputs', () => {
   assert.throws(() => filterMenu({ category: 'lanches' }), RangeError);
+  assert.throws(() => filterMenu({ category: null }), RangeError);
+  assert.throws(() => filterMenu({ requiredTag: null }), RangeError);
+  assert.throws(() => filterMenu({ excludeAllergens: null }), TypeError);
   assert.throws(() => filterMenu({ requiredTag: 'keto' }), RangeError);
   assert.throws(() => filterMenu({ excludeAllergens: ['soja'] }), RangeError);
   assert.throws(() => filterMenu({ excludeAllergens: 'lactose' }), TypeError);
@@ -82,6 +101,17 @@ test('filterMenu returns copies that cannot corrupt the menu', () => {
   first.name = 'x';
   assert.deepEqual(getDishById(first.id).allergens, MENU[0].allergens);
   assert.notEqual(getDishById(first.id).name, 'x');
+});
+
+test('getDishById returns copies that cannot corrupt the menu', () => {
+  const d = getDishById('ent-bruschetta');
+  d.allergens.push('lactose');
+  d.dietaryTags.length = 0;
+  d.name = 'x';
+  const again = getDishById('ent-bruschetta');
+  assert.deepEqual(again.allergens, ['gluten']);
+  assert.deepEqual(again.dietaryTags, ['vegano', 'vegetariano']);
+  assert.equal(again.name, 'Bruschetta de tomate');
 });
 
 test('getDishById finds dishes and returns null otherwise', () => {
