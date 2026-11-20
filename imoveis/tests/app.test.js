@@ -77,6 +77,6 @@ test('styles are light-only and the page loads every script and uses no innerHTM
   assert.match(css, /color-scheme:\s*only light;/);
   assert.doesNotMatch(css, /prefers-color-scheme/);
   const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
-  for (const s of ['listings', 'mortgage', 'compare', 'visits', 'app']) assert.ok(html.includes(`src="${s}.js"`), s);
+  for (const s of ['listings', 'mortgage', 'compare', 'visits', 'proposal', 'app']) assert.ok(html.includes(`src="${s}.js"`), s);
   assert.doesNotMatch(fs.readFileSync(path.join(dir, 'app.js'), 'utf8'), /innerHTML/);
 });

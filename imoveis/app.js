@@ -11,6 +11,7 @@
   var M = isNode ? require('./mortgage.js') : root.ImoveisMortgage;
   var C = isNode ? require('./compare.js') : root.ImoveisCompare;
   var V = isNode ? require('./visits.js') : root.ImoveisVisits;
+  var P = isNode ? require('./proposal.js') : root.ImoveisProposal;
 
   function num(v) {
     if (v === '' || v == null) return undefined;
@@ -133,6 +134,7 @@
     L.MODALITIES.forEach(function (m) { option($('f-modality'), m.id, m.name); });
     L.NEIGHBORHOODS.forEach(function (n) { option($('f-neighborhood'), n, n); });
     V.MODES.forEach(function (m) { option($('v-mode'), m.id, m.name); });
+    P.CONDITIONS.forEach(function (c) { option($('p-condition'), c.id, c.name); });
 
     function values() {
       return {
@@ -223,6 +225,8 @@
         ['Custo mensal', L.formatBRL(L.monthlyCost(current))],
       ].forEach(function (p) { var d = el('div'); d.appendChild(el('dt', p[0])); d.appendChild(el('dd', p[1])); dl.appendChild(d); });
       $('visit-msg').textContent = '';
+      $('proposal-msg').textContent = '';
+      $('proposal-summary').hidden = true;
       renderSim();
       refreshShifts();
       $('detail-title').focus();
@@ -275,6 +279,46 @@
       out.textContent = msg.text;
       out.className = msg.ok ? 'ok' : 'error';
       if (msg.ok) refreshShifts();
+    });
+
+    $('proposal-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!current) return;
+      var res = P.validateProposal({
+        listingId: current.id,
+        condition: $('p-condition').value,
+        amount: $('p-amount').value,
+        contact: { name: $('p-name').value, email: $('p-email').value, phone: $('p-phone').value }
+      });
+      var out = $('proposal-msg');
+      if (res.ok) {
+        out.textContent = 'Proposta enviada com sucesso! Protocolo ' + res.proposal.protocol + '.';
+        out.className = 'ok'; $('proposal-form').reset();
+        var sum = P.generateSummary(res.proposal);
+        var sumDl = $('summary-facts');
+        clear(sumDl);
+        [
+          ['Protocolo', sum.protocol],
+          ['Data', sum.date],
+          ['Proponente', sum.buyer.name],
+          ['Imóvel', sum.property.title],
+          ['Modalidade', sum.property.modality],
+          ['Preço original', sum.property.price],
+          ['Condição proposta', sum.offer.condition],
+          ['Valor proposto', sum.offer.amount],
+        ].forEach(function (p) { var d = el('div'); d.appendChild(el('dt', p[0])); d.appendChild(el('dd', p[1])); sumDl.appendChild(d); });
+        $('proposal-summary').hidden = false;
+        $('proposal-summary').querySelector('h4').textContent = sum.title;
+      } else {
+        var errList = []; if (res.errors.listingId) errList.push(res.errors.listingId); if (res.errors.condition) errList.push(res.errors.condition); if (res.errors.amount) errList.push(res.errors.amount); if (res.errors.contact) { if (res.errors.contact.name) errList.push(res.errors.contact.name); if (res.errors.contact.email) errList.push(res.errors.contact.email); if (res.errors.contact.phone) errList.push(res.errors.contact.phone); } var firstError = errList.join(' ');
+        out.textContent = firstError || 'Não foi possível enviar a proposta.';
+        out.className = 'error';
+        $('proposal-summary').hidden = true;
+      }
+    });
+
+    $('print-proposal').addEventListener('click', function () {
+      window.print();
     });
 
     var now = new Date();
