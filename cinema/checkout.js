@@ -1,6 +1,5 @@
 'use strict';
 
-const { getSessionById } = require('./movies.js');
 const { createSeatMap } = require('./seats.js');
 const { calculateSnacksTotal } = require('./snacks.js');
 
@@ -19,8 +18,6 @@ function buildCinemaOrder({ sessionId, seats, snacks = [], couponCode = '', buye
   }
   if (typeof couponCode !== 'string') throw new TypeError('couponCode must be a string');
   if (!Array.isArray(seats)) throw new TypeError('seats must be an array');
-  const session = getSessionById(sessionId);
-  if (!session) throw new RangeError('unknown session');
   const seatMap = createSeatMap(sessionId);
   for (const seat of seats) {
     if (!seat || typeof seat !== 'object' || Array.isArray(seat)) {
@@ -41,7 +38,7 @@ function buildCinemaOrder({ sessionId, seats, snacks = [], couponCode = '', buye
 
   return {
     protocol,
-    sessionId: session.id,
+    sessionId,
     buyerName: buyerName.trim(),
     seats: selectedSeats,
     snacks: snackSummary,
