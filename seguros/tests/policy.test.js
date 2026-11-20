@@ -8,7 +8,7 @@ const base = { vehicleId: 'sedan-medio', driverAge: 30, payment: 'credit' };
 
 test('issues a proposal without optional coverages or coupon', () => {
   const p = issuePolicyProposal(base);
-  assert.match(p.protocol, /^APO-[A-Z0-9]{4}$/);
+  assert.match(p.protocol, /^APO-[A-HJ-NP-Z2-9]{4}$/);
   assert.equal(p.vehicleId, 'sedan-medio');
   assert.equal(p.basePremiumCents, 625000);
   assert.equal(p.coveragesTotalCents, 0);
@@ -93,6 +93,11 @@ test('normalizes selections and coupon without mutating the payload', () => {
   assert.deepEqual(p.coverageIds, ['vidros-completo']);
   p.coverageIds.push('carro-reserva-7d');
   assert.deepEqual(payload.coverageIds, [' VIDROS-COMPLETO ']);
+
+  const pEmpty = issuePolicyProposal({ ...base, coupon: '   ', installments: undefined });
+  assert.equal(pEmpty.coupon, '');
+  assert.equal(pEmpty.couponDiscountCents, 0);
+  assert.equal(pEmpty.installments, 1);
 });
 
 test('rejects invalid payment, installment and coupon inputs', () => {
@@ -137,7 +142,7 @@ test('browser export composes all three dependencies and matches the Node calcul
   const payload = { ...base, coupon: 'DANSEG10', installments: 12, coverageIds: ['carro-reserva-7d'] };
   const browser = JSON.parse(JSON.stringify(window.SegurosPolicy.issuePolicyProposal(payload)));
   const node = issuePolicyProposal(payload);
-  assert.match(browser.protocol, /^APO-[A-Z0-9]{4}$/);
+  assert.match(browser.protocol, /^APO-[A-HJ-NP-Z2-9]{4}$/);
   delete browser.protocol;
   delete node.protocol;
   assert.deepEqual(browser, node);
