@@ -64,8 +64,14 @@
     }
   ];
 
-  const ClinicaExams = {
-    all: () => EXAMS.slice(),
+  EXAMS.forEach(e => {
+    if (e.included) Object.freeze(e.included);
+    Object.freeze(e);
+  });
+  Object.freeze(EXAMS);
+
+  const ClinicaExams = Object.freeze({
+    all: () => EXAMS,
     
     find: (id) => EXAMS.find(e => e.id === id) || null,
     
@@ -74,7 +80,7 @@
     labExams: () => EXAMS.filter(e => e.type === 'laboratorial'),
     
     checkups: () => EXAMS.filter(e => e.type === 'checkup')
-  };
+  });
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = ClinicaExams;
