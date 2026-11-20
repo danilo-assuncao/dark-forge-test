@@ -70,3 +70,27 @@ test('does not alias the input extras array', () => {
   extras.push('x');
   assert.deepEqual(r.extras, ['queijo-extra']);
 });
+
+test('rejects sparse holes and non-string extras', () => {
+  // eslint-disable-next-line no-sparse-arrays
+  assert.throws(() => customizeDish({ dishId: ID, extras: [,] }), RangeError);
+  assert.throws(() => customizeDish({ dishId: ID, extras: [['queijo-extra']] }), RangeError);
+  assert.throws(() => customizeDish({ dishId: ID, extras: [{ toString: () => 'queijo-extra' }] }), RangeError);
+});
+
+test('rejects duplicate extras', () => {
+  assert.throws(() => customizeDish({ dishId: ID, extras: ['queijo-extra', 'queijo-extra'] }), RangeError);
+});
+
+test('accepts boundaries and prices exactly 3 extras', () => {
+  assert.equal(customizeDish({ dishId: ID, qty: 1 }).qty, 1);
+  const r = customizeDish({ dishId: ID, extras: ['queijo-extra', 'bacon-artesanal', 'molho-trufado'] });
+  assert.equal(r.unitPriceBrl, 82);
+});
+
+test('rejects null inputs (null does not trigger defaults)', () => {
+  assert.throws(() => customizeDish({ dishId: ID, qty: null }), RangeError);
+  assert.throws(() => customizeDish({ dishId: ID, doneness: null }), RangeError);
+  assert.throws(() => customizeDish({ dishId: ID, extras: null }), TypeError);
+  assert.throws(() => customizeDish({ dishId: ID, notes: null }), TypeError);
+});
