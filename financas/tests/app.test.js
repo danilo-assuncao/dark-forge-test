@@ -104,7 +104,7 @@ test('Dan Invest SPA', async (t) => {
             return res.textContent;
         };
 
-        // CDB com 1 ano (365 dias) -> IR 20%
+        // CDB com 1 ano (365 dias) -> IR 17.5%
         let txt = testSim(1000, 10, 100, 90, 365);
         assert.match(txt, /CDB Líquido: R\$ 1082\.50/);
         assert.match(txt, /LCI Líquido: R\$ 1089\.57/);
@@ -116,19 +116,30 @@ test('Dan Invest SPA', async (t) => {
 
         // Testar faixas de IR e limites
         txt = testSim(1000, 10, 100, 90, 180); // <= 180 -> 22.5%
-        assert.match(txt, /CDB Líquido:/); 
+        assert.match(txt, /CDB Líquido: R\$ 1037\.30/);
         
         txt = testSim(1000, 10, 100, 90, 181); // > 180 -> 20.0%
-        assert.match(txt, /CDB Líquido:/); 
+        assert.match(txt, /CDB Líquido: R\$ 1038\.72/);
 
         txt = testSim(1000, 10, 100, 90, 360); // <= 360 -> 20.0%
+        assert.match(txt, /CDB Líquido: R\$ 1078\.85/);
+
         txt = testSim(1000, 10, 100, 90, 361); // > 360 -> 17.5%
+        assert.match(txt, /CDB Líquido: R\$ 1081\.55/);
+
         txt = testSim(1000, 10, 100, 90, 720); // <= 720 -> 17.5%
+        assert.match(txt, /CDB Líquido: R\$ 1170\.65/);
+
         txt = testSim(1000, 10, 100, 90, 721); // > 720 -> 15.0%
+        assert.match(txt, /CDB Líquido: R\$ 1176\.09/);
 
         // Empate com taxas zeradas
         txt = testSim(1000, 10, 0, 0, 180);
         assert.match(txt, /Empate/);
+        
+        // Melhor opção: CDB
+        txt = testSim(1000, 10, 150, 90, 180); // CDB pagando 150% do CDI
+        assert.match(txt, /Melhor opção: CDB/);
     });
 
     await t.test('Orçamento 50-30-20', () => {
@@ -171,6 +182,10 @@ test('Dan Invest SPA', async (t) => {
         txt = testRebal('500', '50', '500', '50', '0');
         assert.match(txt, /A1: Manter R\$ 0\.00 \| A2: Manter R\$ 0\.00/);
 
+        // Tolerância de soma permite pequeno erro de float (ex: 70.1 + 29.9 que não dá cravado 100 em binário)
+        txt = testRebal('701', '70.1', '299', '29.9', '0');
+        assert.match(txt, /A1: Manter R\$ 0\.00 \| A2: Manter R\$ 0\.00/);
+
         // Aporte vazio fallback = 0
         txt = testRebal('600', '50', '400', '50', '');
         assert.match(txt, /A1: Vender R\$ 100\.00 \| A2: Comprar R\$ 100\.00/);
@@ -194,9 +209,22 @@ test('Dan Invest SPA', async (t) => {
     });
 
     await t.test('Tratamento de entradas vazias ou NaN', () => {
+        // Regra 50-30-20
         getEl('regra-renda').value = 'abc';
         getEl('regra-form').dispatchEvent({ type: 'submit', preventDefault: () => {} });
-        const result = getEl('regra-result').textContent;
-        assert.match(result, /NaN/);
+        let result = getEl('regra-result').textContent;
+        assert.match(result, /Erro: Renda inválida\./);
+        
+        // Simulador
+        getEl('sim-capital').value = 'abc';
+        getEl('simulador-form').dispatchEvent({ type: 'submit', preventDefault: () => {} });
+        result = getEl('simulador-result').textContent;
+        assert.match(result, /Erro: Entradas inválidas no simulador\./);
+        
+        // Rebalanceamento
+        getEl('rebal-ativo1-atual').value = 'abc';
+        getEl('rebal-form').dispatchEvent({ type: 'submit', preventDefault: () => {} });
+        result = getEl('rebal-result').textContent;
+        assert.match(result, /Erro: Entradas inválidas no rebalanceamento\./);
     });
 });

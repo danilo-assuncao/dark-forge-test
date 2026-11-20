@@ -27,6 +27,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const percCdb = parseFloat(document.getElementById('sim-cdb').value);
             const percLci = parseFloat(document.getElementById('sim-lci').value);
             const prazoDias = parseInt(document.getElementById('sim-prazo').value, 10);
+            
+            const resultDiv = document.getElementById('simulador-result');
+
+            if (!Number.isFinite(capital) || !Number.isFinite(diAnual) || !Number.isFinite(percCdb) || !Number.isFinite(percLci) || !Number.isFinite(prazoDias) || capital < 0 || diAnual < 0 || percCdb < 0 || percLci < 0 || prazoDias < 1) {
+                resultDiv.textContent = 'Erro: Entradas inválidas no simulador.';
+                return;
+            }
 
             // Cálculos simplificados (Juros Compostos ao dia - aproximação 252 dias úteis)
             const taxaDiDiaria = Math.pow(1 + (diAnual / 100), 1 / 252) - 1;
@@ -54,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dif > 0.001) melhorOpcao = 'CDB';
             else if (dif < -0.001) melhorOpcao = 'LCI';
 
-            const resultDiv = document.getElementById('simulador-result');
             resultDiv.textContent = `CDB Líquido: R$ ${liquidoCdb.toFixed(2)} | LCI Líquido: R$ ${liquidoLci.toFixed(2)} | Melhor opção: ${melhorOpcao}`;
         });
     }
@@ -65,12 +71,17 @@ document.addEventListener('DOMContentLoaded', () => {
         regraForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const renda = parseFloat(document.getElementById('regra-renda').value);
+            const resultDiv = document.getElementById('regra-result');
+
+            if (!Number.isFinite(renda) || renda <= 0) {
+                resultDiv.textContent = 'Erro: Renda inválida.';
+                return;
+            }
 
             const essenciais = renda * 0.5;
             const desejos = renda * 0.3;
             const investimentos = renda * 0.2;
 
-            const resultDiv = document.getElementById('regra-result');
             resultDiv.textContent = `Essenciais (50%): R$ ${essenciais.toFixed(2)} | Desejos (30%): R$ ${desejos.toFixed(2)} | Investimentos (20%): R$ ${investimentos.toFixed(2)}`;
         });
     }
@@ -88,10 +99,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const atual2 = parseFloat(document.getElementById('rebal-ativo2-atual').value);
             const ideal2 = parseFloat(document.getElementById('rebal-ativo2-ideal').value);
 
-            const aporte = parseFloat(document.getElementById('rebal-aporte').value) || 0;
+            const aporteStr = document.getElementById('rebal-aporte').value;
+            const aporte = aporteStr === '' ? 0 : parseFloat(aporteStr);
+            const resultDiv = document.getElementById('rebal-result');
+
+            if (!nome1 || !nome2 || !Number.isFinite(atual1) || !Number.isFinite(ideal1) || !Number.isFinite(atual2) || !Number.isFinite(ideal2) || !Number.isFinite(aporte) || atual1 < 0 || atual2 < 0 || ideal1 < 0 || ideal2 < 0 || ideal1 > 100 || ideal2 > 100 || aporte < 0) {
+                resultDiv.textContent = 'Erro: Entradas inválidas no rebalanceamento.';
+                return;
+            }
 
             if (Math.abs((ideal1 + ideal2) - 100) > 1e-9) {
-                document.getElementById('rebal-result').textContent = "Erro: A soma dos alvos ideais deve ser 100%.";
+                resultDiv.textContent = "Erro: A soma dos alvos ideais deve ser 100%.";
                 return;
             }
 
@@ -110,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return centVal > 0 ? `Comprar R$ ${centVal.toFixed(2)}` : `Vender R$ ${Math.abs(centVal).toFixed(2)}`;
             };
 
-            const resultDiv = document.getElementById('rebal-result');
             resultDiv.textContent = `${nome1}: ${formatDif(dif1)} | ${nome2}: ${formatDif(dif2)}`;
         });
     }
