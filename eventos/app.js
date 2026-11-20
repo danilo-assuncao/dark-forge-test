@@ -124,7 +124,7 @@
     var qs = Object.keys(p).filter(function (k) { return p[k]; }).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
     }).join('&');
-    var base = route.name === 'event' ? '#/evento/' + encodeURIComponent(route.id) : '#/';
+    var base = route.name === 'event' ? '#/evento/' + encodeURIComponent(route.id) : route.name === 'cart' ? '#/sacola' : '#/';
     return qs ? base + '?' + qs : base;
   }
 
@@ -287,16 +287,17 @@
       buy.appendChild(field('Tipo', typeSel));
       buy.appendChild(field('Quantidade', qty));
       buy.appendChild(add);
+      app.appendChild(el('p', null, 'Taxa de serviço de 10% sobre o subtotal após descontos. Cupom DANSHOW10: 10% de desconto nos ingressos.'));
       var msg = el('p', 'coupon-msg'); msg.setAttribute('role', 'status');
       buy.addEventListener('submit', function (ev) {
         ev.preventDefault();
-        var n = parseInt(qty.value, 10);
-        if (!(n >= 1 && n <= cart.MAX_QTY)) { msg.textContent = 'Quantidade deve ser de 1 a ' + cart.MAX_QTY + '.'; return; }
+        var n = Number(qty.value);
+        if (!(Number.isInteger(n) && n >= 1 && n <= cart.MAX_QTY)) { msg.textContent = 'Quantidade deve ser de 1 a ' + cart.MAX_QTY + '.'; return; }
         var st = cart.addItem(cart.load(), {
           eventId: e.id, eventName: e.name, sectorId: sector.id, sectorName: sector.name,
           lotId: lot.id, lotName: lot.name, type: typeSel.value, qty: n, unitCents: lot.priceCents
         });
-        cart.save(st);
+        if (!cart.save(st)) { msg.textContent = 'Não foi possível salvar a sacola. Verifique o armazenamento do navegador e tente novamente.'; return; }
         updateCartCount();
         msg.textContent = 'Adicionado à sacola.';
       });
@@ -319,7 +320,17 @@
     app.appendChild(el('h1', 'page-title', 'Sacola'));
     if (!cart) return;
     var state = cart.load();
-    function commit(next) { cart.save(next); render(); }
+    var saveMessage = el('p', 'coupon-msg');
+    saveMessage.setAttribute('role', 'status');
+    app.appendChild(saveMessage);
+    function commit(next) {
+      if (!cart.save(next)) {
+        saveMessage.textContent = 'Não foi possível salvar a sacola. Tente novamente.';
+        return false;
+      }
+      render();
+      return true;
+    }
     if (!state.items.length) {
       app.appendChild(el('p', 'empty', 'Sua sacola está vazia.'));
       return;
@@ -332,8 +343,13 @@
       var q = el('input'); q.type = 'number'; q.min = '1'; q.max = String(cart.MAX_QTY); q.value = String(i.qty);
       q.setAttribute('aria-label', 'Quantidade');
       q.addEventListener('change', function () {
-        var n = parseInt(q.value, 10);
-        commit(cart.setQty(state, idx, isNaN(n) ? i.qty : n));
+        var n = Number(q.value);
+        if (!Number.isInteger(n) || n < 1 || n > cart.MAX_QTY) {
+          q.value = String(i.qty);
+          saveMessage.textContent = 'Quantidade deve ser de 1 a ' + cart.MAX_QTY + '.';
+          return;
+        }
+        if (!commit(cart.setQty(state, idx, n))) q.value = String(i.qty);
       });
       var rm = el('button', null, 'Remover'); rm.type = 'button';
       rm.addEventListener('click', function () { commit(cart.removeItem(state, idx)); });
@@ -362,7 +378,7 @@
     function row(k, v, cls) { dl.appendChild(el('dt', cls, k)); dl.appendChild(el('dd', cls, v)); }
     row('Subtotal', formatPrice(t.subtotalCents));
     if (t.discountCents) row('Cupom ' + state.coupon + ' (10%)', '− ' + formatPrice(t.discountCents));
-    row('Taxa de serviço (' + Math.round(cart.SERVICE_FEE_RATE * 100) + '%)', formatPrice(t.serviceFeeCents));
+    row('Taxa de serviço após descontos (' + Math.round(cart.SERVICE_FEE_RATE * 100) + '%)', formatPrice(t.serviceFeeCents));
     row('Total', formatPrice(t.totalCents), 'total');
     app.appendChild(dl);
   }

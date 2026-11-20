@@ -103,3 +103,162 @@ test('corrupt or tampered storage falls back safely', function () {
   assert.equal(st.coupon, '');
   assert.deepEqual(JSON.parse(JSON.stringify(load().load())), { items: [], coupon: '' });
 });
+
+test('CommonJS import works without DOM or global mutation and accepts injected storage', () => {
+  const before = globalThis.DanCart;
+  const cart = require('../cart.js');
+  assert.equal(globalThis.DanCart, before);
+  const storage = memStorage();
+  const state = cart.applyCoupon(cart.addItem(cart.emptyState(), line({ type: 'meia', qty: 3 })), 'DANSHOW10').state;
+  assert.equal(cart.save(state, storage), true);
+  assert.deepEqual(cart.load(storage), state);
+  assert.deepEqual(cart.totals(cart.load(storage)), {
+    tickets: 3, subtotalCents: 15000, discountCents: 1500, serviceFeeCents: 1350, totalCents: 14850
+  });
+});
+
+test('missing, denied and full storage are handled without throwing', () => {
+  const cart = require('../cart.js');
+  const denied = { getItem() { throw Error('denied'); }, setItem() { throw Error('quota'); } };
+  for (const storage of [null, denied]) {
+    assert.deepEqual(cart.load(storage), cart.emptyState());
+    assert.equal(cart.save(cart.emptyState(), storage), false);
+  }
+  const ctx = { window: {} };
+  Object.defineProperty(ctx.window, 'localStorage', { get() { throw Error('denied'); } });
+  vm.createContext(ctx);
+  vm.runInContext(read('cart.js'), ctx);
+  assert.equal(ctx.window.DanCart.load().items.length, 0);
+  assert.equal(ctx.window.DanCart.save({ items: [], coupon: '' }), false);
+});
+
+test('invalid lines and quantities do not change the cart', () => {
+  const cart = require('../cart.js');
+  const state = cart.addItem(cart.emptyState(), line());
+  for (const invalid of [null, line({ eventId: '' }), line({ sectorId: null }), line({ lotId: ' ' }),
+    line({ qty: 1.5 }), line({ qty: Infinity }), line({ unitCents: Number.MAX_SAFE_INTEGER + 1 })]) {
+    assert.equal(cart.addItem(state, invalid), state);
+  }
+  for (const qty of [NaN, Infinity, 1.5]) assert.equal(cart.setQty(state, 0, qty), state);
+  assert.equal(cart.setQty(state, '0', 2), state);
+});
+
+test('cart operations preserve their inputs and keep lots and types separate', () => {
+  const cart = require('../cart.js');
+  const state = cart.addItem(cart.emptyState(), line());
+  Object.freeze(state.items[0]); Object.freeze(state.items); Object.freeze(state);
+  const merged = cart.addItem(state, line());
+  assert.equal(merged.items[0].qty, 2);
+  assert.equal(state.items[0].qty, 1);
+  assert.equal(cart.setQty(state, 0, 3).items[0].qty, 3);
+  assert.equal(cart.removeItem(state, 0).items.length, 0);
+  assert.equal(cart.addItem(state, line({ lotId: 'lote-2' })).items.length, 2);
+  assert.equal(cart.addItem(state, line({ type: 'meia' })).items.length, 2);
+});
+
+test('odd-cent prices round per ticket and coupon removal restores totals', () => {
+  const cart = require('../cart.js');
+  const state = cart.addItem(cart.emptyState(), line({ unitCents: 101, type: 'meia', qty: 3 }));
+  const discounted = cart.applyCoupon(state, 'DANSHOW10').state;
+  assert.deepEqual(cart.totals(discounted), {
+    tickets: 3, subtotalCents: 153, discountCents: 15, serviceFeeCents: 14, totalCents: 152
+  });
+  assert.equal(cart.totals(cart.applyCoupon(discounted, '').state).totalCents, 168);
+  assert.equal(cart.totals({ items: state.items, coupon: 'constructor' }).discountCents, 0);
+});
+
+test('cart route round-trips and UI explains the service fee basis', () => {
+  const ctx = { window: {} };
+  vm.createContext(ctx);
+  vm.runInContext(read('app.js'), ctx);
+  const sectors = ctx.window.DanSectors;
+  assert.equal(sectors.buildHash(sectors.parseHash('#/sacola')), '#/sacola');
+  assert.match(read('app.js'), /Taxa de serviço de 10% sobre o subtotal após descontos/);
+  assert.match(read('app.js'), /if \(!cart.save\(st\)\)/);
+  assert.match(read('index.html'), /href="#\/sacola"/);
+});
+
+// Minimal DOM harness exercises actual form handlers and renders without dependencies.
+function mount(storage, hash) {
+  class Element {
+    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.handlers = {}; this.value = ''; this.text = ''; }
+    set textContent(value) { this.text = String(value); this.children = []; }
+    get textContent() { return this.text + this.children.map(child => child.textContent).join(''); }
+    appendChild(child) {
+      this.children.push(child);
+      if (this.tag === 'select' && (child.selected || this.children.length === 1)) this.value = child.value;
+      return child;
+    }
+    setAttribute(key, value) { this.attrs[key] = value; }
+    getAttribute(key) { return this.attrs[key] || null; }
+    addEventListener(name, handler) { this.handlers[name] = handler; }
+    fire(name) { this.handlers[name]({ preventDefault() {} }); }
+  }
+  const app = new Element('main');
+  const count = new Element('span');
+  const listeners = {};
+  const window = {
+    localStorage: storage, location: { hash },
+    document: { readyState: 'complete', createElement: tag => new Element(tag), getElementById: id => id === 'app' ? app : count },
+    addEventListener: (name, fn) => { listeners[name] = fn; }
+  };
+  const ctx = vm.createContext({ window });
+  for (const file of ['events.js', 'cart.js', 'app.js']) vm.runInContext(read(file), ctx);
+  function all(node = app) { return [node, ...node.children.flatMap(child => all(child))]; }
+  return {
+    app, count, window,
+    find: predicate => all().find(predicate),
+    navigate(hash) { window.location.hash = hash; listeners.hashchange(); }
+  };
+}
+
+test('UI adds both ticket types, reloads the bag, applies and removes coupons, edits and removes lines', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/evento/rock-festival?setor=pista&lote=lote-2');
+  const buy = page.find(n => n.tag === 'form');
+  buy.fire('submit');
+  page.find(n => n.name === 'tipo').value = 'meia';
+  page.find(n => n.name === 'qtd').value = '2';
+  buy.fire('submit');
+  assert.equal(page.count.textContent, '3');
+  const bag = mount(storage, '#/sacola');
+  assert.match(bag.app.textContent, /Inteira.*R\$ 150,00/);
+  assert.match(bag.app.textContent, /Meia.*R\$ 75,00/);
+  assert.match(bag.app.textContent, /SubtotalR\$ 300,00.*TotalR\$ 330,00/);
+  bag.find(n => n.name === 'cupom').value = ' danshow10 ';
+  bag.find(n => n.tag === 'form').fire('submit');
+  assert.match(bag.app.textContent, /Cupom DANSHOW10 \(10%\)− R\$ 30,00.*R\$ 27,00TotalR\$ 297,00/);
+  bag.find(n => n.name === 'cupom').value = 'invalid';
+  bag.find(n => n.tag === 'form').fire('submit');
+  assert.match(bag.app.textContent, /Cupom inválido/);
+  assert.equal(JSON.parse(storage._m['dan-tickets-cart']).coupon, 'DANSHOW10');
+  bag.find(n => n.name === 'cupom').value = '';
+  bag.find(n => n.tag === 'form').fire('submit');
+  const quantity = bag.find(n => n.type === 'number');
+  quantity.value = '1.5'; quantity.fire('change');
+  assert.equal(quantity.value, '1');
+  quantity.value = '2'; quantity.fire('change');
+  assert.equal(bag.count.textContent, '4');
+  bag.find(n => n.tag === 'button' && n.textContent === 'Remover').fire('click');
+  assert.equal(bag.count.textContent, '2');
+  bag.find(n => n.tag === 'button' && n.textContent === 'Remover').fire('click');
+  assert.match(bag.app.textContent, /Sua sacola está vazia/);
+  assert.equal(bag.count.textContent, '0');
+});
+
+test('UI reports failed persistence and restores the saved quantity', () => {
+  const storage = memStorage();
+  const cart = require('../cart.js');
+  cart.save(cart.addItem(cart.emptyState(), line()), storage);
+  storage.setItem = () => { throw Error('quota'); };
+  const bag = mount(storage, '#/sacola');
+  const quantity = bag.find(n => n.type === 'number');
+  quantity.value = '3'; quantity.fire('change');
+  assert.equal(quantity.value, '1');
+  assert.equal(bag.count.textContent, '1');
+  assert.match(bag.app.textContent, /Não foi possível salvar a sacola/);
+  bag.navigate('#/evento/rock-festival?setor=pista&lote=lote-2');
+  bag.find(n => n.tag === 'form').fire('submit');
+  assert.match(bag.app.textContent, /Não foi possível salvar a sacola/);
+  assert.equal(bag.count.textContent, '1');
+});

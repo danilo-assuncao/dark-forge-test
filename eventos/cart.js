@@ -15,10 +15,10 @@
   }
 
   function isValidItem(i) {
-    return i && typeof i === 'object' && typeof i.eventId === 'string' && typeof i.sectorId === 'string' &&
-      typeof i.lotId === 'string' && TYPES.indexOf(i.type) !== -1 &&
+    return i && typeof i === 'object' && typeof i.eventId === 'string' && i.eventId.trim() && typeof i.sectorId === 'string' && i.sectorId.trim() &&
+      typeof i.lotId === 'string' && i.lotId.trim() && TYPES.indexOf(i.type) !== -1 &&
       Number.isInteger(i.qty) && i.qty > 0 && i.qty <= MAX_QTY &&
-      Number.isInteger(i.unitCents) && i.unitCents >= 0;
+      Number.isSafeInteger(i.unitCents) && i.unitCents >= 0;
   }
 
   function sanitize(raw) {
@@ -38,16 +38,19 @@
     try { return root.localStorage || null; } catch (e) { return null; }
   }
 
-  function load() {
-    var s = getStorage();
+  function load(storage) {
+    var s = storage === undefined ? getStorage() : storage;
     if (!s) return emptyState();
     try { return sanitize(JSON.parse(s.getItem(STORAGE_KEY))); } catch (e) { return emptyState(); }
   }
 
-  function save(state) {
-    var s = getStorage();
-    if (!s) return;
-    try { s.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* quota/private mode */ }
+  function save(state, storage) {
+    var s = storage === undefined ? getStorage() : storage;
+    if (!s) return false;
+    try {
+      s.setItem(STORAGE_KEY, JSON.stringify(sanitize(state)));
+      return true;
+    } catch (e) { return false; /* quota/private mode */ }
   }
 
   // Unit price in cents for a ticket type: Meia is 50% of the base price.
@@ -61,12 +64,12 @@
 
   // Pure: returns a new state with `line` added (quantities merge, capped at MAX_QTY).
   function addItem(state, line) {
-    var qty = Math.floor(Number(line.qty == null ? 1 : line.qty));
-    if (!(qty > 0) || TYPES.indexOf(line.type) === -1 || !(Number.isInteger(line.unitCents) && line.unitCents >= 0)) {
-      return state;
-    }
+    if (!line || typeof line !== 'object') return state;
+    var qty = Number(line.qty == null ? 1 : line.qty);
+    if (!Number.isSafeInteger(qty) || qty <= 0) return state;
+    var item = Object.assign({}, line, { qty: Math.min(MAX_QTY, qty) });
+    if (!isValidItem(item)) return state;
     var next = { items: state.items.map(function (i) { return Object.assign({}, i); }), coupon: state.coupon };
-    var item = Object.assign({}, line, { qty: qty });
     var found = next.items.filter(function (i) { return sameLine(i, item); })[0];
     if (found) found.qty = Math.min(MAX_QTY, found.qty + qty);
     else next.items.push(Object.assign(item, { qty: Math.min(MAX_QTY, qty) }));
@@ -75,8 +78,8 @@
 
   // Pure: sets quantity of the line at `index`; qty <= 0 removes it.
   function setQty(state, index, qty) {
-    var q = Math.floor(Number(qty));
-    if (!state.items[index] || isNaN(q)) return state;
+    var q = Number(qty);
+    if (!Number.isInteger(index) || !state.items[index] || !Number.isSafeInteger(q)) return state;
     var items = state.items.map(function (i) { return Object.assign({}, i); });
     if (q <= 0) items.splice(index, 1);
     else items[index].qty = Math.min(MAX_QTY, q);
@@ -101,7 +104,7 @@
       subtotal += unitPrice(i.unitCents, i.type) * i.qty;
       tickets += i.qty;
     });
-    var coupon = COUPONS[state.coupon];
+    var coupon = Object.prototype.hasOwnProperty.call(COUPONS, state.coupon) ? COUPONS[state.coupon] : null;
     var discount = coupon ? Math.round(subtotal * coupon.rate) : 0;
     var afterDiscount = subtotal - discount;
     var serviceFee = Math.round(afterDiscount * SERVICE_FEE_RATE);
@@ -116,6 +119,6 @@
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, unitPrice: unitPrice,
     addItem: addItem, setQty: setQty, removeItem: removeItem, applyCoupon: applyCoupon, totals: totals
   };
-  root.DanCart = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.DanCart = api;
 })(typeof window !== 'undefined' ? window : globalThis);
