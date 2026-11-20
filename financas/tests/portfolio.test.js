@@ -59,6 +59,23 @@ test('distributes remainder cents deterministically (largest remainder, ties by 
   assert.equal(Math.round(Object.values(r2.allocation).reduce((x, y) => x + y, 0) * 100), 3);
 });
 
+test('breaks equal remainders by class order', () => {
+  // arrojado, 2 cents from zero: exact shares 0.5 / 1 / 0.5 -> tie between
+  // fixedIncome and international; the leftover cent goes to fixedIncome.
+  const r = rebalancePortfolio({
+    profile: 'arrojado',
+    holdings: { fixedIncome: 0, equities: 0, international: 0 },
+    newContributionBrl: 0.02,
+  });
+  assert.deepEqual(r.allocation, { fixedIncome: 0.01, equities: 0.01, international: 0 });
+  const c = rebalancePortfolio({
+    profile: 'conservador',
+    holdings: { fixedIncome: 0, equities: 0, international: 0 },
+    newContributionBrl: 0.03,
+  });
+  assert.deepEqual(c.allocation, { fixedIncome: 0.02, equities: 0.01, international: 0 });
+});
+
 test('empty portfolio without contribution yields zero weights, no NaN', () => {
   const r = rebalancePortfolio({
     profile: 'arrojado',
@@ -172,4 +189,63 @@ test('rejects invalid input', () => {
     () => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: NaN }),
     TypeError,
   );
+});
+
+test('accepts float-noisy and large whole-cent amounts exactly', () => {
+  const holdings = { fixedIncome: 0, equities: 0, international: 0 };
+  for (const amount of [0.07, 0.29, 1.15, 4.35, 19.99, 1234567.89, 123456789.12, 1000000000.01]) {
+    const r = rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: amount });
+    const cents = Object.values(r.allocation).reduce((a, b) => a + Math.round(b * 100), 0);
+    assert.equal(cents, Math.round(amount * 100), String(amount));
+  }
+  assert.throws(
+    () => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: 0.0100001 }),
+    /newContributionBrl/,
+  );
+});
+
+test('rejects huge amounts quickly instead of looping or returning NaN', () => {
+  const holdings = { fixedIncome: 1, equities: 1, international: 1 };
+  for (const big of [1e300, 1e308, 1e15]) {
+    assert.throws(
+      () => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: big }),
+      /newContributionBrl is too large/,
+    );
+    assert.throws(
+      () => rebalancePortfolio({ profile: 'moderado', holdings: { ...holdings, equities: big } }),
+      /holdings\.equities is too large/,
+    );
+  }
+});
+
+test('sub-cent holdings are rejected so no holding is silently sold', () => {
+  const holdings = { fixedIncome: 100.004, equities: 1, international: 1 };
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings }), /holdings\.fixedIncome/);
+});
+
+test('float-noisy holdings: outputs are cent-exact and consistent', () => {
+  const r = rebalancePortfolio({
+    profile: 'moderado',
+    holdings: { fixedIncome: 0.1, equities: 0.2, international: 0.07 },
+    newContributionBrl: 0.13,
+  });
+  const sum = Object.values(r.newHoldings).reduce((a, b) => a + b, 0);
+  assert.equal(r.totalBrl, Math.round(sum * 100) / 100);
+  assert.equal(r.totalBrl, 0.5);
+  for (const v of Object.values(r.newHoldings)) assert.equal(v, Math.round(v * 100) / 100);
+  near(Object.values(r.newWeights).reduce((a, b) => a + b, 0), 100);
+});
+
+test('rejects invalid arguments with field-specific messages', () => {
+  const holdings = { fixedIncome: 1, equities: 1, international: 1 };
+  assert.throws(() => rebalancePortfolio(), RangeError);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings: null }), /holdings/);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings: [] }), /holdings\.fixedIncome/);
+  assert.throws(
+    () => rebalancePortfolio({ profile: 'moderado', holdings: { ...holdings, international: NaN } }),
+    /holdings\.international/,
+  );
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: '10' }), /newContributionBrl/);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: null }), /newContributionBrl/);
+  assert.doesNotThrow(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: -0 }));
 });

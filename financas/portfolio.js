@@ -9,13 +9,26 @@ const TARGET_WEIGHTS = Object.freeze({
   arrojado: Object.freeze({ fixedIncome: 25, equities: 50, international: 25 }),
 });
 
-function assertAmount(value, name) {
+// Validates a BRL amount and returns it in integer cents. Amounts must be
+// finite, non-negative, whole cents (no silent rounding) and small enough for
+// the cent value to be a safe integer (about 9e13 BRL).
+function toCents(value, name) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TypeError(`${name} must be a finite number`);
   }
   if (value < 0) {
     throw new RangeError(`${name} must not be negative`);
   }
+  const cents = Math.round(value * 100);
+  if (!Number.isSafeInteger(cents)) {
+    throw new RangeError(`${name} is too large`);
+  }
+  // toFixed is exact on the decimal representation, so there is no magnitude-
+  // dependent tolerance: 1.005 is rejected, 19.99 and 123456789.12 are accepted.
+  if (Number(value.toFixed(2)) !== value) {
+    throw new RangeError(`${name} must be a whole number of cents`);
+  }
+  return cents;
 }
 
 // Monetary outputs are rounded to cents to avoid float noise.
@@ -65,13 +78,13 @@ function rebalancePortfolio({ profile, holdings, newContributionBrl = 0 } = {}) 
   if (holdings === null || typeof holdings !== 'object') {
     throw new TypeError('holdings must be an object');
   }
-  for (const cls of CLASSES) assertAmount(holdings[cls], `holdings.${cls}`);
-  assertAmount(newContributionBrl, 'newContributionBrl');
-  // Contributions must be whole cents; sub-cent values are rejected instead of
-  // being silently rounded away.
-  const contributionCents = Math.round(newContributionBrl * 100);
-  if (Math.abs(newContributionBrl * 100 - contributionCents) > 1e-6) {
-    throw new RangeError('newContributionBrl must be a whole number of cents');
+  // Holdings and the contribution share the same whole-cent rule, so rounding
+  // outputs to cents never alters an existing holding.
+  let totalCents = 0;
+  for (const cls of CLASSES) totalCents += toCents(holdings[cls], `holdings.${cls}`);
+  const contributionCents = toCents(newContributionBrl, 'newContributionBrl');
+  if (!Number.isSafeInteger(totalCents + contributionCents)) {
+    throw new RangeError('total portfolio value is too large');
   }
   const contribution = contributionCents / 100;
 
