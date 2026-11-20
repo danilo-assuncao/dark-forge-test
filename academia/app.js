@@ -110,18 +110,42 @@
     return n;
   }
 
-  function init(doc, storage) {
-    var schedule = Sched.createSchedule(storage, { occupancy: DEMO_OCCUPANCY, waiting: DEMO_WAITING });
-    var state = { day: new Date().getDay(), plan: 'plus', cycle: 'semestral' };
+  function seatsBadge(n) { return n === 1 ? '1 vaga' : n + ' vagas'; }
+
+  // opts.day: weekday to show first (0-6, defaults to today);
+  // opts.occupancy / opts.waiting: override the demo data.
+  function init(doc, storage, opts) {
+    opts = opts || {};
+    var schedule = Sched.createSchedule(storage, {
+      occupancy: opts.occupancy || DEMO_OCCUPANCY,
+      waiting: opts.waiting || DEMO_WAITING
+    });
+    var state = { day: opts.day != null ? opts.day : new Date().getDay(), plan: 'plus', cycle: 'semestral' };
     var $ = function (id) { return doc.getElementById(id); };
+    var pendingKey = null;
+    var toFocus = null;
+
+    // Focus is restored to the control with the same key after a re-render.
+    function beginRender() {
+      var a = doc.activeElement;
+      pendingKey = a && a.getAttribute ? a.getAttribute('data-focus') : null;
+      toFocus = null;
+    }
+    function mark(node, key) {
+      node.setAttribute('data-focus', key);
+      if (key === pendingKey) toFocus = node;
+    }
+    function endRender() { if (toFocus) toFocus.focus(); }
 
     function renderSchedule() {
+      beginRender();
       var picker = $('day-picker');
       picker.textContent = '';
       Sched.DAYS.forEach(function (d) {
         var b = el(doc, 'button', d.name);
         b.type = 'button';
         b.setAttribute('aria-pressed', String(d.id === state.day));
+        mark(b, 'day-' + d.id);
         b.addEventListener('click', function () { state.day = d.id; $('schedule-msg').textContent = ''; renderSchedule(); });
         picker.appendChild(b);
       });
@@ -136,10 +160,11 @@
         li.appendChild(el(doc, 'p', 'Intensidade ' + r.intensity + ' · ~' + r.calories + ' kcal', 'meta'));
         var badge = r.status === 'booked' ? 'Reservada'
           : r.status === 'waitlisted' ? 'Lista de espera nº ' + r.position
-          : r.status === 'full' ? 'Lotada' : r.seatsLeft + ' vagas';
+          : r.status === 'full' ? 'Lotada' : seatsBadge(r.seatsLeft);
         li.appendChild(el(doc, 'span', badge, 'badge'));
         var b = el(doc, 'button', rowLabel(r));
         b.type = 'button';
+        mark(b, 'slot-' + r.id);
         b.addEventListener('click', function () {
           var res = toggleSlot(schedule, r);
           renderSchedule();
@@ -160,15 +185,18 @@
         mine.appendChild(el(doc, 'li', Sched.DAYS[s.day].name + ' ' + s.start + ' – ' +
           Classes.getClass(s.classId).name + ' (' + p[1] + ')', 'card'));
       });
+      endRender();
     }
 
     function renderPlans() {
+      beginRender();
       var cp = $('cycle-picker');
       cp.textContent = '';
       Plans.listCycles().forEach(function (c) {
         var b = el(doc, 'button', c.label + (c.discountPct ? ' −' + c.discountPct + '%' : ''));
         b.type = 'button';
         b.setAttribute('aria-pressed', String(c.id === state.cycle));
+        mark(b, 'cycle-' + c.id);
         b.addEventListener('click', function () { state.cycle = c.id; renderPlans(); });
         cp.appendChild(b);
       });
@@ -185,14 +213,17 @@
         var b = el(doc, 'button', p.id === state.plan ? 'Selecionado' : 'Selecionar');
         b.type = 'button';
         b.setAttribute('aria-pressed', String(p.id === state.plan));
+        mark(b, 'plan-' + p.id);
         b.addEventListener('click', function () { state.plan = p.id; renderPlans(); });
         li.appendChild(b);
         pl.appendChild(li);
       });
       renderQuote();
+      endRender();
     }
 
     function renderQuote() {
+      $('enroll-msg').textContent = ''; // a confirmation never outlives its quote
       var q = buildQuote(state.plan, state.cycle, $('coupon').value);
       $('enroll-summary').textContent = Plans.getPlan(state.plan).name + ' · ' + Plans.getCycle(state.cycle).label;
       $('coupon-msg').textContent = q.couponMessage;
@@ -210,15 +241,27 @@
       $('enroll-msg').textContent = enroll(state.plan, state.cycle, $('coupon').value).message;
     });
 
-    var tabs = doc.querySelectorAll('[data-tab]');
-    Array.prototype.forEach.call(tabs, function (t) {
-      t.addEventListener('click', function () {
-        Array.prototype.forEach.call(tabs, function (o) {
-          var on = o === t;
-          o.setAttribute('aria-selected', String(on));
-          o.tabIndex = on ? 0 : -1;
-          $('panel-' + o.getAttribute('data-tab')).hidden = !on;
-        });
+    var tabs = Array.prototype.slice.call(doc.querySelectorAll('[data-tab]'));
+    function activateTab(t, focus) {
+      tabs.forEach(function (o) {
+        var on = o === t;
+        o.setAttribute('aria-selected', String(on));
+        o.tabIndex = on ? 0 : -1;
+        $('panel-' + o.getAttribute('data-tab')).hidden = !on;
+      });
+      if (focus) t.focus();
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { activateTab(t, false); });
+      t.addEventListener('keydown', function (e) {
+        var n = tabs.length, k = e.key, target = null;
+        if (k === 'ArrowRight') target = tabs[(i + 1) % n];
+        else if (k === 'ArrowLeft') target = tabs[(i - 1 + n) % n];
+        else if (k === 'Home') target = tabs[0];
+        else if (k === 'End') target = tabs[n - 1];
+        if (!target) return;
+        e.preventDefault();
+        activateTab(target, true);
       });
     });
 
