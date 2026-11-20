@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dan Seguros</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Dan Seguros</h1>
+    </header>
+    <main>
+        <form id="insurance-form">
+            <section id="vehicle-section">
+                <h2>Veículo e FIPE</h2>
+                <label for="vehicle">Veículo:</label>
+                <select id="vehicle" name="vehicle" required>
+                    <option value="">Selecione...</option>
+                    <option value="50000">Hatch Compacto (FIPE: R$ 50.000)</option>
+                    <option value="80000">Sedan Médio (FIPE: R$ 80.000)</option>
+                    <option value="120000">SUV (FIPE: R$ 120.000)</option>
+                </select>
+                <p>Valor FIPE: R$ <span id="fipe-value">0,00</span></p>
+            </section>
+
+            <section id="profile-section">
+                <h2>Perfil do Condutor</h2>
+                <label for="age">Idade:</label>
+                <input type="number" id="age" name="age" min="18" max="100" required>
+                <label for="usage">Uso do Veículo:</label>
+                <select id="usage" name="usage" required>
+                    <option value="particular">Particular</option>
+                    <option value="comercial">Comercial</option>
+                    <option value="app">Aplicativo</option>
+                </select>
+            </section>
+
+            <section id="franchise-section">
+                <h2>Franquia</h2>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="franchise" value="reduzida" required> Reduzida (Prêmio maior, franquia menor)
+                    </label>
+                    <label>
+                        <input type="radio" name="franchise" value="normal" checked> Normal (Padrão)
+                    </label>
+                    <label>
+                        <input type="radio" name="franchise" value="majorada"> Majorada (Prêmio menor, franquia maior)
+                    </label>
+                </div>
+            </section>
+
+            <section id="coverage-section">
+                <h2>Coberturas Adicionais</h2>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="coverage" value="vidros"> Vidros e Retrovisores</label>
+                    <label><input type="checkbox" name="coverage" value="terceiros"> Danos a Terceiros</label>
+                    <label><input type="checkbox" name="coverage" value="carro_reserva_7" class="carro-reserva"> Carro Reserva 7 dias</label>
+                    <label><input type="checkbox" name="coverage" value="carro_reserva_15" class="carro-reserva"> Carro Reserva 15 dias</label>
+                    <label><input type="checkbox" name="coverage" value="carro_reserva_30" class="carro-reserva"> Carro Reserva 30 dias</label>
+                </div>
+            </section>
+
+            <section id="coupon-section">
+                <h2>Cupom de Desconto</h2>
+                <label for="coupon">Código do Cupom:</label>
+                <input type="text" id="coupon" name="coupon" placeholder="Ex: DANSEG10">
+            </section>
+
+            <button type="submit">Calcular Seguro</button>
+        </form>
+
+        <section id="simulation-result" class="hidden">
+            <h2>Simulação</h2>
+            <p><strong>Prêmio Base:</strong> R$ <span id="base-premium">0,00</span></p>
+            <p><strong>Adicionais:</strong> R$ <span id="additional-premium">0,00</span></p>
+            <p><strong>Desconto:</strong> R$ <span id="discount-value">0,00</span></p>
+            <p><strong>Total (PIX - 5% desconto):</strong> R$ <span id="total-pix">0,00</span></p>
+            <p><strong>Total (12x sem juros):</strong> 12x de R$ <span id="total-installments">0,00</span></p>
+            
+            <button id="issue-policy">Emitir Apólice</button>
+        </section>
+
+        <section id="policy-result" class="hidden">
+            <h2>Apólice Emitida com Sucesso!</h2>
+            <p><strong>Número da Apólice:</strong> <span id="policy-number"></span></p>
+        </section>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>

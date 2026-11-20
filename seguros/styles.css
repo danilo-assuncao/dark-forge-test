@@ -1,0 +1,128 @@
+:root {
+    --primary-color: #0056b3;
+    --background-color: #f4f7f6;
+    --text-color: #333;
+    --border-color: #ccc;
+    --box-background: #fff;
+    --button-hover: #004494;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+header {
+    background-color: var(--primary-color);
+    color: #fff;
+    padding: 1rem 0;
+    text-align: center;
+}
+
+main {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+section {
+    background-color: var(--box-background);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+h2 {
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.5rem;
+    color: var(--primary-color);
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.radio-group label,
+.checkbox-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: normal;
+}
+
+.radio-group input,
+.checkbox-group input {
+    margin-right: 0.5rem;
+}
+
+button {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    background-color: var(--primary-color);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: var(--button-hover);
+}
+
+.hidden {
+    display: none;
+}
+
+#simulation-result, #policy-result {
+    margin-top: 1.5rem;
+}
+
+#simulation-result p, #policy-result p {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+#issue-policy {
+    margin-top: 1rem;
+    background-color: #28a745;
+}
+
+#issue-policy:hover {
+    background-color: #218838;
+}
+
+#policy-result {
+    text-align: center;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+#policy-result h2 {
+    color: #155724;
+    border-bottom: none;
+}
