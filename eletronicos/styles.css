@@ -37,4 +37,5 @@ select, input { padding: .5rem; border: 1px solid var(--border); border-radius: 
 .alert-warning { background: var(--warn-bg); color: var(--warn-text); }
 .alert-ok { background: var(--ok-bg); color: var(--ok-text); }
 .cart-items li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.specsheet-box { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 6px; background: #f1f5f9; font-family: monospace; white-space: pre-line; }
 @media (max-width: 600px) { select, input { min-width: 0; width: 100%; } .filters label, .builder label { width: 100%; } }
