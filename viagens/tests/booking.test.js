@@ -36,6 +36,15 @@ test('seasonMonths handles ranges, wraparound and multiple ranges', () => {
   assert.deepEqual(b.seasonMonths('sem datas'), []);
 });
 
+test('every real destination season parses to at least one month', () => {
+  dest.DESTINATIONS.forEach((d) => assert.ok(b.seasonMonths(d.climate.season).length > 0, d.id));
+});
+
+test('seasonHighlights is empty for a month nobody covers', () => {
+  assert.deepEqual(b.seasonHighlights(12), []);
+  assert.deepEqual(b.seasonHighlights(-1), []);
+});
+
 test('seasonHighlights returns in-season destinations, cheapest first, limited', () => {
   const july = b.seasonHighlights(6);
   assert.ok(july.length > 0 && july.length <= 3);
@@ -43,7 +52,7 @@ test('seasonHighlights returns in-season destinations, cheapest first, limited',
   const prices = july.map((d) => Math.min(...d.durations.map((n) => d.priceCents[n])));
   assert.deepEqual(prices, prices.slice().sort((x, y) => x - y));
   assert.equal(b.seasonHighlights(6, 1).length, 1);
-  assert.equal(dest.DESTINATIONS.length > 0, true);
+  assert.deepEqual(b.seasonHighlights(6, 0), []);
 });
 
 test('validateTraveler checks name and document', () => {
@@ -158,3 +167,166 @@ test('renderQuote adds the checkout button only when a handler exists', () => wi
   byClass(withH, 'checkout-start')[0].fire('click');
   assert.equal(clicked, 1);
 }));
+
+test('validateTraveler document boundaries', () => {
+  const ok = (document) => b.validateTraveler({ name: 'Maria Silva', document }).valid;
+  [['A1234', false], ['A12345', true], ['A12345678', true], ['A123456789', false],
+    ['1234567890', false], ['123456789012', false], ['12345678909', true], ['ab123456', true],
+    ['123.456.789-09', true], ['AB 123 456', true], ['AB*12345', false]]
+    .forEach(([doc, expected]) => assert.equal(ok(doc), expected, doc));
+  assert.equal(b.normalizeDocument('ab-123 456'), 'AB123456');
+});
+
+test('validateTraveler name boundaries', () => {
+  const ok = (name) => b.validateTraveler({ name, document: '12345678909' });
+  assert.equal(ok("Jos\u00e9 D'\u00c1vila-Neto").valid, true);
+  assert.equal(ok('A Silva').valid, false);
+  assert.equal(ok('  Maria   Silva  ').traveler.name, 'Maria Silva');
+  assert.equal(ok('  Maria   Silva  ').valid, true);
+});
+
+test('requiredTravelers uses the largest party; duplicates are detected after normalizing', () => {
+  let s = q.addItem(q.emptyState(), { id: 'gramado', duration: 3, travelers: 1 });
+  s = q.addItem(s, { id: 'lisboa', duration: 7, travelers: 3 });
+  assert.equal(b.requiredTravelers(s), 3);
+  const s2 = state2();
+  const dup = b.validateBooking(s2, { boarding: 'gru', travelers: [
+    { name: 'Maria Silva', document: 'ab123456' }, { name: 'Joao Souza', document: 'AB-123456' }] });
+  assert.equal(dup.valid, false);
+  assert.equal(dup.errors[0].document, undefined);
+  assert.ok(dup.errors[1].document);
+  const dupCpf = b.validateBooking(s2, { boarding: 'gru', travelers: [
+    { name: 'Maria Silva', document: '123.456.789-09' }, { name: 'Joao Souza', document: '12345678909' }] });
+  assert.ok(dupCpf.errors[1].document);
+  // First entry invalid: its document is not registered, so the second is not flagged as duplicate.
+  const firstBad = b.validateBooking(s2, { boarding: 'gru', travelers: [
+    { name: 'x', document: '12345678909' }, { name: 'Joao Souza', document: '12345678909' }] });
+  assert.ok(firstBad.errors[0].name);
+  assert.equal(firstBad.errors[1].document, undefined);
+});
+
+test('generateCode pins rng edges and alphabet', () => {
+  assert.equal(b.generateCode(() => 0.9999), 'TRIP-9999');
+  assert.equal(b.generateCode(() => 5), 'TRIP-AAAA');
+  assert.equal(b.generateCode(() => -1), 'TRIP-AAAA');
+  assert.equal(b.generateCode(() => NaN), 'TRIP-AAAA');
+  for (let i = 0; i < 200; i++) assert.doesNotMatch(b.generateCode().slice(5), /[01OI]/);
+});
+
+test('renderVoucher shows travelers, lines, discount and total', () => withDom(() => {
+  const withCoupon = b.issueVoucher(q.setCoupon(state2(), 'DANTRIP10'), { travelers: good, boarding: 'gru' }, { rng: () => 0 }).voucher;
+  const out = node('section');
+  app.renderVoucher(out, withCoupon);
+  const texts = walk(out).map((n) => n._text);
+  assert.ok(texts.includes('Maria Silva - doc. 12345678909'));
+  assert.ok(texts.includes('Joao Souza - doc. AB123456'));
+  assert.ok(texts.some((t) => /Gramado, RS - 3 dias \(com seguro\): /.test(t)));
+  assert.ok(texts.some((t) => /^Desconto: -R\$/.test(t)));
+  assert.ok(texts.includes('Total: ' + dest.formatBRL(withCoupon.totalCents)));
+  const plain = b.issueVoucher(state2(), { travelers: good, boarding: 'gru' }).voucher;
+  const out2 = node('section');
+  app.renderVoucher(out2, plain);
+  assert.ok(!walk(out2).some((n) => /^Desconto/.test(n._text)));
+  assert.equal(byClass(out2, 'voucher-close').length, 0);
+}));
+
+test('renderCheckout puts errors on the right fields and clears them on a valid resubmit', () => withDom(() => {
+  const box = node('section');
+  const s = state2();
+  app.renderCheckout(box, s, { onIssue: (f) => b.issueVoucher(s, f) });
+  const form = walk(box).find((n) => n.tag === 'form');
+  const inputs = walk(box).filter((n) => n.tag === 'input');
+  const errs = byClass(box, 'field-error');
+  inputs[0].value = 'Maria Silva'; inputs[1].value = '1'; inputs[2].value = 'x'; inputs[3].value = 'AB123456';
+  form.fire('submit');
+  assert.equal(errs[0]._text, '');
+  assert.ok(errs[1]._text);
+  assert.ok(errs[2]._text);
+  assert.equal(errs[3]._text, '');
+  assert.ok(errs[4]._text); // boarding
+  inputs[1].value = '12345678909'; inputs[2].value = 'Joao Souza';
+  walk(box).find((n) => n.tag === 'select').value = 'gru';
+  form.fire('submit');
+  errs.forEach((e) => assert.equal(e._text, ''));
+}));
+
+// init-level wiring with a fake page, stubbed storage, hash and clock.
+function page(hash, month) {
+  const ids = {};
+  ['catalog', 'filters', 'filter-search', 'filter-category', 'filter-duration', 'quote', 'checkout', 'highlights']
+    .forEach((id) => { ids[id] = node('div'); });
+  global.document = { createElement: node, createTextNode: (t) => ({ tag: '#text', children: [], _text: t }),
+    getElementById: (id) => ids[id] || null };
+  const store = {};
+  const storage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  const ctx = { ids, store, hash };
+  app.init({ storage, getHash: () => ctx.hash, now: () => new Date(2026, month, 15) });
+  return ctx;
+}
+
+test('init: highlights only on the unfiltered list route, using the injected month', () => {
+  try {
+    const home = page('#/', 6);
+    assert.equal(home.ids.highlights.hidden, false);
+    assert.ok(walk(home.ids.highlights).some((n) => n._text === 'Destaques da temporada'));
+    ['#/?q=gramado', '#/?cat=Praias', '#/?dur=7', '#/destino/gramado?dur=3'].forEach((h) => {
+      const p = page(h, 6);
+      assert.equal(p.ids.highlights.hidden, true, h);
+      assert.equal(p.ids.highlights.children.length, 0, h);
+    });
+  } finally { delete global.document; }
+});
+
+test('init: checkout issues a voucher, empties and saves the quote, and keeps the voucher until dismissed', () => {
+  try {
+    const seed = { items: [{ id: 'gramado', duration: 3, travelers: 2, insurance: false }], coupon: '' };
+    global.__seed = seed;
+    const ids = {};
+    ['catalog', 'filters', 'filter-search', 'filter-category', 'filter-duration', 'quote', 'checkout', 'highlights']
+      .forEach((id) => { ids[id] = node('div'); });
+    global.document = { createElement: node, createTextNode: (t) => ({ tag: '#text', children: [], _text: t }),
+      getElementById: (id) => ids[id] };
+    const store = { [q.STORAGE_KEY]: JSON.stringify(seed) };
+    const storage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+    let hash = '#/destino/gramado?dur=3';
+    app.init({ storage, getHash: () => hash, now: () => new Date(2026, 6, 1) });
+    assert.equal(ids.checkout.hidden, true);
+    byClass(ids.quote, 'checkout-start')[0].fire('click');
+    assert.equal(ids.checkout.hidden, false);
+    const inputs = walk(ids.checkout).filter((n) => n.tag === 'input');
+    inputs[0].value = good[0].name; inputs[1].value = good[0].document;
+    inputs[2].value = good[1].name; inputs[3].value = good[1].document;
+    walk(ids.checkout).find((n) => n.tag === 'select').value = 'gru';
+    walk(ids.checkout).find((n) => n.tag === 'form').fire('submit');
+    assert.equal(byClass(ids.checkout, 'checkout-form').length, 0);
+    const code = byClass(ids.checkout, 'voucher-code')[0]._text;
+    assert.ok(b.isValidCode(code));
+    assert.deepEqual(JSON.parse(store[q.STORAGE_KEY]).items, []);
+    assert.ok(walk(ids.quote).some((n) => n._text === 'Sua cotacao esta vazia.'));
+    // A later quote change must not wipe the voucher.
+    const add = walk(ids.catalog).find((n) => n.tag === 'button' && n._text === 'Adicionar a cotacao');
+    add.fire('click');
+    assert.equal(byClass(ids.checkout, 'voucher-code')[0]._text, code);
+    // Explicit dismiss clears it.
+    byClass(ids.checkout, 'voucher-close')[0].fire('click');
+    assert.equal(ids.checkout.hidden, true);
+  } finally { delete global.document; delete global.__seed; }
+});
+
+test('init: a quote change closes an open checkout form instead of silently resetting it', () => {
+  try {
+    const ids = {};
+    ['catalog', 'filters', 'filter-search', 'filter-category', 'filter-duration', 'quote', 'checkout', 'highlights']
+      .forEach((id) => { ids[id] = node('div'); });
+    global.document = { createElement: node, createTextNode: (t) => ({ tag: '#text', children: [], _text: t }),
+      getElementById: (id) => ids[id] };
+    const store = { [q.STORAGE_KEY]: JSON.stringify({ items: [{ id: 'gramado', duration: 3, travelers: 2, insurance: false }], coupon: '' }) };
+    const storage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+    app.init({ storage, getHash: () => '#/', now: () => new Date(2026, 6, 1) });
+    byClass(ids.quote, 'checkout-start')[0].fire('click');
+    assert.equal(ids.checkout.hidden, false);
+    byClass(ids.quote, 'quote-line')[0] && walk(byClass(ids.quote, 'quote-line')[0]).find((n) => n.tag === 'button' && n._text === 'Remover').fire('click');
+    assert.equal(ids.checkout.hidden, true);
+    assert.equal(ids.checkout.children.length, 0);
+  } finally { delete global.document; }
+});

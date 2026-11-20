@@ -246,7 +246,7 @@
     container.appendChild(grid);
   }
 
-  function renderVoucher(container, v) {
+  function renderVoucher(container, v, onDismiss) {
     container.textContent = '';
     container.hidden = false;
     var box = el('article', undefined, 'voucher');
@@ -264,6 +264,12 @@
     if (v.discountCents) { box.appendChild(el('p', 'Desconto: -' + data.formatBRL(v.discountCents))); }
     box.appendChild(el('p', 'Total: ' + data.formatBRL(v.totalCents), 'total'));
     box.appendChild(el('p', 'Voucher simulado, apenas para demonstracao.', 'muted'));
+    if (onDismiss) {
+      var close = el('button', 'Fechar voucher', 'voucher-close');
+      close.type = 'button';
+      close.addEventListener('click', function () { onDismiss(); });
+      box.appendChild(close);
+    }
     container.appendChild(box);
   }
 
@@ -308,7 +314,11 @@
         travelers: rows.map(function (r) { return { name: r.name.value, document: r.doc.value }; }),
         boarding: bsel.value
       });
-      if (res.voucher) { return; }
+      if (res.voucher) {
+        ferr.textContent = ''; berr.textContent = '';
+        rows.forEach(function (r) { r.nameErr.textContent = ''; r.docErr.textContent = ''; });
+        return;
+      }
       var e = res.error;
       ferr.textContent = e.formError;
       berr.textContent = e.boardingError;
@@ -327,7 +337,10 @@
     container.appendChild(link('← Voltar aos destinos', '#/', 'back'));
   }
 
-  function init() {
+  function init(opts) {
+    // opts (tests only): storage, getHash, now. 
+    opts = opts || {};
+    var nowFn = typeof opts.now === 'function' ? opts.now : function () { return new Date(); };
     var container = document.getElementById('catalog');
     var filters = document.getElementById('filters');
     var searchIn = document.getElementById('filter-search');
@@ -341,35 +354,46 @@
       var o = el('option', data.durationLabel(n)); o.value = String(n); durSel.appendChild(o);
     });
 
-    function currentHash() { return root.location ? root.location.hash : ''; }
+    function currentHash() {
+      if (typeof opts.getHash === 'function') { return opts.getHash(); }
+      return root.location ? root.location.hash : '';
+    }
 
     var lastListHash = '#/';
     var quoteBox = document.getElementById('quote');
-    var qstate = quote.load();
+    var qstate = quote.load(opts.storage);
 
     var checkoutBox = document.getElementById('checkout');
     var highlightsBox = document.getElementById('highlights');
     var checkoutOpen = false;
+    var voucher = null; // kept on screen until the user dismisses it
     var couponError = false;
     function commit(next) {
       couponError = false;
       qstate = next;
-      quote.save(qstate);
+      quote.save(qstate, opts.storage);
+      // Any quote change invalidates an open checkout form (traveler count may differ).
+      checkoutOpen = false;
       drawQuote();
       drawCheckout();
     }
     function drawCheckout() {
       if (!checkoutBox) { return; }
+      if (voucher) {
+        renderVoucher(checkoutBox, voucher, function () { voucher = null; drawCheckout(); });
+        return;
+      }
       if (!checkoutOpen) { checkoutBox.textContent = ''; checkoutBox.hidden = true; return; }
       renderCheckout(checkoutBox, qstate, {
         onIssue: function (form) {
           var res = booking.issueVoucher(qstate, form);
           if (res.voucher) {
             checkoutOpen = false;
+            voucher = res.voucher;
             qstate = quote.emptyState();
-            quote.save(qstate);
+            quote.save(qstate, opts.storage);
             drawQuote();
-            renderVoucher(checkoutBox, res.voucher);
+            drawCheckout();
           }
           return res;
         }
@@ -380,7 +404,7 @@
       renderQuote(quoteBox, qstate, {
         onUpdate: function (id, dur, patch) { commit(quote.updateItem(qstate, id, dur, patch)); },
         onRemove: function (id, dur) { commit(quote.removeItem(qstate, id, dur)); },
-        onCheckout: checkoutBox ? function () { checkoutOpen = true; drawCheckout(); } : null,
+        onCheckout: checkoutBox ? function () { voucher = null; checkoutOpen = true; drawCheckout(); } : null,
         onCoupon: function (code) {
           var res = quote.applyCoupon(qstate, code);
           if (res.error) { couponError = true; drawQuote(); } else { commit(res.state); }
@@ -392,7 +416,7 @@
       var r = parseHash(currentHash());
       if (filters) { filters.hidden = r.name !== 'list'; }
       if (highlightsBox) {
-        if (r.name === 'list' && !r.query && !r.category && !r.duration) { renderHighlights(highlightsBox, new Date().getMonth()); highlightsBox.hidden = false; }
+        if (r.name === 'list' && !r.query && !r.category && !r.duration) { renderHighlights(highlightsBox, nowFn().getMonth()); highlightsBox.hidden = false; }
         else { highlightsBox.textContent = ''; highlightsBox.hidden = true; }
       }
       if (r.name === 'detail') {
@@ -432,6 +456,7 @@
     durSel.addEventListener('change', function () { fromFilters(false); });
     if (root.addEventListener) { root.addEventListener('hashchange', route); }
     drawQuote();
+    drawCheckout();
     route();
   }
 
@@ -440,7 +465,7 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
+      document.addEventListener('DOMContentLoaded', function () { init(); });
     } else {
       init();
     }
