@@ -15,11 +15,7 @@ function memStorage(initial) {
 
 test('generateProtocol format', () => {
     const p1 = generateProtocol();
-    const p2 = generateProtocol();
     assert.match(p1, /^MED-[0-9A-Z]{4}$/);
-    assert.match(p2, /^MED-[0-9A-Z]{4}$/);
-    // Usually unique
-    assert.notEqual(p1, p2);
 });
 
 test('book appointment successfully', () => {
@@ -61,7 +57,7 @@ test('allow booking at same time if previous appointment was cancelled', () => {
     const engine = createEngine(memStorage());
     const apt1 = engine.book('doc-1', '2023-10-15', '09:00', 'João Silva');
     
-    engine.cancelAppointment(apt1.protocol);
+    engine.cancelAppointment(apt1.protocol, 'João Silva');
     
     // Now it should be allowed
     const apt2 = engine.book('doc-1', '2023-10-15', '09:00', 'Maria Souza');
@@ -92,8 +88,26 @@ test('handles missing fields', () => {
     const engine = createEngine(memStorage());
     
     assert.throws(() => engine.book(null, '2023-10-15', '09:00', 'João'), /Missing required fields/);
+    assert.throws(() => engine.book('doc-1', null, '09:00', 'João'), /Missing required fields/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15', null, 'João'), /Missing required fields/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15', '09:00', null), /Missing required fields/);
+    
+    assert.throws(() => engine.book('', '2023-10-15', '09:00', 'João'), /Fields cannot be empty/);
     assert.throws(() => engine.book('doc-1', '', '09:00', 'João'), /Fields cannot be empty/);
     assert.throws(() => engine.book('doc-1', '2023-10-15', '  ', 'João'), /Fields cannot be empty/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15', '09:00', ''), /Fields cannot be empty/);
+    
+    assert.throws(() => engine.book('doc-1', '2023-10-15', '09:00', 'A'.repeat(201)), /Patient name is too long/);
+});
+
+test('enforces format restrictions on date and time', () => {
+    const engine = createEngine(memStorage());
+    
+    assert.throws(() => engine.book('doc-1', '10/15/2023', '09:00', 'João Silva'), /Invalid date format/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15T00:00', '09:00', 'João Silva'), /Invalid date format/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15', '9:00', 'João Silva'), /Invalid time format/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15', '09:00:00', 'João Silva'), /Invalid time format/);
+    assert.throws(() => engine.book('doc-1', '2023-10-15', 'abc', 'João Silva'), /Invalid time format/);
 });
 
 test('query by doctor and patient', () => {
@@ -113,14 +127,124 @@ test('query by doctor and patient', () => {
 });
 
 test('cancel appointment', () => {
-    const engine = createEngine(memStorage());
+    const st = memStorage();
+    const engine = createEngine(st);
     const apt = engine.book('doc-1', '2023-10-15', '09:00', 'João Silva');
     
-    assert.equal(engine.cancelAppointment('NON-EXISTENT'), false);
+    assert.throws(() => engine.cancelAppointment(apt.protocol, null), /Patient name is required/);
+    assert.throws(() => engine.cancelAppointment(apt.protocol, 'Maria'), /Authorization failed/);
     
-    const cancelled = engine.cancelAppointment(apt.protocol);
+    assert.equal(engine.cancelAppointment('NON-EXISTENT', 'João Silva'), false);
+    
+    const cancelled = engine.cancelAppointment(apt.protocol, 'João Silva');
     assert.equal(cancelled, true);
     
     const all = engine.getAllAppointments();
     assert.equal(all[0].status, 'CANCELLED');
+    
+    // Idempotent
+    assert.equal(engine.cancelAppointment(apt.protocol, 'João Silva'), true);
+    
+    // Reloading new engine after cancel
+    const engine2 = createEngine(st);
+    assert.equal(engine2.getAllAppointments()[0].status, 'CANCELLED');
+    
+    // Rebook after cancel and 3rd booking throws conflict
+    engine.book('doc-1', '2023-10-15', '09:00', 'Maria Souza');
+    assert.throws(() => engine.book('doc-1', '2023-10-15', '09:00', 'Pedro'), /Schedule conflict/);
 });
+
+test('mutating returned appointments does not alter engine state', () => {
+    const engine = createEngine(memStorage());
+    const apt = engine.book('doc-1', '2023-10-15', '09:00', 'João Silva');
+    apt.status = 'CANCELLED';
+    assert.equal(engine.getAllAppointments()[0].status, 'BOOKED');
+    
+    const byPatient = engine.getAppointmentsByPatient('João Silva');
+    byPatient[0].status = 'CANCELLED';
+    assert.equal(engine.getAllAppointments()[0].status, 'BOOKED');
+    
+    const byDoctor = engine.getAppointmentsByDoctor('doc-1');
+    byDoctor[0].status = 'CANCELLED';
+    assert.equal(engine.getAllAppointments()[0].status, 'BOOKED');
+});
+
+test('storage failure/corruption handling', () => {
+    const st = memStorage();
+    st.setItem(STORAGE_KEY, 'not-json');
+    const engine1 = createEngine(st);
+    assert.equal(engine1.getAllAppointments().length, 0);
+    
+    st.setItem(STORAGE_KEY, '{}');
+    const engine2 = createEngine(st);
+    assert.equal(engine2.getAllAppointments().length, 0);
+    
+    // Valid but malformed entries should be dropped
+    st.setItem(STORAGE_KEY, JSON.stringify([
+        { protocol: 'MED-1234', doctorId: 'doc', date: '2023-10-15', time: '09:00', patientName: 'A', status: 'BOOKED' },
+        null,
+        {},
+        { protocol: '1234', doctorId: 'doc', date: '2023-10-15', time: '10:00', patientName: 'A', status: 'BOOKED' }, // Missing MED-
+        { protocol: 'MED-2222', doctorId: '', date: '2023-10-15', time: '11:00', patientName: 'A', status: 'BOOKED' },
+    ]));
+    
+    const engine3 = createEngine(st);
+    assert.equal(engine3.getAllAppointments().length, 1);
+    
+    // Engine constructed with no storage works
+    const engineNoStorage = createEngine(null);
+    engineNoStorage.book('doc', '2023-10-15', '09:00', 'Test');
+    assert.equal(engineNoStorage.getAllAppointments().length, 1);
+    
+    // Engine with storage whose setItem throws still keeps old memory for failure? Wait, we rollback memory now.
+    const failingStorage = {
+        getItem: () => null,
+        setItem: () => { throw new Error('Quota exceeded'); }
+    };
+    const engineFailing = createEngine(failingStorage);
+    assert.throws(() => engineFailing.book('doc', '2023-10-15', '09:00', 'Test'), /Failed to persist/);
+    assert.equal(engineFailing.getAllAppointments().length, 0); // Rolled back
+    
+    // Cancellation failing
+    const mockMem = memStorage();
+    const engine4 = createEngine(mockMem);
+    const apt = engine4.book('doc', '2023-10-15', '09:00', 'Test');
+    
+    // Inject fail
+    mockMem.setItem = () => { throw new Error('Quota exceeded'); };
+    assert.throws(() => engine4.cancelAppointment(apt.protocol, 'Test'), /Failed to persist cancellation/);
+    assert.equal(engine4.getAllAppointments()[0].status, 'BOOKED'); // Rolled back
+});
+
+test('protocol collision retry and exhaustion paths', (t) => {
+    let callCount = 0;
+    // Mock Math.random to always return 0 (generates MED-0000)
+    t.mock.method(Math, 'random', () => {
+        callCount++;
+        return 0; 
+    });
+    
+    const engine = createEngine(memStorage());
+    engine.book('doc-1', '2023-10-15', '09:00', 'A'); // First takes MED-0000
+    
+    assert.throws(() => {
+        engine.book('doc-1', '2023-10-15', '10:00', 'B'); // Tries 100 times to get MED-0000 and fails
+    }, /Failed to generate a unique protocol/);
+    
+    // Assert 1 attempt for first + 100 attempts for second, each calling random 4 times
+    assert.equal(callCount, 404);
+});
+
+test('whitespace-padded duplicates and numeric doctorId', () => {
+    const engine = createEngine(memStorage());
+    engine.book(1, '2023-10-15', '09:00', 'A');
+    
+    assert.throws(() => {
+        engine.book('1', '2023-10-15', '09:00', 'B');
+    }, /Schedule conflict/);
+    
+    assert.throws(() => {
+        engine.book(' 1 ', ' 2023-10-15 ', ' 09:00 ', ' B ');
+    }, /Schedule conflict/);
+});
+

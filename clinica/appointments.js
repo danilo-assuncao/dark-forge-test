@@ -23,7 +23,18 @@ class AppointmentEngine {
             const data = this.storage.getItem(STORAGE_KEY);
             if (!data) return [];
             const parsed = JSON.parse(data);
-            return Array.isArray(parsed) ? parsed : [];
+            if (!Array.isArray(parsed)) return [];
+            
+            return parsed.filter(a => {
+                if (!a || typeof a !== 'object') return false;
+                if (typeof a.protocol !== 'string' || !a.protocol.startsWith('MED-')) return false;
+                if (typeof a.doctorId !== 'string' || !a.doctorId.trim()) return false;
+                if (typeof a.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) return false;
+                if (typeof a.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(a.time)) return false;
+                if (typeof a.patientName !== 'string' || !a.patientName.trim()) return false;
+                if (a.status !== 'BOOKED' && a.status !== 'CANCELLED') return false;
+                return true;
+            });
         } catch (e) {
             return [];
         }
@@ -31,11 +42,7 @@ class AppointmentEngine {
 
     _save() {
         if (!this.storage) return;
-        try {
-            this.storage.setItem(STORAGE_KEY, JSON.stringify(this.appointments));
-        } catch (e) {
-            // ignore
-        }
+        this.storage.setItem(STORAGE_KEY, JSON.stringify(this.appointments));
     }
     
     _generateUniqueProtocol() {
@@ -51,6 +58,8 @@ class AppointmentEngine {
     }
 
     book(doctorId, date, time, patientName) {
+        this.appointments = this._load();
+
         if (doctorId == null || date == null || time == null || patientName == null) {
             throw new Error("Missing required fields: doctorId, date, time, patientName");
         }
@@ -62,6 +71,18 @@ class AppointmentEngine {
 
         if (!normalizedDoctorId || !normalizedDate || !normalizedTime || !normalizedPatient) {
              throw new Error("Fields cannot be empty");
+        }
+        
+        if (normalizedPatient.length > 200) {
+            throw new Error("Patient name is too long");
+        }
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+            throw new Error("Invalid date format. Expected YYYY-MM-DD");
+        }
+        
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(normalizedTime)) {
+            throw new Error("Invalid time format. Expected HH:MM");
         }
 
         const conflict = this.appointments.find(a => 
@@ -87,7 +108,12 @@ class AppointmentEngine {
         };
 
         this.appointments.push(appointment);
-        this._save();
+        try {
+            this._save();
+        } catch (e) {
+            this.appointments.pop();
+            throw new Error("Failed to persist appointment: " + e.message);
+        }
 
         return { ...appointment };
     }
@@ -101,8 +127,9 @@ class AppointmentEngine {
 
     getAppointmentsByPatient(patientName) {
         if (patientName == null) return [];
+        const target = String(patientName).trim().toLowerCase();
         return this.appointments
-            .filter(a => a.patientName.toLowerCase() === String(patientName).trim().toLowerCase())
+            .filter(a => String(a.patientName || '').toLowerCase() === target)
             .map(a => ({ ...a }));
     }
 
@@ -110,16 +137,35 @@ class AppointmentEngine {
         return this.appointments.map(a => ({ ...a }));
     }
     
-    cancelAppointment(protocol) {
+    cancelAppointment(protocol, patientName) {
+        this.appointments = this._load();
+
+        if (!patientName) {
+            throw new Error("Patient name is required to cancel an appointment.");
+        }
+
         const index = this.appointments.findIndex(a => a.protocol === protocol);
         if (index === -1) return false;
+
+        const apt = this.appointments[index];
+
+        if (String(apt.patientName).trim().toLowerCase() !== String(patientName).trim().toLowerCase()) {
+            throw new Error("Authorization failed: Patient name does not match.");
+        }
         
-        if (this.appointments[index].status === 'CANCELLED') {
+        if (apt.status === 'CANCELLED') {
             return true;
         }
 
-        this.appointments[index].status = 'CANCELLED';
-        this._save();
+        apt.status = 'CANCELLED';
+        
+        try {
+            this._save();
+        } catch (e) {
+            apt.status = 'BOOKED';
+            throw new Error("Failed to persist cancellation: " + e.message);
+        }
+
         return true;
     }
 }
