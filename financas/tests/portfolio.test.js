@@ -17,26 +17,91 @@ test('reports current weights and allocates nothing without a contribution', () 
     profile: 'moderado',
     holdings: { fixedIncome: 500, equities: 300, international: 200 },
   });
-  assert.deepEqual(r.currentWeights, { fixedIncome: 50, equities: 30, international: 20 });
+  near(r.currentWeights.fixedIncome, 50);
+  near(r.currentWeights.equities, 30);
+  near(r.currentWeights.international, 20);
   assert.deepEqual(r.allocation, { fixedIncome: 0, equities: 0, international: 0 });
   assert.deepEqual(r.newWeights, r.currentWeights);
 });
 
 test('sends the whole contribution to the single underweight class', () => {
   const r = rebalancePortfolio({
-    profile: 'conservador',
-    holdings: { fixedIncome: 800, equities: 150, international: 50 },
-    newContributionBrl: 0,
+    profile: 'moderado',
+    holdings: { fixedIncome: 550, equities: 300, international: 100 },
+    newContributionBrl: 50,
   });
-  assert.equal(r.allocation.fixedIncome, 0);
+  // New total 1000: targets 550 / 300 / 150 -> only international is below target.
+  assert.deepEqual(r.allocation, { fixedIncome: 0, equities: 0, international: 50 });
+  assert.equal(r.newHoldings.international, 150);
+});
 
-  const r2 = rebalancePortfolio({
+test('balanced portfolio splits the contribution by target weights', () => {
+  const r = rebalancePortfolio({
     profile: 'moderado',
     holdings: { fixedIncome: 550, equities: 300, international: 150 },
     newContributionBrl: 100,
   });
-  // Balanced portfolio: contribution splits by target weights.
-  assert.deepEqual(r2.allocation, { fixedIncome: 55, equities: 30, international: 15 });
+  assert.deepEqual(r.allocation, { fixedIncome: 55, equities: 30, international: 15 });
+});
+
+test('distributes remainder cents deterministically (largest remainder, ties by order)', () => {
+  const r = rebalancePortfolio({
+    profile: 'moderado',
+    holdings: { fixedIncome: 0, equities: 0, international: 0 },
+    newContributionBrl: 0.01,
+  });
+  assert.deepEqual(r.allocation, { fixedIncome: 0.01, equities: 0, international: 0 });
+  const r2 = rebalancePortfolio({
+    profile: 'conservador',
+    holdings: { fixedIncome: 0, equities: 0, international: 0 },
+    newContributionBrl: 0.03,
+  });
+  assert.equal(Math.round(Object.values(r2.allocation).reduce((x, y) => x + y, 0) * 100), 3);
+});
+
+test('empty portfolio without contribution yields zero weights, no NaN', () => {
+  const r = rebalancePortfolio({
+    profile: 'arrojado',
+    holdings: { fixedIncome: 0, equities: 0, international: 0 },
+  });
+  assert.deepEqual(r.currentWeights, { fixedIncome: 0, equities: 0, international: 0 });
+  assert.deepEqual(r.newWeights, r.currentWeights);
+  assert.equal(r.totalBrl, 0);
+});
+
+test('targetWeights is a copy and cannot mutate TARGET_WEIGHTS', () => {
+  const r = rebalancePortfolio({
+    profile: 'moderado',
+    holdings: { fixedIncome: 1, equities: 1, international: 1 },
+  });
+  r.targetWeights.fixedIncome = 1;
+  assert.equal(TARGET_WEIGHTS.moderado.fixedIncome, 55);
+});
+
+test('monetary outputs are rounded to cents', () => {
+  const r = rebalancePortfolio({
+    profile: 'conservador',
+    holdings: { fixedIncome: 333.33, equities: 0, international: 0 },
+    newContributionBrl: 0.1,
+  });
+  assert.equal(r.totalBrl, 333.43);
+  for (const v of Object.values(r.newHoldings)) assert.equal(v, Math.round(v * 100) / 100);
+});
+
+test('rejects sub-cent contributions instead of dropping them', () => {
+  const holdings = { fixedIncome: 1, equities: 1, international: 1 };
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: 0.004 }), RangeError);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: 1.005 }), RangeError);
+  assert.doesNotThrow(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: 0.1 }));
+});
+
+test('rejects Infinity, string amounts and non-object holdings', () => {
+  const holdings = { fixedIncome: 1, equities: 1, international: 1 };
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings: { ...holdings, equities: Infinity } }), TypeError);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings: { ...holdings, equities: '5' } }), TypeError);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings: 'x' }), TypeError);
+  assert.throws(() => rebalancePortfolio({ profile: 5, holdings }), RangeError);
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: Infinity }), TypeError);
 });
 
 test('never sells and splits proportionally to the deficits', () => {
@@ -81,7 +146,9 @@ test('handles an empty portfolio with a first contribution', () => {
   });
   assert.deepEqual(r.allocation, { fixedIncome: 800, equities: 150, international: 50 });
   assert.deepEqual(r.currentWeights, { fixedIncome: 0, equities: 0, international: 0 });
-  assert.deepEqual(r.newWeights, { fixedIncome: 80, equities: 15, international: 5 });
+  near(r.newWeights.fixedIncome, 80);
+  near(r.newWeights.equities, 15);
+  near(r.newWeights.international, 5);
 });
 
 test('rejects invalid input', () => {

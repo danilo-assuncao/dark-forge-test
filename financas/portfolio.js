@@ -18,6 +18,11 @@ function assertAmount(value, name) {
   }
 }
 
+// Monetary outputs are rounded to cents to avoid float noise.
+function roundCents(value) {
+  return Math.round(value * 100) / 100;
+}
+
 function weightsOf(values, total) {
   const weights = {};
   for (const cls of CLASSES) {
@@ -62,12 +67,19 @@ function rebalancePortfolio({ profile, holdings, newContributionBrl = 0 } = {}) 
   }
   for (const cls of CLASSES) assertAmount(holdings[cls], `holdings.${cls}`);
   assertAmount(newContributionBrl, 'newContributionBrl');
+  // Contributions must be whole cents; sub-cent values are rejected instead of
+  // being silently rounded away.
+  const contributionCents = Math.round(newContributionBrl * 100);
+  if (Math.abs(newContributionBrl * 100 - contributionCents) > 1e-6) {
+    throw new RangeError('newContributionBrl must be a whole number of cents');
+  }
+  const contribution = contributionCents / 100;
 
   const targets = TARGET_WEIGHTS[profile];
   const current = {};
   for (const cls of CLASSES) current[cls] = holdings[cls];
   const currentTotal = CLASSES.reduce((acc, cls) => acc + current[cls], 0);
-  const newTotal = currentTotal + newContributionBrl;
+  const newTotal = currentTotal + contribution;
 
   // Deficit: how much each class lacks to hit its target after the contribution.
   const deficits = {};
@@ -75,15 +87,14 @@ function rebalancePortfolio({ profile, holdings, newContributionBrl = 0 } = {}) 
     deficits[cls] = Math.max(0, (targets[cls] / 100) * newTotal - current[cls]);
   }
 
-  const contributionCents = Math.round(newContributionBrl * 100);
   const cents = splitCents(contributionCents, deficits);
   const allocation = {};
   const after = {};
   for (const cls of CLASSES) {
     allocation[cls] = cents[cls] / 100;
-    after[cls] = current[cls] + allocation[cls];
+    after[cls] = roundCents(current[cls] + allocation[cls]);
   }
-  const afterTotal = CLASSES.reduce((acc, cls) => acc + after[cls], 0);
+  const afterTotal = roundCents(CLASSES.reduce((acc, cls) => acc + after[cls], 0));
 
   return {
     profile,
