@@ -83,21 +83,31 @@
       var raw = null;
       // A failed read keeps the current in-memory state (matters on reload()).
       try { raw = store ? store.getItem(STORAGE_KEY) : null; } catch (e) { return; }
-      items = [];
-      couponCode = null;
-      giftWrap = false;
-      if (!raw) return;
+      if (raw === null) {
+        items = [];
+        couponCode = null;
+        giftWrap = false;
+        return;
+      }
       var data;
       try { data = JSON.parse(raw); } catch (e) { return; }
       if (!data || !Array.isArray(data.items)) return;
+      var newItems = [];
+      function isDuplicate(id, format) {
+        for (var k = 0; k < newItems.length; k++) {
+          if (newItems[k].id === id && newItems[k].format === format) return true;
+        }
+        return false;
+      }
       for (var i = 0; i < data.items.length; i++) {
         var it = data.items[i] || {};
         var qty = normalizeQty(it.qty);
-        if (qty && validLine(it.id, it.format) && indexOf(it.id, it.format) === -1) {
-          items.push({ id: it.id, format: it.format, qty: qty });
+        if (qty && validLine(it.id, it.format) && !isDuplicate(it.id, it.format)) {
+          newItems.push({ id: it.id, format: it.format, qty: qty });
         }
       }
-      if (hasCoupon(data.coupon)) couponCode = data.coupon;
+      items = newItems;
+      couponCode = hasCoupon(data.coupon) ? data.coupon : null;
       giftWrap = data.giftWrap === true;
     }
 

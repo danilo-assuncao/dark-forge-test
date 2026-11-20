@@ -302,7 +302,10 @@ test('browser: storage event from another tab reloads the shelf', () => {
 test('browser: storage event handler covers clear, other areas, notification and bad events', () => {
   const st = mem();
   const handlers = [];
-  const win = runBrowser({ localStorage: st, addEventListener: (t, f) => handlers.push([t, f]) }, true);
+  const winObj = { addEventListener: (t, f) => handlers.push([t, f]) };
+  let throwStorage = false;
+  Object.defineProperty(winObj, 'localStorage', { get: () => { if (throwStorage) throw new Error('denied'); return st; } });
+  const win = runBrowser(winObj, true);
   const fire = handlers[0][1];
   const sh = win.DanBooksShelf;
   let n = 0;
@@ -316,19 +319,33 @@ test('browser: storage event handler covers clear, other areas, notification and
   fire({ key: S.STORAGE_KEY, storageArea: {} }); // e.g. sessionStorage
   assert.equal(n, 0);
   assert.equal(sh.items().length, 0);
+  
   fire({ key: S.STORAGE_KEY, storageArea: st });
   assert.equal(n, 1);
   assert.equal(sh.items().length, 1);
   assert.equal(sh.totals().coupon, 'DANBOOK10');
   assert.equal(sh.totals().giftWrap, true);
+
+  other.add('lideranca-essencial', 'ebook');
+  fire({ key: S.STORAGE_KEY, storageArea: null });
+  assert.equal(n, 2);
+  assert.equal(sh.items().length, 2);
+
+  throwStorage = true;
+  other.removeCoupon();
+  fire({ key: S.STORAGE_KEY, storageArea: st }); // should be ignored
+  assert.equal(n, 2);
+  assert.equal(sh.totals().coupon, 'DANBOOK10'); // unchanged
+  throwStorage = false;
+
   st.wipe(); // another tab ran localStorage.clear()
   fire({ key: null });
-  assert.equal(n, 2);
+  assert.equal(n, 3);
   assert.deepEqual(sh.items().length, 0);
   assert.equal(sh.totals().coupon, null);
   assert.equal(sh.totals().giftWrap, false);
   assert.doesNotThrow(() => fire(undefined));
-  assert.equal(n, 2);
+  assert.equal(n, 3);
 });
 
 test('browser: storage event before books.js loads does nothing until the catalog appears', () => {
@@ -354,10 +371,28 @@ test('reload keeps in-memory state when the storage read throws', () => {
   const s = make(st);
   s.add('lideranca-essencial', 'capa-dura');
   s.applyCoupon('DANBOOK10');
+  s.setGiftWrap(true);
+  
+  let notifyCount = 0;
+  s.subscribe(() => { notifyCount++; });
+  
   failing = true;
   s.reload();
   assert.equal(s.items().length, 1);
   assert.equal(s.totals().coupon, 'DANBOOK10');
+  assert.equal(s.totals().giftWrap, true);
+  assert.equal(notifyCount, 1);
+
+  failing = false;
+  const other = make(st);
+  other.clear();
+  other.add('lideranca-essencial', 'ebook');
+  
+  s.reload();
+  assert.equal(s.items().length, 1);
+  assert.equal(s.items()[0].id, 'lideranca-essencial');
+  assert.equal(s.totals().coupon, null);
+  assert.equal(s.totals().giftWrap, false);
 });
 
 test('coupon plus gift wrap: discount applies to the subtotal only (literal cents)', () => {
