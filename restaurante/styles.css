@@ -80,6 +80,11 @@ button:hover {
   display: none !important;
 }
 
+.remove-btn {
+  margin-left: 1rem;
+}
+
+.form-group {
   margin-bottom: 1rem;
 }
 

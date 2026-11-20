@@ -4,8 +4,15 @@ window.require = function(id) {
   if (id === 'node:crypto') {
     return {
       randomInt: (min, max) => {
+        if (max === undefined) {
+          max = min;
+          min = 0;
+        }
         const range = max - min;
-        const max_val = Math.floor(0xFFFFFFFF / range) * range;
+        if (!Number.isSafeInteger(range) || range <= 0 || range > 2**32) {
+          throw new RangeError(`invalid range`);
+        }
+        const max_val = Math.floor(0x100000000 / range) * range;
         const val = new Uint32Array(1);
         do {
           crypto.getRandomValues(val);
@@ -26,10 +33,11 @@ async function loadApp() {
       script.src = file;
       
       const errorHandler = (e) => {
+        if (e.filename && !e.filename.endsWith(file.replace('./', ''))) return;
         reject(new Error(`Execution error in ${file}: ${e.message}`));
       };
       
-      window.addEventListener('error', errorHandler, { once: true });
+      window.addEventListener('error', errorHandler);
       
       script.onload = () => {
         window.removeEventListener('error', errorHandler);
@@ -50,7 +58,13 @@ async function loadApp() {
   }
 }
 
-loadApp().catch(err => {
+window.loadAppPromise = loadApp().catch(err => {
   console.error(err);
-  document.body.innerHTML = `<h1>Erro Crítico</h1><p>${err.message}</p>`;
+  const h1 = document.createElement('h1');
+  h1.textContent = 'Erro Crítico';
+  const p = document.createElement('p');
+  p.textContent = err.message;
+  document.body.textContent = '';
+  document.body.appendChild(h1);
+  document.body.appendChild(p);
 });

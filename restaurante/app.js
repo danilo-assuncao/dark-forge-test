@@ -144,7 +144,6 @@ if (typeof window !== 'undefined') {
       const rmBtn = document.createElement('button');
       rmBtn.textContent = 'Remover';
       rmBtn.className = 'remove-btn';
-      rmBtn.style.marginLeft = '1rem';
       rmBtn.addEventListener('click', () => {
         cart.splice(idx, 1);
         renderCart();
@@ -182,6 +181,10 @@ if (typeof window !== 'undefined') {
     }
     
     const tipPct = parseInt(document.getElementById('tip-input').value, 10);
+    if (Number.isNaN(tipPct)) {
+      alert('Erro ao finalizar pedido: Gorjeta inválida');
+      return;
+    }
     const couponCode = document.getElementById('coupon-input').value.trim();
     const customerName = document.getElementById('name-input').value;
     const address = document.getElementById('address-input').value;

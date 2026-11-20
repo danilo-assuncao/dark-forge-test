@@ -126,7 +126,7 @@ function resetEnv() {
   }
 }
 
-test('CSP meta tag exists and is strictly restrictive', () => {
+test('CSP meta tag exists and is strictly restrictive, and no inline scripts or styles are used', () => {
   const htmlPath = path.join(__dirname, '../index.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
   const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/);
@@ -136,6 +136,11 @@ test('CSP meta tag exists and is strictly restrictive', () => {
   assert.ok(csp.includes("script-src 'self'"));
   assert.ok(!csp.includes("'unsafe-inline'"));
   assert.ok(!csp.includes("'unsafe-eval'"));
+  
+  assert.ok(!html.includes('style='), 'Inline style attribute is forbidden');
+  assert.ok(!html.includes('<style>'), 'Inline style tag is forbidden');
+  assert.ok(!/<script\b[^>]*>[\s\S]+?<\/script>/i.test(html), 'Inline script block is forbidden');
+  assert.ok(!/\bon\w+=/i.test(html), 'Inline event handlers are forbidden');
 });
 
 test('loader.js sequentially injects modules and handles execution', async () => {
@@ -153,11 +158,12 @@ test('loader.js sequentially injects modules and handles execution', async () =>
     head: {
       appendChild(script) {
         appendedScripts.push(script);
-        if (script.onload) script.onload();
+        sandbox.window.module.exports = { marker: script.src };
+        if (script.onload) setImmediate(script.onload);
       }
     },
-    body: { innerHTML: '' },
-    createElement(tag) { return { type: '', src: '', onload: null, onerror: null }; }
+    body: { innerHTML: '', textContent: '', appendChild: () => {} },
+    createElement(tag) { return { tag, type: '', src: '', onload: null, onerror: null, textContent: '', appendChild: () => {} }; }
   };
 
   const sandbox = {
@@ -166,19 +172,23 @@ test('loader.js sequentially injects modules and handles execution', async () =>
     document: docStub,
     window: {
       addEventListener: () => {},
-      removeEventListener: () => {}
+      removeEventListener: () => {},
+      __modules: {}, module: { exports: {} }
     }
   };
   
   vm.createContext(sandbox);
-  await vm.runInContext(loaderSrc, sandbox);
-  await new Promise(r => setTimeout(r, 0));
+  vm.runInContext(loaderSrc, sandbox);
+  const loadAppPromise = vm.runInContext('window.loadAppPromise', sandbox);
+  await loadAppPromise;
   
   assert.equal(appendedScripts.length, 5);
   assert.equal(appendedScripts[0].src, './menu.js');
   assert.equal(appendedScripts[4].src, './app.js');
   assert.equal(errorLogs.length, 0);
   assert.equal(typeof sandbox.window.require('node:crypto').randomInt, 'function');
+  assert.equal(sandbox.window.require('./menu.js').marker, './menu.js');
+  assert.equal(sandbox.window.require('./app.js'), undefined);
 });
 
 test('loader.js stops and renders error on fetch/execution failure', async () => {
@@ -187,34 +197,41 @@ test('loader.js stops and renders error on fetch/execution failure', async () =>
   
   let appendedScripts = [];
   let errorLogs = [];
+  let children = [];
   
   const docStub = {
     head: {
       appendChild(script) {
         appendedScripts.push(script);
         if (script.src === './customizer.js') {
-          if (script.onerror) script.onerror();
+          if (script.onerror) setImmediate(script.onerror);
         } else {
-          if (script.onload) script.onload();
+          if (script.onload) setImmediate(script.onload);
         }
       }
     },
-    body: { innerHTML: '' },
-    createElement(tag) { return { type: '', src: '', onload: null, onerror: null }; }
+    body: { innerHTML: '', textContent: '', appendChild(c) { children.push(c); } },
+    createElement(tag) { return { tag, type: '', src: '', onload: null, onerror: null, textContent: '', appendChild: () => {} }; }
   };
 
   const sandbox = {
     console: { error: (e) => errorLogs.push(e) },
     document: docStub,
-    window: { addEventListener: () => {}, removeEventListener: () => {} }
+    window: { addEventListener: () => {}, removeEventListener: () => {}, __modules: {}, module: { exports: {} } }
   };
   
   vm.createContext(sandbox);
-  await vm.runInContext(loaderSrc, sandbox);
+  vm.runInContext(loaderSrc, sandbox);
+  const loadAppPromise = vm.runInContext('window.loadAppPromise', sandbox);
+  try {
+    await loadAppPromise;
+  } catch(e) {}
+  
   await new Promise(r => setTimeout(r, 0));
   
   assert.equal(appendedScripts.length, 2);
-  assert.ok(docStub.body.innerHTML.includes('Failed to load ./customizer.js'));
+  assert.equal(children.length, 2);
+  assert.equal(children[1].textContent, 'Failed to load ./customizer.js');
   assert.equal(errorLogs.length, 1);
 });
 
@@ -225,6 +242,7 @@ test('loader.js stops and renders error on script runtime execution failure', as
   let appendedScripts = [];
   let errorLogs = [];
   let errorListeners = {};
+  let children = [];
   
   const docStub = {
     head: {
@@ -232,15 +250,17 @@ test('loader.js stops and renders error on script runtime execution failure', as
         appendedScripts.push(script);
         if (script.src === './customizer.js') {
           if (errorListeners['error']) {
-            errorListeners['error'](new Error('SyntaxError'));
+            setImmediate(() => {
+              errorListeners['error']({filename: 'customizer.js', message: 'SyntaxError'});
+            });
           }
         } else {
-          if (script.onload) script.onload();
+          if (script.onload) setImmediate(script.onload);
         }
       }
     },
-    body: { innerHTML: '' },
-    createElement(tag) { return { type: '', src: '', onload: null, onerror: null }; }
+    body: { innerHTML: '', textContent: '', appendChild(c) { children.push(c); } },
+    createElement(tag) { return { tag, type: '', src: '', onload: null, onerror: null, textContent: '', appendChild: () => {} }; }
   };
 
   const sandbox = {
@@ -248,16 +268,23 @@ test('loader.js stops and renders error on script runtime execution failure', as
     document: docStub,
     window: { 
       addEventListener: (evt, cb) => { errorListeners[evt] = cb; },
-      removeEventListener: (evt, cb) => { if (errorListeners[evt] === cb) delete errorListeners[evt]; }
+      removeEventListener: (evt, cb) => { if (errorListeners[evt] === cb) delete errorListeners[evt]; },
+      __modules: {}, module: { exports: {} }
     }
   };
   
   vm.createContext(sandbox);
-  await vm.runInContext(loaderSrc, sandbox);
+  vm.runInContext(loaderSrc, sandbox);
+  const loadAppPromise = vm.runInContext('window.loadAppPromise', sandbox);
+  try {
+    await loadAppPromise;
+  } catch(e) {}
+  
   await new Promise(r => setTimeout(r, 0));
   
   assert.equal(appendedScripts.length, 2);
-  assert.ok(docStub.body.innerHTML.includes('Execution error in ./customizer.js'));
+  assert.equal(children.length, 2);
+  assert.equal(children[1].textContent, 'Execution error in ./customizer.js: SyntaxError');
   assert.equal(errorLogs.length, 1);
 });
 
@@ -280,7 +307,8 @@ test('loader.js randomInt rejection sampling works correctly', () => {
   
   const docStub = {
     head: { appendChild: () => {} },
-    body: { innerHTML: '' }
+    body: { innerHTML: '', textContent: '', appendChild: () => {} },
+    createElement(tag) { return { tag, type: '', src: '', onload: null, onerror: null, textContent: '', appendChild: () => {} }; }
   };
 
   const sandbox = {
