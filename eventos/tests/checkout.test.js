@@ -188,3 +188,55 @@ test('isValidCPF boundary tests', () => {
   assert.equal(isValidCPF('123.456.789-09'), true, 'Formatted valid CPF should be true');
   assert.equal(isValidCPF('000.000.001-91'), true, 'CPF with leading zeros should be true');
 });
+
+test('Checkout blocks multiple submissions on obsolete form state', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/checkout');
+  const cart = page.window.DanCart;
+  const events = page.window.DanEvents.all();
+  
+  cart.save(cart.addItem(cart.emptyState(), {
+    eventId: 'rock-festival', eventName: 'Rock in Dan',
+    sectorId: 'pista', sectorName: 'Pista',
+    lotId: 'lote-1', lotName: 'Lote 1',
+    type: 'inteira', qty: 1, unitCents: 12000
+  }), storage);
+
+  page.navigate('#/checkout');
+  
+  const form = page.find(n => n.tag === 'form');
+  const nameInput = page.find(n => n.name === 'nome-0-0');
+  const cpfInput = page.find(n => n.name === 'cpf-0-0');
+  
+  nameInput.value = 'Alice';
+  cpfInput.value = '12345678909';
+  
+  // Intercept and simulate a change in cart (like another tab altering data)
+  // before we fire submit
+  const stateBeforeSubmit = cart.load(storage);
+  stateBeforeSubmit.items[0].unitCents = 1000; // stale price
+  cart.save(stateBeforeSubmit, storage);
+  
+  form.fire('submit');
+  
+  // The submit handler should catch the divergence, mark the form obsolete,
+  // re-render the checkout (which replaces the form in DOM but keeps the old reference in the test),
+  // and output an error.
+  assert.equal(form.getAttribute('data-obsolete'), 'true', 'Form should be marked as obsolete');
+  
+  // Verify that the new form was rendered
+  const newForm = page.find(n => n.tag === 'form');
+  assert.notEqual(newForm, form, 'A new form should be rendered to replace the obsolete one');
+  
+  // Simulate clicking the old submit again (double-click on obsolete form)
+  // We can change the inputs just to see if it bypasses validation
+  nameInput.value = 'Hacker';
+  form.fire('submit');
+  
+  // If it didn't block, the old form would issue a voucher.
+  assert.equal(page.window.location.hash, '#/checkout', 'Should not navigate to voucher using obsolete form');
+  assert.equal(page.window.sessionStorage.getItem('dan-tickets-order'), null, 'Should not create order from obsolete form');
+  
+  // Assert the error is in the UI
+  assert.match(page.app.textContent, /Alguns itens da sua sacola mudaram/, 'Should display revalidation error');
+});

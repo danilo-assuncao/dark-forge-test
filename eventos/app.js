@@ -474,7 +474,7 @@
     app.appendChild(checkoutAct);
   }
 
-  function renderCheckout(app, events) {
+  function renderCheckout(app, events, errorMessage) {
     var cart = root.DanCart;
     app.textContent = '';
     var back = el('a', 'back', '← Voltar para sacola');
@@ -492,6 +492,7 @@
 
     if (!state.items.length) {
       app.appendChild(el('p', 'empty', 'Sua sacola está vazia.'));
+      if (errorMessage) app.appendChild(el('p', 'coupon-msg coupon-msg--error', errorMessage));
       return;
     }
 
@@ -515,6 +516,9 @@
     });
 
     var errContainer = el('div', 'checkout-errors');
+    if (errorMessage) {
+      errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', errorMessage));
+    }
     form.appendChild(errContainer);
 
     var submit = el('button', null, 'Emitir Voucher'); submit.type = 'submit';
@@ -522,6 +526,7 @@
 
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
+      if (form.getAttribute('data-obsolete') === 'true') return;
       errContainer.textContent = '';
       var hasError = false;
       var holders = [];
@@ -551,7 +556,8 @@
       var preSubmitRev = revalidateCartItems(currentState.items, events, cart);
       if (preSubmitRev.changed) {
         cart.save({ items: preSubmitRev.items, coupon: currentState.coupon });
-        errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Alguns itens da sua sacola mudaram (preço ou disponibilidade). Verifique e tente novamente.'));
+        form.setAttribute('data-obsolete', 'true');
+        renderCheckout(app, events, 'Alguns itens da sua sacola mudaram (preço ou disponibilidade). Verifique e tente novamente.');
         return;
       }
 
