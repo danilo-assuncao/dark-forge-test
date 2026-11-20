@@ -12,11 +12,21 @@ class Inventory {
      * @param {number} watts - Power consumption in watts.
      */
     registerComponent(id, name, socket, ramType, watts) {
-        if (!id || !name || !socket || !ramType || typeof watts !== 'number' || watts < 0) {
+        const isNonEmptyString = (str) => typeof str === 'string' && str.trim() !== '';
+
+        if (!isNonEmptyString(id) || !isNonEmptyString(name) || !isNonEmptyString(socket) || !isNonEmptyString(ramType)) {
             throw new Error('Invalid component specifications. id, name, socket, ramType, and watts are required.');
         }
 
-        this.parts.set(id, { id, name, socket, ramType, watts });
+        if (!Number.isFinite(watts) || watts < 0) {
+            throw new Error('Invalid component specifications. id, name, socket, ramType, and watts are required.');
+        }
+
+        if (this.parts.has(id)) {
+            throw new Error(`Component with ID '${id}' already exists.`);
+        }
+
+        this.parts.set(id, Object.freeze({ id, name, socket, ramType, watts }));
     }
 
     /**
@@ -25,7 +35,8 @@ class Inventory {
      * @returns {Object|undefined}
      */
     getComponent(id) {
-        return this.parts.get(id);
+        const part = this.parts.get(id);
+        return part ? { ...part } : undefined;
     }
 
     /**
@@ -33,7 +44,7 @@ class Inventory {
      * @returns {Array}
      */
     listComponents() {
-        return Array.from(this.parts.values());
+        return Array.from(this.parts.values()).map(part => ({ ...part }));
     }
 }
 
