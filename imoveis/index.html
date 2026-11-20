@@ -100,6 +100,34 @@
         </form>
         <p id="visit-msg" role="status" aria-live="polite"></p>
       </div>
+
+      <div class="proposal">
+        <h3>Enviar proposta</h3>
+        <form id="proposal-form" novalidate>
+          <label>Nome completo
+            <input id="p-name" type="text" autocomplete="name" maxlength="100">
+          </label>
+          <label>E-mail
+            <input id="p-email" type="email" autocomplete="email" maxlength="254">
+          </label>
+          <label>Telefone
+            <input id="p-phone" type="tel" autocomplete="tel" placeholder="(11) 98765-4321">
+          </label>
+          <label>Condição
+            <select id="p-condition"></select>
+          </label>
+          <label>Valor Proposto (R$)
+            <input id="p-amount" type="number" min="0" step="1000" inputmode="numeric">
+          </label>
+          <button type="submit">Enviar proposta</button>
+        </form>
+        <p id="proposal-msg" role="status" aria-live="polite"></p>
+        <div id="proposal-summary" class="summary-box" hidden>
+          <h4>Resumo da Proposta</h4>
+          <dl id="summary-facts" class="facts"></dl>
+          <button type="button" id="print-proposal">Imprimir Resumo</button>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -122,6 +150,7 @@
   <script src="mortgage.js"></script>
   <script src="compare.js"></script>
   <script src="visits.js"></script>
+  <script src="proposal.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
