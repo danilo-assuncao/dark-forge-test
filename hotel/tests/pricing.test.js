@@ -52,11 +52,35 @@ test('coupon alone on a short stay; unknown coupon is ignored', () => {
   assert.equal(bad.subtotal, 320);
 });
 
-test('rounds to 2 decimals', () => {
-  const r = calculateStayPrice({ roomId: 'deluxe', guests: 1, checkInIso: '2025-03-10', checkOutIso: '2025-03-11', couponCode: 'DANSTAY10' });
-  assert.equal(r.subtotal, 486);
-  assert.equal(r.iss, 24.3);
-  assert.equal(r.total, 510.3);
+test('ISS half-cent tie rounds up and breakdown lines reconcile', () => {
+  const r = calculateStayPrice({ roomId: 'deluxe', guests: 1, checkInIso: '2025-06-30', checkOutIso: '2025-07-02', couponCode: 'DANSTAY10' });
+  assert.equal(r.baseTotal, 1215);
+  assert.equal(r.subtotal, 1093.5);
+  assert.equal(r.iss, 54.68);
+  assert.equal(r.total, 1148.18);
+  const cents = (n) => Math.round(n * 100);
+  assert.equal(cents(r.baseTotal) - cents(r.longStayDiscount) - cents(r.couponDiscount), cents(r.subtotal));
+});
+
+test('baseTotal and couponDiscount on a short coupon stay', () => {
+  const r = calculateStayPrice({ ...base, checkInIso: '2025-03-10', checkOutIso: '2025-03-11', couponCode: 'DANSTAY10' });
+  assert.equal(r.baseTotal, 320);
+  assert.equal(r.couponDiscount, 32);
+  assert.equal(r.longStayDiscount, 0);
+});
+
+test('month is decided in UTC even with a non-UTC offset', () => {
+  const into = calculateStayPrice({ ...base, checkInIso: '2025-06-30T22:00:00-03:00', checkOutIso: '2025-07-02T00:00:00Z' });
+  assert.equal(into.nights, 1);
+  assert.deepEqual(into.nightlyRates, [400]);
+  assert.equal(into.subtotal, 400);
+  const out = calculateStayPrice({ ...base, checkInIso: '2025-07-01T00:30:00+02:00', checkOutIso: '2025-07-02T00:00:00Z' });
+  assert.equal(out.nights, 2);
+  assert.deepEqual(out.nightlyRates, [320, 400]);
+});
+
+test('accepts fractional seconds', () => {
+  assert.equal(calculateStayPrice({ ...base, checkInIso: '2025-03-10T10:00:00.500Z', checkOutIso: '2025-03-11T10:00:00.250Z' }).nights, 1);
 });
 
 test('rounding of fractional cents (ISS and totals)', () => {
@@ -98,9 +122,10 @@ test('datetime inputs count UTC calendar-date nights', () => {
 });
 
 test('rejects non-strict and impossible dates', () => {
-  for (const bad of ['2025-02-30', '2025', '2025-3-10', 'March 10 2025', '2025-03-10T15:00', '2025-03-10T25:00Z']) {
+  for (const bad of ['2025-02-30', '2025', '2025-3-10', 'March 10 2025', '2025-03-10T15:00', '2025-03-10T25:00Z', '2025-03-10T10:60Z', '2025-03-10T10:00:60Z', '2025-03-10T24:00Z', '2025-03-10T10:00+25:00', '2025-03-10T10:00+99:99']) {
     assert.throws(() => calculateStayPrice({ ...base, checkInIso: bad, checkOutIso: '2025-04-10' }), RangeError, bad);
   }
+  assert.throws(() => calculateStayPrice({ ...base, checkInIso: '2025-04-01', checkOutIso: '2025-04-10T12:60Z' }), RangeError);
   assert.equal(calculateStayPrice({ ...base, checkInIso: '2024-02-28', checkOutIso: '2024-03-01' }).nights, 2);
   assert.throws(() => calculateStayPrice({ ...base, checkInIso: '2025-02-28', checkOutIso: '2025-02-29' }), RangeError);
 });
@@ -133,6 +158,8 @@ test('rejects unknown room and invalid guests', () => {
   assert.throws(() => calculateStayPrice({ ...dates, roomId: 'standard', guests: 0 }), RangeError);
   assert.throws(() => calculateStayPrice({ ...dates, roomId: 'standard', guests: 3 }), RangeError);
   assert.throws(() => calculateStayPrice({ ...dates, roomId: 'standard', guests: 1.5 }), RangeError);
+  assert.throws(() => calculateStayPrice({ ...dates, roomId: 'standard', guests: NaN }), RangeError);
+  assert.throws(() => calculateStayPrice({ ...dates, roomId: 'standard', guests: Infinity }), RangeError);
   assert.throws(() => calculateStayPrice({ ...dates, roomId: 'standard', guests: '2' }), RangeError);
   assert.doesNotThrow(() => calculateStayPrice({ ...dates, roomId: 'family', guests: 4 }));
   assert.throws(() => calculateStayPrice(), RangeError);

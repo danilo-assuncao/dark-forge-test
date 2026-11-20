@@ -10,9 +10,9 @@
   var HIGH_SEASON_MONTHS = Object.freeze([1, 7, 12]); // UTC months (1-12)
   var HIGH_SEASON_MULTIPLIER = 1.25;
   var LONG_STAY_MIN_NIGHTS = 5;
-  var LONG_STAY_DISCOUNT = 0.08;
-  var COUPONS = Object.freeze({ DANSTAY10: 0.10 });
-  var ISS_RATE = 0.05;
+  var LONG_STAY_DISCOUNT_PCT = 8;
+  var COUPONS = Object.freeze({ DANSTAY10: 10 } /* percent */);
+  var ISS_PCT = 5;
   var MAX_NIGHTS = 30;
   var DAY_MS = 86400000;
 
@@ -42,10 +42,6 @@
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
 
-  function roundCents(n) {
-    return Math.round((n + Number.EPSILON) * 100) / 100;
-  }
-
   // Display estimate only: re-price and validate coupons server-side before charging.
   // Returns { room, nights, nightlyRates, baseTotal, longStayDiscount, couponDiscount,
   //           subtotal, iss, total } with monetary values in BRL rounded to 2 places.
@@ -72,37 +68,38 @@
 
     var couponCode = args.couponCode === undefined || args.couponCode === null ? '' : args.couponCode;
     if (typeof couponCode !== 'string') { throw new TypeError('couponCode must be a string'); }
-    var couponRate = 0;
+    var couponPct = 0;
     var couponKey = couponCode.trim().toUpperCase();
-    if (Object.prototype.hasOwnProperty.call(COUPONS, couponKey)) { couponRate = COUPONS[couponKey]; }
+    if (Object.prototype.hasOwnProperty.call(COUPONS, couponKey)) { couponPct = COUPONS[couponKey]; }
 
     // Each night is priced by the UTC month it starts in.
+    // All money math in integer cents so the itemised lines reconcile exactly.
     var nightlyRates = [];
-    var baseTotal = 0;
+    var baseCents = 0;
     for (var i = 0; i < nights; i++) {
       var month = new Date(startDay + i * DAY_MS).getUTCMonth() + 1;
       var high = HIGH_SEASON_MONTHS.indexOf(month) !== -1;
-      var rate = Math.round(room.dailyRateCents * (high ? HIGH_SEASON_MULTIPLIER : 1)) / 100;
-      nightlyRates.push(rate);
-      baseTotal += rate;
+      var rateCents = Math.round(room.dailyRateCents * (high ? HIGH_SEASON_MULTIPLIER : 1));
+      nightlyRates.push(rateCents / 100);
+      baseCents += rateCents;
     }
 
-    var afterLongStay = nights >= LONG_STAY_MIN_NIGHTS ? baseTotal * (1 - LONG_STAY_DISCOUNT) : baseTotal;
-    var afterCoupon = afterLongStay * (1 - couponRate);
-    var subtotal = roundCents(afterCoupon);
-    var iss = roundCents(subtotal * ISS_RATE);
+    var afterLongStay = nights >= LONG_STAY_MIN_NIGHTS
+      ? Math.round(baseCents * (100 - LONG_STAY_DISCOUNT_PCT) / 100) : baseCents;
+    var subtotalCents = Math.round(afterLongStay * (100 - couponPct) / 100);
+    var issCents = Math.round(subtotalCents * ISS_PCT / 100);
 
     return {
       roomId: room.id,
       nights: nights,
       guests: guests,
       nightlyRates: nightlyRates,
-      baseTotal: roundCents(baseTotal),
-      longStayDiscount: roundCents(baseTotal - afterLongStay),
-      couponDiscount: roundCents(afterLongStay - afterCoupon),
-      subtotal: subtotal,
-      iss: iss,
-      total: roundCents(subtotal + iss)
+      baseTotal: baseCents / 100,
+      longStayDiscount: (baseCents - afterLongStay) / 100,
+      couponDiscount: (afterLongStay - subtotalCents) / 100,
+      subtotal: subtotalCents / 100,
+      iss: issCents / 100,
+      total: (subtotalCents + issCents) / 100
     };
   }
 
