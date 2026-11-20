@@ -17,7 +17,13 @@ function billableWeightKg(actualKg, lengthCm, widthCm, heightCm) {
     throw new RangeError('Billable weight is too large to represent.');
   }
   // Large weights already have no precision below a thousandth.
-  return weightKg >= 1e13 ? weightKg : Math.round(weightKg * 1000) / 1000;
+  if (weightKg >= 1e13) return weightKg;
+
+  // Shift the decimal representation to avoid multiplication errors at half units.
+  const [coefficient, exponent = '0'] = weightKg.toString().split('e');
+  const grams = Number(`${coefficient}e${Number(exponent) + 3}`);
+  // A positive shipment always bills at least one gram.
+  return Math.max(0.001, Math.round(grams) / 1000);
 }
 
 module.exports = { billableWeightKg };
