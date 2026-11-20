@@ -127,6 +127,17 @@
     return qs ? base + '?' + qs : base;
   }
 
+  // Resolves which sector/lot are selected for an event + URL params.
+  // Unknown sector falls back to the first; unknown or sold-out lot is unselected.
+  function resolveSelection(event, params) {
+    var p = params || {};
+    var sector = event.sectors.filter(function (s) { return s.id === p.setor; })[0] || event.sectors[0] || null;
+    var lot = sector ? sector.lots.filter(function (l) {
+      return l.id === p.lote && l.status !== 'soldout';
+    })[0] || null : null;
+    return { sector: sector, lot: lot };
+  }
+
   function formatPrice(cents) {
     var v = (cents / 100).toFixed(2).replace('.', ',');
     return 'R$ ' + v.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -134,7 +145,7 @@
 
   var api = {
     catalog: catalog, filterEvents: filterEvents, parseHash: parseHash,
-    buildHash: buildHash, formatPrice: formatPrice, lotStatus: lotStatus,
+    buildHash: buildHash, resolveSelection: resolveSelection, formatPrice: formatPrice, lotStatus: lotStatus,
     LOT_STATUS: LOT_STATUS
   };
   root.DanSectors = api;
@@ -223,8 +234,13 @@
     app.appendChild(el('p', 'event-card__meta', e.category + ' · ' + e.city));
     app.appendChild(el('p', null, e.description));
 
-    var sector = e.sectors.filter(function (s) { return s.id === route.params.setor; })[0] || e.sectors[0];
-    var lot = sector.lots.filter(function (l) { return l.id === route.params.lote; })[0];
+    var sel = resolveSelection(e, route.params);
+    var sector = sel.sector;
+    var lot = sel.lot;
+    if (!sector) {
+      app.appendChild(el('p', 'empty', 'Sem setores disponíveis.'));
+      return;
+    }
 
     function go(setor, lote) {
       root.location.hash = buildHash({ name: 'event', id: e.id, params: { setor: setor, lote: lote } });
@@ -241,6 +257,7 @@
       var li = el('li', 'lot lot--' + l.status);
       var btn = el('button', 'lot__btn', l.name + ' · ' + formatPrice(l.priceCents));
       btn.type = 'button';
+      btn.setAttribute('data-lot', l.id);
       btn.disabled = l.status === 'soldout';
       btn.setAttribute('aria-pressed', lot && lot.id === l.id ? 'true' : 'false');
       btn.addEventListener('click', function () { go(sector.id, l.id); });
@@ -264,8 +281,15 @@
     if (!app) return;
     var route = parseHash(root.location.hash);
     var events = catalog();
+    var active = doc.activeElement;
+    var focusKey = active && app.contains(active) ? (active.name || active.getAttribute('data-lot') || '') : '';
+    var focusIsLot = !!(active && active.getAttribute && active.getAttribute('data-lot'));
     if (route.name === 'event') renderEvent(app, route, events);
     else renderList(app, route, events);
+    if (focusKey) {
+      var target = focusIsLot ? app.querySelector('[data-lot="' + focusKey + '"]') : app.querySelector('[name="' + focusKey + '"]');
+      if (target && !target.disabled) target.focus();
+    }
   }
 
   root.addEventListener('hashchange', render);
