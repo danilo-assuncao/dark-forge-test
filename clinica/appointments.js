@@ -4,6 +4,8 @@
  * as an authorization boundary, to hold real patient data, or in any production path
  * (it is vulnerable to IDOR by enumerating protocols). A server-side store with 
  * access control and ownership checks is required for production use.
+ * Furthermore, stored strings (like patientName) are not sanitized; consumers must
+ * strictly render them as text (e.g. using textContent) to prevent XSS.
  * 
  * Note: Guarantees like conflict prevention and unique protocols are strictly
  * single-tab only, as localStorage does not lock across concurrent browser tabs.
@@ -54,7 +56,7 @@ function normalizeSlot(datetime) {
         const hour = parseInt(m[4], 10);
         const minute = parseInt(m[5], 10);
         if (month < 1 || month > 12 || hour > 23 || minute > 59) return null;
-        const daysInMonth = new Date(year, month, 0).getDate();
+        const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
         if (day < 1 || day > daysInMonth) return null;
     }
     const time = new Date(dt).getTime();
@@ -71,6 +73,10 @@ function isValidAppointment(a) {
     if (typeof a.doctorId !== 'string' || typeof a.datetime !== 'string' ||
         typeof a.patientName !== 'string' || typeof a.protocol !== 'string') return false;
     
+    if (a.doctorId.trim() === '' || a.doctorId.trim().length > MAX_DOCTOR_ID_LENGTH || a.doctorId.trim() !== a.doctorId) return false;
+    if (a.patientName.trim() === '' || a.patientName.trim().length > MAX_PATIENT_NAME_LENGTH || a.patientName.trim() !== a.patientName) return false;
+    if (normalizeSlot(a.datetime) !== a.datetime) return false;
+
     const pNum = protocolNumber(a.protocol);
     return Number.isFinite(pNum) && Number.isSafeInteger(pNum);
 }
@@ -91,7 +97,7 @@ class AppointmentBook {
             throw new Error('Stored appointments are corrupted and could not be read.');
         }
         if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.appointments)
-            || !Number.isInteger(parsed.counter) || parsed.counter < 0) {
+            || !Number.isSafeInteger(parsed.counter) || parsed.counter < 0) {
             throw new Error('Stored appointments are corrupted and could not be read.');
         }
 
@@ -120,7 +126,7 @@ class AppointmentBook {
             if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
                 throw new Error('Storage quota exceeded. Cannot save appointment.');
             }
-            throw e;
+            throw new Error('Storage operation failed.', { cause: e });
         }
     }
 
@@ -155,6 +161,10 @@ class AppointmentBook {
 
         if (state.appointments.some(a => a.doctorId === doctor && a.datetime === slot)) {
             throw new Error('Time slot already booked for this doctor.');
+        }
+
+        if (!Number.isSafeInteger(state.counter + 1)) {
+            throw new Error('Maximum counter reached.');
         }
 
         state.counter += 1;

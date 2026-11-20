@@ -123,13 +123,19 @@ test('validates input and leaves storage unchanged on failure', () => {
     assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: '  ' }), /Patient/);
     assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'x'.repeat(101) }), /at most/);
     assert.throws(() => book.book({ doctorId: 'x'.repeat(65), datetime: slot, patientName: 'Ana' }), /at most/);
-    for (const bad of ['nope', '1', '2026-12-01', '2026-12-01T10:00', '2026-13-45T10:00:00Z', '2026-02-30T10:00:00Z', '2026-02-31T10:00:00Z', '2026-12-01T24:00:00Z', null, 123, new Date(slot)]) {
+    for (const bad of ['nope', '1', '2026-12-01', '2026-12-01T10:00', '2026-13-45T10:00:00Z', '2026-02-30T10:00:00Z', '2026-02-31T10:00:00Z', '2026-12-01T24:00:00Z', '2026-02-29T10:00:00Z', '2100-02-29T10:00:00Z', '2026-04-31T10:00:00Z', '2026-00-10T10:00:00Z', '2026-01-00T10:00:00Z', '2026-12-01T10:60:00Z', null, 123, new Date(slot)]) {
         assert.throws(() => book.book({ doctorId: 'd1', datetime: bad, patientName: 'Ana' }), /ISO-8601/);
         assert.equal(book.isAvailable('d1', bad), false);
     }
     assert.equal(book.isAvailable('', slot), false);
     assert.equal(book.isAvailable(undefined, slot), false);
     assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), null);
+});
+
+test('handles correct calendar edge cases (leap years)', () => {
+    const book = new AppointmentBook(fakeStorage());
+    assert.doesNotThrow(() => book.book({ doctorId: 'd1', datetime: '2028-02-29T10:00:00Z', patientName: 'Ana' }));
+    assert.doesNotThrow(() => book.book({ doctorId: 'd2', datetime: '2000-02-29T10:00:00Z', patientName: 'Ana' }));
 });
 
 test('trims fields and treats times within the same minute as one slot', () => {
@@ -141,6 +147,22 @@ test('trims fields and treats times within the same minute as one slot', () => {
     assert.throws(() => book.book({ doctorId: 'd1', datetime: '2026-12-01T10:00:59.999Z', patientName: 'Bia' }), /already booked/);
 });
 
+test('normalizes +hh:mm offset to UTC ISO string', () => {
+    const book = new AppointmentBook(fakeStorage());
+    const a = book.book({ doctorId: 'd1', datetime: '2026-12-01T07:00:00-03:00', patientName: 'Ana' });
+    assert.equal(a.datetime, '2026-12-01T10:00:00.000Z');
+});
+
+test('supports custom storageKey separating instances on the same storage', () => {
+    const storage = fakeStorage();
+    const book1 = new AppointmentBook(storage, 'key1');
+    const book2 = new AppointmentBook(storage, 'key2');
+    book1.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' });
+    assert.doesNotThrow(() => book2.book({ doctorId: 'd1', datetime: slot, patientName: 'Bia' }));
+    assert.equal(book1.list()[0].patientName, 'Ana');
+    assert.equal(book2.list()[0].patientName, 'Bia');
+});
+
 test('refuses to overwrite corrupted or wrongly shaped storage', () => {
     const good = { protocol: 'MED-0001', doctorId: 'd1', datetime: slot, patientName: 'Ana' };
     const payloads = [
@@ -149,7 +171,12 @@ test('refuses to overwrite corrupted or wrongly shaped storage', () => {
         JSON.stringify({ counter: 1, appointments: [null] }),
         JSON.stringify({ counter: 1, appointments: [{ ...good, protocol: 'XYZ' }] }),
         JSON.stringify({ counter: 1, appointments: [{ ...good, protocol: 'MED-12' }] }),
-        JSON.stringify({ counter: 1, appointments: [{ ...good, datetime: 123 }] })
+        JSON.stringify({ counter: 1, appointments: [{ ...good, datetime: 123 }] }),
+        JSON.stringify({ counter: 2, appointments: [good, { ...good, doctorId: 'd2' }] }),
+        JSON.stringify({ counter: 2, appointments: [good, { ...good, protocol: 'MED-0002' }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, protocol: 'MED-99999999999999999999' }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, doctorId: 123 }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, patientName: null }] })
     ];
     for (const payload of payloads) {
         const storage = fakeStorage();
@@ -192,19 +219,31 @@ test('returns defensive copies and null for unknown protocols', () => {
 test('enforces quota on maximum appointments', () => {
     const storage = fakeStorage();
     const book = new AppointmentBook(storage);
-    // Simulate already having 10000 appointments
-    const state = { counter: 10000, appointments: [] };
-    for (let i = 0; i < 10000; i++) {
-        state.appointments.push({ protocol: AppointmentBook.formatProtocol(i + 1), doctorId: 'd1', datetime: `2030-01-01T10:00:${i}Z`, patientName: 'A' });
+    // Simulate having 9999 appointments
+    const state = { counter: 9999, appointments: [] };
+    for (let i = 0; i < 9999; i++) {
+        const dt = new Date(Date.UTC(2030, 0, 1, 0, i)).toISOString();
+        state.appointments.push({ protocol: AppointmentBook.formatProtocol(i + 1), doctorId: 'd1', datetime: dt, patientName: 'A' });
     }
     storage.setItem(AppointmentBook.STORAGE_KEY, JSON.stringify(state));
+    const dt10000 = new Date(Date.UTC(2030, 0, 1, 0, 9999)).toISOString();
+    assert.equal(book.book({ doctorId: 'd1', datetime: dt10000, patientName: 'B' }).protocol, 'MED-10000');
+    
+    // Now it has 10000, should fail and leave storage unchanged
+    const storedBeforeLimit = storage.getItem(AppointmentBook.STORAGE_KEY);
     assert.throws(() => book.book({ doctorId: 'd1', datetime: '2030-01-02T10:00:00Z', patientName: 'B' }), /Maximum number/);
+    assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), storedBeforeLimit);
 });
 
 test('handles QuotaExceededError when saving', () => {
     const storage = fakeStorage();
     const book = new AppointmentBook(storage);
     
+    // Setup a valid state first
+    book.book({ doctorId: 'd2', datetime: '2026-12-02T10:00:00Z', patientName: 'Ana' });
+    const goodState = storage.getItem(AppointmentBook.STORAGE_KEY);
+    
+    const originalSetItem = storage.setItem;
     storage.setItem = () => {
         const err = new Error('Disk full');
         err.name = 'QuotaExceededError';
@@ -212,7 +251,13 @@ test('handles QuotaExceededError when saving', () => {
     };
     
     assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }), /Storage quota exceeded/);
+    assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), goodState);
     
+    // Also tests cancel()
+    assert.throws(() => book.cancel('MED-0001'), /Storage quota exceeded/);
+    assert.equal(book.findByProtocol('MED-0001').patientName, 'Ana');
+    assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), goodState);
+
     storage.setItem = () => {
         const err = new Error('Disk full');
         err.name = 'NS_ERROR_DOM_QUOTA_REACHED';
@@ -220,10 +265,22 @@ test('handles QuotaExceededError when saving', () => {
     };
     
     assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }), /Storage quota exceeded/);
+    assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), goodState);
 
-    storage.setItem = () => {
-        throw new Error('Other storage error');
-    };
+    const genericError = new Error('Other storage error');
+    storage.setItem = () => { throw genericError; };
     
-    assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }), /Other storage error/);
+    let caught;
+    try {
+        book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' });
+    } catch (e) {
+        caught = e;
+    }
+    assert.match(caught.message, /Storage operation failed/);
+    assert.equal(caught.cause, genericError);
+    assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), goodState);
+
+    // After storage recovers, book should succeed
+    storage.setItem = originalSetItem;
+    assert.equal(book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }).protocol, 'MED-0002');
 });
