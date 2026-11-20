@@ -19,7 +19,11 @@ test('listCoverages returns a copy and frozen entries', () => {
   const list = c.listCoverages();
   list.pop();
   assert.equal(c.listCoverages().length, 5);
-  assert.ok(Object.isFrozen(c.listCoverages()[0]));
+  c.listCoverages().forEach((x) => {
+    assert.ok(Object.isFrozen(x));
+    assert.ok(Object.isFrozen(x.excludes));
+    assert.throws(() => x.excludes.push('x'), TypeError);
+  });
 });
 
 test('sums selected coverages', () => {
@@ -31,12 +35,41 @@ test('sums selected coverages', () => {
 });
 
 test('rejects 7d and 15d rental car together, in any order', () => {
-  assert.throws(() => c.calculateCoveragesTotal(['carro-reserva-7d', 'carro-reserva-15d']), RangeError);
-  assert.throws(() => c.calculateCoveragesTotal(['carro-reserva-15d', 'vidros-completo', 'carro-reserva-7d']), RangeError);
+  const re = { name: 'RangeError', message: /mutually exclusive/ };
+  assert.throws(() => c.calculateCoveragesTotal(['carro-reserva-7d', 'carro-reserva-15d']), re);
+  assert.throws(() => c.calculateCoveragesTotal(['carro-reserva-15d', 'vidros-completo', 'carro-reserva-7d']), re);
 });
 
-test('rejects unknown, duplicate and non-array input', () => {
-  assert.throws(() => c.calculateCoveragesTotal(['nope']), RangeError);
-  assert.throws(() => c.calculateCoveragesTotal(['vidros-completo', 'vidros-completo']), RangeError);
+test('rejects unknown, duplicate and non-array input with specific causes', () => {
+  assert.throws(() => c.calculateCoveragesTotal(['nope']), { name: 'RangeError', message: /unknown coverage/ });
+  assert.throws(() => c.calculateCoveragesTotal(['vidros-completo', 'vidros-completo']), { name: 'RangeError', message: /duplicate coverage/ });
   assert.throws(() => c.calculateCoveragesTotal('vidros-completo'), TypeError);
+});
+
+test('rejects duplicates that only differ after normalization', () => {
+  assert.throws(() => c.calculateCoveragesTotal(['vidros-completo', ' VIDROS-COMPLETO ']), { name: 'RangeError', message: /duplicate coverage/ });
+});
+
+test('treats non-string elements as unknown coverages', () => {
+  [null, undefined, 123].forEach((v) => {
+    assert.throws(() => c.calculateCoveragesTotal([v]), { name: 'RangeError', message: /unknown coverage/ });
+  });
+});
+
+test('null input totals zero and a full valid combination sums correctly', () => {
+  assert.equal(c.calculateCoveragesTotal(null), 0);
+  assert.equal(
+    c.calculateCoveragesTotal(['carro-reserva-7d', 'assistencia-ilimitada', 'vidros-completo', 'rcf-danos-terceiros']),
+    19000 + 24000 + 21000 + 38000
+  );
+});
+
+test('getCoverageById normalizes ids and returns null when unknown', () => {
+  const entry = c.getCoverageById('vidros-completo');
+  assert.equal(entry.priceCents, 21000);
+  assert.equal(c.getCoverageById('  VIDROS-COMPLETO '), entry);
+  assert.equal(c.getCoverageById('nope'), null);
+  assert.equal(c.getCoverageById(null), null);
+  assert.equal(c.getCoverageById(undefined), null);
+  assert.ok(Object.isFrozen(entry));
 });
