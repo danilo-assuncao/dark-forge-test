@@ -31,6 +31,7 @@ class LapTimer {
 
   /**
    * Returns { count, totalMs, bestMs }. With no laps: { count: 0, totalMs: 0, bestMs: null }.
+   * Note: totalMs may be Infinity if the sum of extreme finite laps (near Number.MAX_VALUE) overflows.
    */
   stats() {
     const count = this._laps.length;

@@ -39,7 +39,8 @@ test('rejects invalid durations', () => {
 test('invalid call leaves state unchanged', () => {
   const t = new LapTimer();
   t.recordLap(50);
-  assert.throws(() => t.recordLap(-5));
+  assert.throws(() => t.recordLap(-5), RangeError);
+  assert.throws(() => t.recordLap('100'), TypeError);
   assert.deepEqual(t.stats(), { count: 1, totalMs: 50, bestMs: 50 });
 });
 
