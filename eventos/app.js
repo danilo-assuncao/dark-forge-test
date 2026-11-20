@@ -43,6 +43,23 @@
     return remaining <= Math.max(1, Math.ceil(total * 0.1)) ? 'last' : 'available';
   }
 
+  function isValidCPF(cpf) {
+    var strCPF = String(cpf).replace(/[^\d]/g, '');
+    if (strCPF.length !== 11) return false;
+    if (/^(\d)\1+$/.test(strCPF)) return false;
+    var soma = 0, resto;
+    for (var i = 1; i <= 9; i++) soma = soma + parseInt(strCPF.substring(i - 1, i)) * (11 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(strCPF.substring(9, 10))) return false;
+    soma = 0;
+    for (var i = 1; i <= 10; i++) soma = soma + parseInt(strCPF.substring(i - 1, i)) * (12 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(strCPF.substring(10, 11))) return false;
+    return true;
+  }
+
   function buildLots(rows) {
     return (rows || []).map(function (r) {
       var remaining = Math.max(0, r[3]);
@@ -187,15 +204,19 @@
     app.textContent = '';
     app.appendChild(el('h1', 'page-title', 'Eventos'));
 
-    if (!p.q && !p.category && !p.city && events.length > 0) {
+    var found = filterEvents(events, p);
+    var isShowcase = !p.q && !p.category && !p.city && found.length > 0;
+
+    if (isShowcase) {
+      var sEv = found[0];
       var showcase = el('section', 'showcase');
       showcase.appendChild(el('h2', 'showcase__title', 'Em Destaque'));
       var fCard = el('div', 'event-card event-card--featured');
-      var fA = el('a', 'event-card__link', events[0].name);
-      fA.href = buildHash({ name: 'event', id: events[0].id });
+      var fA = el('a', 'event-card__link', sEv.name);
+      fA.href = buildHash({ name: 'event', id: sEv.id });
       fCard.appendChild(fA);
-      fCard.appendChild(el('p', 'event-card__meta', events[0].category + ' · ' + events[0].city));
-      fCard.appendChild(el('p', null, events[0].description));
+      fCard.appendChild(el('p', 'event-card__meta', (sEv.category || '') + ' · ' + (sEv.city || '')));
+      fCard.appendChild(el('p', null, sEv.description || ''));
       showcase.appendChild(fCard);
       app.appendChild(showcase);
     }
@@ -227,13 +248,14 @@
     status.setAttribute('role', 'status');
     app.appendChild(status);
     var ul = el('ul', 'event-list');
-    found.forEach(function (e) {
+    found.forEach(function (e, index) {
+      if (isShowcase && index === 0) return;
       var li = el('li', 'event-card');
       var a = el('a', 'event-card__link', e.name);
       a.href = buildHash({ name: 'event', id: e.id });
       li.appendChild(a);
-      li.appendChild(el('p', 'event-card__meta', e.category + ' · ' + e.city));
-      li.appendChild(el('p', null, e.description));
+      li.appendChild(el('p', 'event-card__meta', (e.category || '') + ' · ' + (e.city || '')));
+      li.appendChild(el('p', null, e.description || ''));
       ul.appendChild(li);
     });
     app.appendChild(ul);
@@ -440,7 +462,7 @@
     app.appendChild(checkoutAct);
   }
 
-  function renderCheckout(app) {
+  function renderCheckout(app, events) {
     var cart = root.DanCart;
     app.textContent = '';
     var back = el('a', 'back', '← Voltar para sacola');
@@ -450,12 +472,34 @@
 
     if (!cart) return;
     var state = cart.load();
+    var revalidated = [];
+    var changed = false;
+    state.items.forEach(function (i) {
+      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
+      if (!ev) { changed = true; return; }
+      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
+      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
+      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
+        i.unitCents = sel.lot.priceCents; 
+        i.sectorName = sel.sector.name;
+        i.lotName = sel.lot.name;
+        i.eventName = ev.name;
+        changed = true; 
+      }
+      revalidated.push(i);
+    });
+    if (changed) {
+      state.items = revalidated;
+      cart.save(state);
+    }
+
     if (!state.items.length) {
       app.appendChild(el('p', 'empty', 'Sua sacola está vazia.'));
       return;
     }
 
     var form = el('form', 'checkout-form');
+    var inputs = [];
     state.items.forEach(function (i, idx) {
       for (var q = 0; q < i.qty; q++) {
         var fs = el('fieldset', 'checkout-fieldset');
@@ -468,15 +512,44 @@
         var cpfInput = el('input'); cpfInput.type = 'text'; cpfInput.name = 'cpf-' + idx + '-' + q; cpfInput.required = true;
         fs.appendChild(field('CPF', cpfInput));
         
+        inputs.push({ item: i, nameInput: nameInput, cpfInput: cpfInput });
         form.appendChild(fs);
       }
     });
+
+    var errContainer = el('div', 'checkout-errors');
+    form.appendChild(errContainer);
 
     var submit = el('button', null, 'Emitir Voucher'); submit.type = 'submit';
     form.appendChild(submit);
 
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
+      errContainer.textContent = '';
+      var hasError = false;
+      var holders = [];
+      
+      inputs.forEach(function(entry) {
+        var n = entry.nameInput.value.trim();
+        var c = entry.cpfInput.value.trim();
+        if (!n || !c) {
+          hasError = true;
+        } else if (!isValidCPF(c)) {
+          hasError = true;
+          var msg = el('p', 'coupon-msg coupon-msg--error', 'CPF inválido: ' + c);
+          errContainer.appendChild(msg);
+        }
+        holders.push({ eventName: entry.item.eventName, sectorName: entry.item.sectorName, type: entry.item.type, name: n, cpf: c });
+      });
+
+      if (hasError) return;
+
+      var orderId = 'TKT-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0') + '-' + Date.now().toString().slice(-4);
+      var order = { orderId: orderId, holders: holders };
+      try {
+        root.localStorage.setItem('dan-tickets-order', JSON.stringify(order));
+      } catch (e) {}
+
       cart.save(cart.emptyState());
       root.location.hash = '#/voucher';
     });
@@ -487,8 +560,31 @@
   function renderVoucher(app) {
     app.textContent = '';
     app.appendChild(el('h1', 'page-title', 'Comprovante'));
+    
+    var order = null;
+    try {
+      var saved = root.localStorage.getItem('dan-tickets-order');
+      if (saved) order = JSON.parse(saved);
+    } catch(e) {}
+
+    if (!order) {
+      app.appendChild(el('p', null, 'Nenhum pedido recente encontrado.'));
+      var backEmpty = el('a', 'back', '← Voltar para Home');
+      backEmpty.href = '#/';
+      app.appendChild(backEmpty);
+      return;
+    }
+
     app.appendChild(el('p', null, 'Seu pedido foi confirmado!'));
-    app.appendChild(el('p', 'voucher-code', 'Código: TKT-XXXX'));
+    app.appendChild(el('p', 'voucher-code', 'Código: ' + order.orderId));
+    
+    var hUl = el('ul', 'voucher-holders');
+    order.holders.forEach(function(h) {
+      var itemType = h.type === 'meia' ? 'Meia' : 'Inteira';
+      hUl.appendChild(el('li', null, h.eventName + ' - ' + h.sectorName + ' (' + itemType + ') - ' + h.name + ' (' + h.cpf + ')'));
+    });
+    app.appendChild(hUl);
+
     var back = el('a', 'back', '← Voltar para Home');
     back.href = '#/';
     app.appendChild(back);
@@ -503,7 +599,7 @@
     var focusKey = active && app.contains(active) ? (active.name || active.getAttribute('data-lot') || '') : '';
     var focusIsLot = !!(active && active.getAttribute && active.getAttribute('data-lot'));
     if (route.name === 'cart') renderCart(app);
-    else if (route.name === 'checkout') renderCheckout(app);
+    else if (route.name === 'checkout') renderCheckout(app, events);
     else if (route.name === 'voucher') renderVoucher(app);
     else if (route.name === 'event') renderEvent(app, route, events);
     else renderList(app, route, events);
