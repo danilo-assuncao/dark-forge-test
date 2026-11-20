@@ -188,3 +188,12 @@ test('empty cart totals are zero', () => {
     const t = new Cart(null).totals();
     assert.strictEqual(t.pixTotalCents, 0);
 });
+
+test('paymentOptions compares PIX with 12x card', () => {
+    const o = filled(memStorage()).paymentOptions();
+    assert.strictEqual(o.pix.totalCents, 135000);
+    assert.strictEqual(o.pix.savingsCents, 15000);
+    assert.strictEqual(o.card.totalCents, 150000);
+    assert.strictEqual(o.card.installments.length, 12);
+    assert.strictEqual(o.card.installments.reduce((a, b) => a + b, 0), 150000);
+});

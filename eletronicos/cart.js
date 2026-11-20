@@ -154,6 +154,15 @@ class Cart {
         };
     }
 
+    /** Side-by-side PIX vs. card (12x, no interest) summary; display-only like all totals. */
+    paymentOptions() {
+        const t = this.totals();
+        return {
+            pix: { totalCents: t.pixTotalCents, savingsCents: t.pixDiscountCents },
+            card: { totalCents: t.totalCents, maxInstallments: MAX_INSTALLMENTS, installments: this.installments(MAX_INSTALLMENTS).amounts }
+        };
+    }
+
     /**
      * Interest-free installments of the card total (up to 12x). Remainder cents go
      * to the first installments so the parts always sum to the total.
