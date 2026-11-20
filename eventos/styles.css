@@ -1,0 +1,12 @@
+:root {
+  color-scheme: only light;
+  --bg-primary: #ffffff;
+  --text-primary: #111111;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
