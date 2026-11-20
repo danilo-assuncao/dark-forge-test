@@ -55,7 +55,7 @@ test('never returns -0 for near-zero negative capacity', () => {
 
 test('rounds half cents up regardless of magnitude', () => {
   const r = analyzeMonthlyBudget({ netIncomeBrl: 100000, essentialsBrl: 1.005, lifestyleBrl: 0 });
-  assert.equal(r.monthlySavingsCapacityBrl, 99998.99);
+  assert.equal(r.monthlySavingsCapacityBrl, 99999);
   assert.equal(r.emergencyReserveTargetBrl, 6.03);
 });
 
