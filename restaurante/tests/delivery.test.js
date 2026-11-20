@@ -17,6 +17,11 @@ test('rejects distance above 15 km or invalid', () => {
   assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 15.1 }), RangeError);
   assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: -1 }), RangeError);
   assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: NaN }), RangeError);
+  for (const distanceKm of ['5', null]) {
+    assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm }), {
+      name: 'RangeError', message: 'Invalid distanceKm',
+    });
+  }
 });
 
 test('minimum order is R$ 35 on gross subtotal', () => {
@@ -69,9 +74,23 @@ test('rejects invalid itemsSubtotalBrl and missing arguments', () => {
     assert.throws(() => calc({ itemsSubtotalBrl: bad, distanceKm: 1 }), /Invalid itemsSubtotalBrl/);
   }
   assert.throws(() => calc(), /Invalid itemsSubtotalBrl/);
+  assert.throws(() => calc(null), {
+    name: 'RangeError', message: 'Invalid itemsSubtotalBrl',
+  });
   assert.throws(() => calc({ itemsSubtotalBrl: 50 }), /Invalid distanceKm/);
   assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: Infinity }), /Invalid distanceKm/);
   assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 16 }), /radius/);
+});
+
+test('accepts the maximum order subtotal', () => {
+  assert.deepEqual(calc({ itemsSubtotalBrl: 1000000, distanceKm: 15 }), {
+    itemsSubtotalBrl: 1000000,
+    discountBrl: 0,
+    netSubtotalBrl: 1000000,
+    deliveryFeeBrl: 0,
+    tipBrl: 0,
+    totalBrl: 1000000,
+  });
 });
 
 test('rejects sub-cent subtotals instead of rounding past the minimum', () => {
@@ -99,5 +118,22 @@ test('rounding of discount and tip on odd cents', () => {
 });
 
 test('tip must be a number from the allowed set', () => {
-  assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 1, tipPct: '10' }), /Invalid tipPct/);
+  for (const tipPct of ['10', null, -10, NaN, Infinity]) {
+    assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 1, tipPct }), {
+      name: 'RangeError', message: 'Invalid tipPct (allowed: 0, 10, 12)',
+    });
+  }
+});
+
+test('rounds tips up, including an exact half-cent', () => {
+  // 35.05 * 10% = 3.505 -> 3.51.
+  const halfCent = calc({ itemsSubtotalBrl: 35.05, distanceKm: 1, tipPct: 10 });
+  assert.equal(halfCent.tipBrl, 3.51);
+  assert.equal(halfCent.totalBrl, 45.56);
+
+  // Coupon leaves 31.55; 31.55 * 12% = 3.786 -> 3.79.
+  const oddCent = calc({ itemsSubtotalBrl: 35.06, distanceKm: 1, couponCode: 'DANCHEF10', tipPct: 12 });
+  assert.equal(oddCent.netSubtotalBrl, 31.55);
+  assert.equal(oddCent.tipBrl, 3.79);
+  assert.equal(oddCent.totalBrl, 42.34);
 });

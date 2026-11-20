@@ -4,6 +4,9 @@
    Amounts are BRL (reais); internal math uses integer cents.
    itemsSubtotalBrl MUST be computed server-side from catalog prices, never
    taken from a client payload; this function cannot verify its origin.
+   distanceKm MUST be derived server-side from the geocoded delivery address,
+   never taken from a client payload. The caller must enforce coupon eligibility
+   and usage limits; this calculator only applies the static coupon discount.
    Error messages are fixed strings (no caller input is reflected). */
 
 const MAX_DISTANCE_KM = 15;
@@ -33,7 +36,8 @@ function deliveryFeeCents(distanceKm) {
   return FEE_TIERS.find((t) => distanceKm <= t.maxKm).feeCents;
 }
 
-function calculateDeliveryTotals({ itemsSubtotalBrl, distanceKm, tipPct = 0, couponCode = '' } = {}) {
+function calculateDeliveryTotals(options = {}) {
+  const { itemsSubtotalBrl, distanceKm, tipPct = 0, couponCode = '' } = options ?? {};
   if (typeof itemsSubtotalBrl !== 'number' || !Number.isFinite(itemsSubtotalBrl)
     || itemsSubtotalBrl < 0 || itemsSubtotalBrl > MAX_ORDER_BRL) {
     throw new RangeError('Invalid itemsSubtotalBrl');
