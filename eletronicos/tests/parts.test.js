@@ -27,6 +27,9 @@ function runTests() {
         assert.throws(() => {
             inventory.registerComponent('cpu2', 'Core i9', 'LGA1700', 'DDR5'); // Missing watts
         }, /Invalid component specifications/);
+        assert.throws(() => {
+            inventory.registerComponent('cpu-invalid', 'Core i3', 'LGA1700', 'DDR5', -10); // Negative watts
+        }, /Invalid component specifications/);
         console.log('✅ should throw an error if specifications are missing or invalid');
         passed++;
     } catch (e) {

@@ -12,7 +12,7 @@ class Inventory {
      * @param {number} watts - Power consumption in watts.
      */
     registerComponent(id, name, socket, ramType, watts) {
-        if (!id || !name || !socket || !ramType || typeof watts !== 'number') {
+        if (!id || !name || !socket || !ramType || typeof watts !== 'number' || watts < 0) {
             throw new Error('Invalid component specifications. id, name, socket, ramType, and watts are required.');
         }
 
