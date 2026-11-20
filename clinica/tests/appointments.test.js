@@ -200,3 +200,30 @@ test('enforces quota on maximum appointments', () => {
     storage.setItem(AppointmentBook.STORAGE_KEY, JSON.stringify(state));
     assert.throws(() => book.book({ doctorId: 'd1', datetime: '2030-01-02T10:00:00Z', patientName: 'B' }), /Maximum number/);
 });
+
+test('handles QuotaExceededError when saving', () => {
+    const storage = fakeStorage();
+    const book = new AppointmentBook(storage);
+    
+    storage.setItem = () => {
+        const err = new Error('Disk full');
+        err.name = 'QuotaExceededError';
+        throw err;
+    };
+    
+    assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }), /Storage quota exceeded/);
+    
+    storage.setItem = () => {
+        const err = new Error('Disk full');
+        err.name = 'NS_ERROR_DOM_QUOTA_REACHED';
+        throw err;
+    };
+    
+    assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }), /Storage quota exceeded/);
+
+    storage.setItem = () => {
+        throw new Error('Other storage error');
+    };
+    
+    assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'Ana' }), /Other storage error/);
+});
