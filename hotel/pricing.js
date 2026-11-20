@@ -16,11 +16,23 @@
   var MAX_NIGHTS = 30;
   var DAY_MS = 86400000;
 
+  // Strict ISO: YYYY-MM-DD, or date + time with an explicit Z / +-HH:MM offset.
+  // Time-less dates are UTC midnight; impossible calendar dates (02-30) are rejected.
+  var ISO_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2}))?$/;
+
   function parseIso(value, name) {
-    if (typeof value !== 'string' || value.trim() === '') {
-      throw new RangeError(name + ' must be an ISO date string');
+    if (typeof value !== 'string') { throw new RangeError(name + ' must be an ISO date string'); }
+    var m = ISO_RE.exec(value.trim());
+    if (!m) { throw new RangeError(name + ' is not a valid ISO date'); }
+    var y = +m[1], mo = +m[2], d = +m[3];
+    var check = new Date(Date.UTC(y, mo - 1, d));
+    if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) {
+      throw new RangeError(name + ' is not a valid calendar date');
     }
-    var ms = Date.parse(value);
+    if (m[4] !== undefined && (+m[4] > 23 || +m[5] > 59 || (m[6] !== undefined && +m[6] > 59))) {
+      throw new RangeError(name + ' has an invalid time');
+    }
+    var ms = Date.parse(value.trim());
     if (Number.isNaN(ms)) { throw new RangeError(name + ' is not a valid ISO date'); }
     return ms;
   }
@@ -34,6 +46,7 @@
     return Math.round((n + Number.EPSILON) * 100) / 100;
   }
 
+  // Display estimate only: re-price and validate coupons server-side before charging.
   // Returns { room, nights, nightlyRates, baseTotal, longStayDiscount, couponDiscount,
   //           subtotal, iss, total } with monetary values in BRL rounded to 2 places.
   function calculateStayPrice(input) {
@@ -45,12 +58,11 @@
     var outMs = parseIso(args.checkOutIso, 'checkOutIso');
     if (outMs <= inMs) { throw new RangeError('checkOutIso must be after checkInIso'); }
 
+    // Nights = difference between UTC calendar dates (time of day is ignored).
     var startDay = utcMidnight(inMs);
-    var nights = Math.max(1, Math.ceil((outMs - startDay) / DAY_MS));
-    // Whole-day span between the UTC calendar dates when both are midnight-aligned.
-    if (utcMidnight(outMs) === outMs && startDay === inMs) { nights = (outMs - inMs) / DAY_MS; }
+    var nights = Math.round((utcMidnight(outMs) - startDay) / DAY_MS);
     if (nights < 1 || nights > MAX_NIGHTS) {
-      throw new RangeError('stay must be between 1 and ' + MAX_NIGHTS + ' nights');
+      throw new RangeError('stay must be between 1 and ' + MAX_NIGHTS + ' nights (UTC calendar dates)');
     }
 
     var guests = args.guests;
@@ -60,7 +72,9 @@
 
     var couponCode = args.couponCode === undefined || args.couponCode === null ? '' : args.couponCode;
     if (typeof couponCode !== 'string') { throw new TypeError('couponCode must be a string'); }
-    var couponRate = COUPONS[couponCode.trim().toUpperCase()] || 0;
+    var couponRate = 0;
+    var couponKey = couponCode.trim().toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(COUPONS, couponKey)) { couponRate = COUPONS[couponKey]; }
 
     // Each night is priced by the UTC month it starts in.
     var nightlyRates = [];
