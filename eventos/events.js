@@ -34,14 +34,26 @@
     }
   ];
 
+  function cloneEvent(e) {
+    return {
+      id: e.id,
+      name: e.name,
+      type: e.type,
+      description: e.description,
+      sectors: e.sectors.map(function(s) {
+        return { id: s.id, name: s.name, priceCents: s.priceCents };
+      })
+    };
+  }
+
   window.DanEvents = {
     all: function () {
-      return EVENTS.slice();
+      return EVENTS.map(cloneEvent);
     },
     find: function (id) {
       for (var i = 0; i < EVENTS.length; i++) {
         if (EVENTS[i].id === id) {
-          return EVENTS[i];
+          return cloneEvent(EVENTS[i]);
         }
       }
       return null;
