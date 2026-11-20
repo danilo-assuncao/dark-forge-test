@@ -76,7 +76,10 @@ button:hover {
   background-color: #c02b36;
 }
 
-.form-group {
+.hidden {
+  display: none !important;
+}
+
   margin-bottom: 1rem;
 }
 

@@ -12,6 +12,7 @@ class Element {
     this.classList = { 
       _classes: new Set(),
       add: (c) => this.classList._classes.add(c),
+      remove: (c) => this.classList._classes.delete(c),
       contains: (c) => this.classList._classes.has(c)
     };
     this.dataset = {};
@@ -217,6 +218,86 @@ test('loader.js stops and renders error on fetch/execution failure', async () =>
   assert.equal(errorLogs.length, 1);
 });
 
+test('loader.js stops and renders error on script runtime execution failure', async () => {
+  const loaderPath = path.join(__dirname, '../loader.js');
+  const loaderSrc = fs.readFileSync(loaderPath, 'utf8');
+  
+  let appendedScripts = [];
+  let errorLogs = [];
+  let errorListeners = {};
+  
+  const docStub = {
+    head: {
+      appendChild(script) {
+        appendedScripts.push(script);
+        if (script.src === './customizer.js') {
+          if (errorListeners['error']) {
+            errorListeners['error'](new Error('SyntaxError'));
+          }
+        } else {
+          if (script.onload) script.onload();
+        }
+      }
+    },
+    body: { innerHTML: '' },
+    createElement(tag) { return { type: '', src: '', onload: null, onerror: null }; }
+  };
+
+  const sandbox = {
+    console: { error: (e) => errorLogs.push(e) },
+    document: docStub,
+    window: { 
+      addEventListener: (evt, cb) => { errorListeners[evt] = cb; },
+      removeEventListener: (evt, cb) => { if (errorListeners[evt] === cb) delete errorListeners[evt]; }
+    }
+  };
+  
+  vm.createContext(sandbox);
+  await vm.runInContext(loaderSrc, sandbox);
+  await new Promise(r => setTimeout(r, 0));
+  
+  assert.equal(appendedScripts.length, 2);
+  assert.ok(docStub.body.innerHTML.includes('Execution error in ./customizer.js'));
+  assert.equal(errorLogs.length, 1);
+});
+
+test('loader.js randomInt rejection sampling works correctly', () => {
+  const loaderPath = path.join(__dirname, '../loader.js');
+  const loaderSrc = fs.readFileSync(loaderPath, 'utf8');
+  
+  let getRandomValuesCalls = 0;
+  const fakeCrypto = {
+    getRandomValues: (arr) => {
+      getRandomValuesCalls++;
+      if (getRandomValuesCalls === 1) {
+        arr[0] = 0xFFFFFFFF; // should trigger rejection
+      } else {
+        arr[0] = 42; // accepted
+      }
+      return arr;
+    }
+  };
+  
+  const docStub = {
+    head: { appendChild: () => {} },
+    body: { innerHTML: '' }
+  };
+
+  const sandbox = {
+    crypto: fakeCrypto,
+    window: { addEventListener: () => {}, removeEventListener: () => {} },
+    document: docStub
+  };
+  
+  vm.createContext(sandbox);
+  vm.runInContext(loaderSrc, sandbox);
+  
+  const cryptoModule = sandbox.window.require('node:crypto');
+  const result = cryptoModule.randomInt(0, 100);
+  assert.equal(getRandomValuesCalls, 2);
+  assert.equal(result, 42);
+});
+
 test.afterEach(() => {
   global.document = undefined;
   global.window = undefined;
@@ -302,7 +383,7 @@ test('app.js checkout and cart failure paths (multiple items, NaN distance, bad 
   
   document.getElementById('coupon-input').value = 'DANCHEF10';
   checkoutBtn.click();
-  assert.equal(receiptContainer.style.display, 'block');
+  assert.equal(receiptContainer.classList.contains('hidden'), false);
   
   assert.equal(cart.children.length, 0);
   assert.equal(cart.textContent, 'Sacola vazia');

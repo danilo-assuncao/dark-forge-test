@@ -207,7 +207,7 @@ if (typeof window !== 'undefined') {
   });
 
   function showReceipt(order) {
-    receiptContainer.style.display = 'block';
+    receiptContainer.classList.remove('hidden');
     receiptContent.textContent = '';
     
     const header = document.createElement('h3');
