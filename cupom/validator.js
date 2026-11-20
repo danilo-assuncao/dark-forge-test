@@ -1,0 +1,46 @@
+'use strict';
+
+function assertFiniteNumber(value, label) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new TypeError(`${label} must be a finite number.`);
+  }
+}
+
+/**
+ * Validate all required coupon fields and the order before checking eligibility.
+ * Invalid types/nonfinite numbers throw TypeError; invalid ranges throw RangeError.
+ * Usage counts must be nonnegative safe integers; fractional percentages are valid.
+ * Returns false for orders below the minimum or exhausted coupons (including maxUses 0).
+ * This check never mutates the coupon or consumes a use.
+ */
+function validateCoupon(coupon, orderTotalBrl) {
+  if (coupon === null || typeof coupon !== 'object' || Array.isArray(coupon)) {
+    throw new TypeError('coupon must be an object.');
+  }
+  const { code, minOrderBrl, percentOff, maxUses, usedCount } = coupon;
+  if (typeof code !== 'string') {
+    throw new TypeError('code must be a string.');
+  }
+  if (code.trim().length === 0) {
+    throw new RangeError('code must not be blank.');
+  }
+  for (const [label, value] of Object.entries({ minOrderBrl, percentOff, maxUses, usedCount, orderTotalBrl })) {
+    assertFiniteNumber(value, label);
+  }
+  for (const [label, value] of Object.entries({ minOrderBrl, orderTotalBrl })) {
+    if (value < 0) {
+      throw new RangeError(`${label} must not be negative.`);
+    }
+  }
+  if (percentOff < 1 || percentOff > 90) {
+    throw new RangeError('percentOff must be between 1 and 90.');
+  }
+  for (const [label, value] of Object.entries({ maxUses, usedCount })) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new RangeError(`${label} must be a nonnegative safe integer.`);
+    }
+  }
+  return orderTotalBrl >= minOrderBrl && usedCount < maxUses;
+}
+
+module.exports = { validateCoupon };
