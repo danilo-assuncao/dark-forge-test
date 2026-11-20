@@ -19,11 +19,12 @@ function el(tag, textOrProps = {}, children = []) {
     element.textContent = textOrProps;
   } else {
     for (const [key, value] of Object.entries(textOrProps)) {
+      const lowerKey = key.toLowerCase();
       if (key === 'className') {
         element.className = value;
-      } else if (key.startsWith('on')) {
+      } else if (lowerKey.startsWith('on')) {
         if (typeof value === 'function') {
-          element.addEventListener(key.slice(2).toLowerCase(), value);
+          element.addEventListener(lowerKey.slice(2), value);
         } else {
           throw new TypeError(`Event handler for ${key} must be a function`);
         }
@@ -33,7 +34,7 @@ function el(tag, textOrProps = {}, children = []) {
         if (value) element.checked = true;
       } else if (key === 'selected') {
         if (value) element.selected = true;
-      } else if (['href', 'src', 'style', 'srcdoc', 'innerHTML'].includes(key)) {
+      } else if (['href', 'src', 'style', 'srcdoc', 'innerhtml', 'formaction', 'action', 'poster', 'data', 'srcset', 'xlink:href', 'ping'].includes(lowerKey)) {
         throw new Error(`Attribute ${key} is not allowed for security reasons`);
       } else {
         element.setAttribute(key, value);
@@ -63,8 +64,14 @@ function initApp(rootElement) {
   };
 
   function update() {
-    rootElement.textContent = ''; 
-    rootElement.appendChild(render());
+    try {
+      const newTree = render();
+      rootElement.textContent = ''; 
+      rootElement.appendChild(newTree);
+    } catch (e) {
+      rootElement.textContent = '';
+      rootElement.appendChild(el('div', { className: 'error', textContent: 'Erro fatal: ' + e.message }));
+    }
   }
 
   function render() {
@@ -104,6 +111,7 @@ function initApp(rootElement) {
       state.genreFilter = e.target.value;
       state.selectedMovieId = null;
       state.selectedSessionId = null;
+      state.error = null;
       update();
     } });
     
@@ -111,6 +119,7 @@ function initApp(rootElement) {
       state.ratingFilter = e.target.value;
       state.selectedMovieId = null;
       state.selectedSessionId = null;
+      state.error = null;
       update();
     } });
     ['L', '12', '14', '16'].forEach(r => {
@@ -127,12 +136,14 @@ function initApp(rootElement) {
   }
 
   function renderMovies() {
-    const movies = listMovies({ genre: state.genreFilter || undefined, maxRating: state.ratingFilter });
+    const g = state.genreFilter.trim();
+    const movies = listMovies({ genre: g || undefined, maxRating: state.ratingFilter });
     const list = el('ul', { className: 'movie-list' });
     movies.forEach(m => {
       const li = el('li', { className: state.selectedMovieId === m.id ? 'movie-item selected' : 'movie-item', onClick: () => {
         state.selectedMovieId = m.id;
         state.selectedSessionId = null;
+        state.error = null;
         update();
       } }, [
         el('strong', m.title),
@@ -225,6 +236,7 @@ function initApp(rootElement) {
             } else if (qty === 1) {
               state.snacks = state.snacks.filter(s => s.snackId !== snack.id);
             }
+            state.error = null;
             update();
           } }),
           el('span', qty.toString()),
@@ -235,6 +247,7 @@ function initApp(rootElement) {
               } else {
                 state.snacks.push({ snackId: snack.id, qty: 1 });
               }
+              state.error = null;
               update();
             }
           } })

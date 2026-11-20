@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'">
   <title>Dan Cineplex</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,7 +14,7 @@
     const moduleMap = {};
     window.module = { exports: {} };
     window.require = function(name) {
-      const match = ['movies.js', 'seats.js', 'snacks.js', 'checkout.js'].find(n => name.includes(n));
+      const match = ['movies.js', 'seats.js', 'snacks.js', 'checkout.js'].find(n => name === n || name === './' + n);
       if (!match || !moduleMap[match]) throw new Error('Module not found: ' + name);
       return moduleMap[match];
     };

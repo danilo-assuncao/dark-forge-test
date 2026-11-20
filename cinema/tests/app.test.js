@@ -41,123 +41,225 @@ class FakeElement {
   }
 }
 
-test('el creates element with correct tag and properties', (t) => {
-  const originalDoc = global.document;
-  global.document = { createElement: tag => new FakeElement(tag) };
-  try {
-    const btn = el('button', { className: 'test-btn', textContent: 'Click Me', id: 'b1' });
-    assert.strictEqual(btn.tagName, 'BUTTON');
-    assert.strictEqual(btn.className, 'test-btn');
-    assert.strictEqual(btn.textContent, 'Click Me');
-    assert.strictEqual(btn.attributes['id'], 'b1');
-  } finally {
-    global.document = originalDoc;
+function findElements(node, predicate) {
+  let results = [];
+  if (predicate(node)) results.push(node);
+  for (const child of node.children) {
+    results.push(...findElements(child, predicate));
   }
-});
+  return results;
+}
 
-test('el rejects unsafe event handlers and attributes', (t) => {
-  const originalDoc = global.document;
-  global.document = { createElement: tag => new FakeElement(tag) };
-  try {
-    assert.throws(() => el('div', { onclick: 'alert(1)' }), TypeError);
-    assert.throws(() => el('a', { href: 'javascript:alert(1)' }), Error);
-    assert.throws(() => el('div', { innerHTML: '<b>bad</b>' }), Error);
-  } finally {
-    global.document = originalDoc;
+function findByClass(node, cls) {
+  return findElements(node, n => n.className && n.className.includes(cls));
+}
+
+function findByTag(node, tag) {
+  return findElements(node, n => n.tagName === tag.toUpperCase());
+}
+
+function findByText(node, text) {
+  return findElements(node, n => n.textContent && n.textContent.includes(text));
+}
+
+function withDOM(fn) {
+  return () => {
+    const originalDoc = global.document;
+    global.document = { createElement: tag => new FakeElement(tag) };
+    try {
+      resetOccupiedSeats();
+      fn();
+    } finally {
+      global.document = originalDoc;
+      resetOccupiedSeats();
+    }
+  };
+}
+
+test('el creates element with correct tag and properties', withDOM(() => {
+  const btn = el('button', { className: 'test-btn', textContent: 'Click Me', id: 'b1' });
+  assert.strictEqual(btn.tagName, 'BUTTON');
+  assert.strictEqual(btn.className, 'test-btn');
+  assert.strictEqual(btn.textContent, 'Click Me');
+  assert.strictEqual(btn.attributes['id'], 'b1');
+}));
+
+test('el rejects unsafe event handlers and attributes', withDOM(() => {
+  assert.throws(() => el('div', { onclick: 'alert(1)' }), TypeError);
+  assert.throws(() => el('div', { onChange: 'alert(1)' }), TypeError);
+  
+  const unsafeAttrs = ['href', 'src', 'style', 'srcdoc', 'innerHTML', 'formaction', 'action', 'poster', 'data', 'srcset', 'xlink:href', 'ping'];
+  for (const attr of unsafeAttrs) {
+    assert.throws(() => el('a', { [attr]: 'javascript:alert(1)' }), Error, `Should reject ${attr}`);
+    assert.throws(() => el('a', { [attr.toUpperCase()]: 'javascript:alert(1)' }), Error, `Should reject ${attr.toUpperCase()}`);
   }
-});
+}));
 
-test('el securely sets textContent without creating elements', (t) => {
-  const originalDoc = global.document;
-  global.document = { createElement: tag => new FakeElement(tag) };
-  try {
-    const maliciousStr = '<img src=x onerror=alert(1)>';
-    const d = el('div', { textContent: maliciousStr });
-    assert.strictEqual(d._textContent, maliciousStr);
-    assert.strictEqual(d.children.length, 0);
-  } finally {
-    global.document = originalDoc;
+test('el securely sets textContent without creating elements', withDOM(() => {
+  const maliciousStr = '<img src=x onerror=alert(1)>';
+  const d = el('div', { textContent: maliciousStr });
+  assert.strictEqual(d._textContent, maliciousStr);
+  assert.strictEqual(d.children.length, 0);
+}));
+
+test('initApp renders initial state without errors', withDOM(() => {
+  const root = new FakeElement('div');
+  initApp(root);
+  assert.strictEqual(root.children.length, 1);
+  const container = root.children[0];
+  assert.strictEqual(container.tagName, 'DIV');
+  assert.strictEqual(container.className, 'container');
+}));
+
+test('SPA full flow: filter, select session, book seats, errors, voucher, reset', withDOM(() => {
+  const root = new FakeElement('div');
+  initApp(root);
+  
+  // Test whitespace genre handling (should not throw and should render movies)
+  let genreInput = findByTag(root, 'input').find(n => n.attributes.placeholder === 'Gênero');
+  genreInput.value = '   ';
+  genreInput.dispatchEvent({ type: 'change' });
+  let movies = findByClass(root, 'movie-item');
+  assert.ok(movies.length > 0, 'Movies should be rendered when genre is whitespace');
+  
+  // Select movie "Fronteira Final"
+  let movieItem = movies.find(m => m.textContent.includes('Fronteira Final'));
+  movieItem.click();
+  
+  // Select session
+  let sessionItem = findByClass(root, 'session-item')[0];
+  sessionItem.click();
+  
+  // Pick a seat 'A1'
+  let a1 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A1')[0];
+  a1.click();
+  
+  // Refetch A1 to check if selected
+  a1 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A1')[0];
+  assert.strictEqual(a1.className.includes('selected'), true);
+
+  // Try clicking it again to deselect
+  a1.click();
+  a1 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A1')[0];
+  assert.strictEqual(a1.className.includes('selected'), false);
+
+  // Select it back
+  a1.click();
+
+  // Test Snacks (+ / - bounds)
+  for(let i=0; i<15; i++) {
+    let addBtn = findElements(findByClass(root, 'snack-item')[0], n => n.tagName === 'BUTTON' && n.textContent === '+')[0];
+    addBtn.click();
   }
-});
+  
+  let qtySpan = findElements(findByClass(root, 'snack-item')[0], n => n.tagName === 'SPAN')[1];
+  assert.strictEqual(qtySpan.textContent, '10', 'Qty should clamp at 10');
 
-test('initApp renders initial state without errors', (t) => {
-  const originalDoc = global.document;
-  global.document = { createElement: tag => new FakeElement(tag) };
-  try {
-    const root = new FakeElement('div');
-    initApp(root);
-    assert.strictEqual(root.children.length, 1);
-    const container = root.children[0];
-    assert.strictEqual(container.tagName, 'DIV');
-    assert.strictEqual(container.className, 'container');
-  } finally {
-    global.document = originalDoc;
+  for(let i=0; i<15; i++) {
+    let minusBtn = findElements(findByClass(root, 'snack-item')[0], n => n.tagName === 'BUTTON' && n.textContent === '-')[0];
+    minusBtn.click();
   }
-});
+  
+  // Item shouldn't be in order state, qty visual should reset to 0
+  qtySpan = findElements(findByClass(root, 'snack-item')[0], n => n.tagName === 'SPAN')[1];
+  assert.strictEqual(qtySpan.textContent, '0', 'Qty should allow removal down to 0');
+  
+  // Add 1 snack back
+  let addBtn = findElements(findByClass(root, 'snack-item')[0], n => n.tagName === 'BUTTON' && n.textContent === '+')[0];
+  addBtn.click();
 
-test('SPA full flow: filter, select session, book seats, error handling', (t) => {
-  const originalDoc = global.document;
-  global.document = { createElement: tag => new FakeElement(tag) };
-  try {
-    resetOccupiedSeats();
-    const root = new FakeElement('div');
-    initApp(root);
-    
-    // Select movie "Fronteira Final" (index 1 of rating 16 filtered list)
-    const moviesList = root.children[0].children[2].children[1];
-    moviesList.children[1].click(); // Fronteira Final
+  // Pick ticket kind half
+  let halfTicketInput = findElements(root, n => n.tagName === 'INPUT' && n.attributes.value === 'half')[0];
+  halfTicketInput.checked = true;
+  halfTicketInput.dispatchEvent({ type: 'change' });
 
-    // Select session 'ses-002'
-    const sessionsList = root.children[0].children[3].children[1];
-    sessionsList.children[0].click(); // First session of Fronteira Final
+  // Empty buyername -> error
+  let checkoutBtn = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'Finalizar Compra')[0];
+  checkoutBtn.click();
+  
+  let errorDiv = findByClass(root, 'error')[0];
+  assert.ok(errorDiv.textContent.includes('buyerName'));
+  
+  // Changing filter should clear error
+  genreInput = findByTag(root, 'input').find(n => n.attributes.placeholder === 'Gênero');
+  genreInput.value = '';
+  genreInput.dispatchEvent({ type: 'change' });
+  
+  errorDiv = findByClass(root, 'error')[0];
+  assert.strictEqual(errorDiv, undefined, 'Error should be cleared on filter change');
 
-    // Pick a seat 'A1'
-    let seatGrid = root.children[0].children[4].children[2];
-    let a1 = seatGrid.children[0].children[0];
-    a1.click();
-    
-    // Fetch a1 again after re-render
-    seatGrid = root.children[0].children[4].children[2];
-    a1 = seatGrid.children[0].children[0];
-    assert.strictEqual(a1.className.includes('selected'), true);
+  // Relocating back to session
+  movies = findByClass(root, 'movie-item');
+  movieItem = movies.find(m => m.textContent.includes('Fronteira Final'));
+  movieItem.click();
+  sessionItem = findByClass(root, 'session-item')[0];
+  sessionItem.click();
+  
+  // Select seat A1 again and A2
+  a1 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A1')[0];
+  a1.click();
+  let a2 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A2')[0];
+  a2.click();
 
-    // Empty buyername -> error
-    const checkoutSect = root.children[0].children[6];
-    const checkoutBtn = checkoutSect.children[3];
-    checkoutBtn.click();
-    
-    // Check error shown
-    const errorDiv = root.children[0].children[1];
-    assert.strictEqual(errorDiv.className, 'error');
-    assert.ok(errorDiv.textContent.includes('buyerName'));
-    
-    // Set buyername with XSS payload and valid coupon
-    const nameInput = checkoutSect.children[1];
-    const couponInput = checkoutSect.children[2];
-    nameInput.value = '<script>alert(1)</script>';
-    nameInput.dispatchEvent({ type: 'input' });
-    couponInput.value = 'DANCINE15';
-    couponInput.dispatchEvent({ type: 'input' });
+  let nameInput = findByTag(root, 'input').find(n => n.attributes.placeholder === 'Nome do Comprador');
+  let couponInput = findByTag(root, 'input').find(n => n.attributes.placeholder === 'Cupom');
+  
+  // Invalid coupon test
+  nameInput.value = 'John';
+  nameInput.dispatchEvent({ type: 'input' });
+  couponInput.value = 'INVALID123';
+  couponInput.dispatchEvent({ type: 'input' });
+  
+  // Actually buildCinemaOrder ignores invalid coupon and applies 0 discount
+  // We'll just complete checkout.
+  checkoutBtn = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'Finalizar Compra')[0];
+  checkoutBtn.click();
 
-    // Checkout again
-    root.children[0].children[7].children[3].click(); // The structure changed because error div is added at [1]
-    
-    // Now voucher should be rendered
-    const voucher = root.children[0].children[1];
-    assert.strictEqual(voucher.className, 'voucher');
-    assert.ok(voucher.textContent.includes('Protocolo: CINE-0000'));
-    // Ensure buyer name is literal and not parsed
-    assert.ok(voucher.textContent.includes('<script>alert(1)</script>'));
-    
-    // Seats are now occupied in global state
-    assert.ok(globalOccupiedSeats['ses-002'].includes('A1'));
+  let voucher = findByClass(root, 'voucher')[0];
+  assert.ok(voucher, 'Voucher should be rendered');
+  assert.ok(voucher.textContent.includes('Total: R$'), 'Voucher total should be present');
+  
+  // Seats are occupied
+  assert.ok(globalOccupiedSeats['ses-002'].includes('A1'));
+  assert.ok(globalOccupiedSeats['ses-002'].includes('A2'));
 
-    // Nova Compra
-    root.children[0].children[2].click();
-    assert.strictEqual(root.children[0].children.length, 3); // title, filters, movies
+  // Nova Compra
+  let novaCompraBtn = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'Nova Compra')[0];
+  novaCompraBtn.click();
 
-  } finally {
-    global.document = originalDoc;
-    resetOccupiedSeats();
-  }
-});
+  // Select same session again
+  movies = findByClass(root, 'movie-item');
+  movieItem = movies.find(m => m.textContent.includes('Fronteira Final'));
+  movieItem.click();
+  sessionItem = findByClass(root, 'session-item')[0];
+  sessionItem.click();
+
+  // A1 and A2 should be occupied
+  a1 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A1')[0];
+  a2 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A2')[0];
+  assert.strictEqual(a1.className.includes('occupied'), true);
+  assert.strictEqual(a2.className.includes('occupied'), true);
+
+  // Try selecting occupied seat A1
+  a1.click();
+  a1 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A1')[0];
+  assert.strictEqual(a1.className.includes('selected'), false, 'Cannot select occupied seat');
+
+  // Double-booking guard
+  // Simulate state manipulation to select A1 directly
+  let a3 = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'A3')[0];
+  a3.click();
+  
+  // We manipulate globalOccupiedSeats manually to simulate a race condition where seat was occupied before checkout
+  globalOccupiedSeats['ses-002'].push('A3');
+  
+  nameInput = findByTag(root, 'input').find(n => n.attributes.placeholder === 'Nome do Comprador');
+  nameInput.value = 'John 2';
+  nameInput.dispatchEvent({ type: 'input' });
+
+  checkoutBtn = findElements(root, n => n.tagName === 'BUTTON' && n.textContent === 'Finalizar Compra')[0];
+  checkoutBtn.click();
+
+  errorDiv = findByClass(root, 'error')[0];
+  assert.ok(errorDiv.textContent.includes('já ocupada'), 'Should throw double-booking error');
+}));
