@@ -23,7 +23,11 @@ const SESSIONS = Object.freeze([
   Object.freeze({ id: 'ses-005', movieId: 'mov-fronteira-final', roomType: 'VIP', time: '20:00' }),
 ]);
 
-function listMovies({ genre, maxRating } = {}) {
+function listMovies(options = {}) {
+  if (options === null || typeof options !== 'object') {
+    throw new TypeError('options must be an object');
+  }
+  const { genre, maxRating } = options;
   if (genre !== undefined && (typeof genre !== 'string' || genre.trim() === '')) {
     throw new TypeError('genre must be a non-empty string');
   }
