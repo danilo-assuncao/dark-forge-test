@@ -12,6 +12,11 @@ const DanSeguros = {
         else if (franchise === 'majorada') basePremium *= 0.8;
 
         let additionalPremium = 0;
+        const carroReservaCount = coverages.filter(c => c.startsWith('carro_reserva')).length;
+        if (carroReservaCount > 1) {
+            throw new Error('Apenas uma opção de carro reserva pode ser selecionada.');
+        }
+
         coverages.forEach(cov => {
             if (cov === 'vidros') additionalPremium += 200;
             if (cov === 'terceiros') additionalPremium += 400;
@@ -23,6 +28,10 @@ const DanSeguros = {
         let total = basePremium + additionalPremium;
         let discount = 0;
 
+        if (coupon && coupon !== 'DANSEG10') {
+            throw new Error('Cupom inválido.');
+        }
+
         if (coupon === 'DANSEG10') {
             discount = total * 0.10;
             total -= discount;
@@ -31,18 +40,32 @@ const DanSeguros = {
         const totalPix = total * 0.95;
         const totalInstallments = total / 12;
 
+        const round2 = (val) => Math.round(val * 100) / 100;
+
         return {
-            basePremium,
-            additionalPremium,
-            discount,
-            totalPix,
-            totalInstallments
+            basePremium: round2(basePremium),
+            additionalPremium: round2(additionalPremium),
+            discount: round2(discount),
+            totalPix: round2(totalPix),
+            totalInstallments: round2(totalInstallments)
         };
     },
 
     generatePolicyId() {
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        return `APO-${randomNum}`;
+        let uuid = '';
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            uuid = crypto.randomUUID();
+        } else if (typeof require !== 'undefined') {
+            try {
+                uuid = require('crypto').randomUUID();
+            } catch (e) {}
+        }
+        
+        if (!uuid) {
+            uuid = Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e12).toString(36);
+        }
+        
+        return `APO-${uuid.toUpperCase()}`;
     }
 };
 
@@ -103,7 +126,12 @@ if (typeof document !== 'undefined') {
 
             const coverages = Array.from(document.querySelectorAll('input[name="coverage"]:checked')).map(cb => cb.value);
 
-            currentSimulation = DanSeguros.calculateInsurance({ fipe, age, usage, franchise, coverages, coupon });
+            try {
+                currentSimulation = DanSeguros.calculateInsurance({ fipe, age, usage, franchise, coverages, coupon });
+            } catch (err) {
+                alert(err.message);
+                return;
+            }
 
             basePremiumSpan.textContent = currentSimulation.basePremium.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             additionalPremiumSpan.textContent = currentSimulation.additionalPremium.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
