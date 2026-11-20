@@ -155,6 +155,7 @@ test('loader.js sequentially injects modules and handles execution', async () =>
   };
   
   const docStub = {
+    baseURI: 'http://localhost/',
     head: {
       appendChild(script) {
         appendedScripts.push(script);
@@ -169,6 +170,7 @@ test('loader.js sequentially injects modules and handles execution', async () =>
   const sandbox = {
     crypto: fakeCrypto,
     console: { error: (e) => errorLogs.push(e) },
+    URL: global.URL,
     document: docStub,
     window: {
       addEventListener: () => {},
@@ -188,7 +190,9 @@ test('loader.js sequentially injects modules and handles execution', async () =>
   assert.equal(errorLogs.length, 0);
   assert.equal(typeof sandbox.window.require('node:crypto').randomInt, 'function');
   assert.equal(sandbox.window.require('./menu.js').marker, './menu.js');
-  assert.equal(sandbox.window.require('./app.js'), undefined);
+  assert.equal(sandbox.window.__modules['./menu.js'].marker, './menu.js');
+  assert.equal(sandbox.window.__modules['./app.js'], undefined);
+  assert.equal(sandbox.window.module.exports.marker, './app.js');
 });
 
 test('loader.js stops and renders error on fetch/execution failure', async () => {
@@ -200,6 +204,7 @@ test('loader.js stops and renders error on fetch/execution failure', async () =>
   let children = [];
   
   const docStub = {
+    baseURI: 'http://localhost/',
     head: {
       appendChild(script) {
         appendedScripts.push(script);
@@ -216,6 +221,7 @@ test('loader.js stops and renders error on fetch/execution failure', async () =>
 
   const sandbox = {
     console: { error: (e) => errorLogs.push(e) },
+    URL: global.URL,
     document: docStub,
     window: { addEventListener: () => {}, removeEventListener: () => {}, __modules: {}, module: { exports: {} } }
   };
@@ -245,13 +251,19 @@ test('loader.js stops and renders error on script runtime execution failure', as
   let children = [];
   
   const docStub = {
+    baseURI: 'http://localhost/',
     head: {
       appendChild(script) {
         appendedScripts.push(script);
         if (script.src === './customizer.js') {
           if (errorListeners['error']) {
             setImmediate(() => {
-              errorListeners['error']({filename: 'customizer.js', message: 'SyntaxError'});
+              // Unrelated error with different filename
+              errorListeners['error']({filename: 'http://localhost/other.js', message: 'Ignored Error'});
+              // Unrelated error with no filename
+              errorListeners['error']({message: 'Ignored No Filename'});
+              
+              errorListeners['error']({filename: 'http://localhost/customizer.js', message: 'SyntaxError'});
             });
           }
         } else {
@@ -265,6 +277,7 @@ test('loader.js stops and renders error on script runtime execution failure', as
 
   const sandbox = {
     console: { error: (e) => errorLogs.push(e) },
+    URL: global.URL,
     document: docStub,
     window: { 
       addEventListener: (evt, cb) => { errorListeners[evt] = cb; },
@@ -284,6 +297,7 @@ test('loader.js stops and renders error on script runtime execution failure', as
   
   assert.equal(appendedScripts.length, 2);
   assert.equal(children.length, 2);
+  assert.equal(children[0].textContent, 'Erro Crítico');
   assert.equal(children[1].textContent, 'Execution error in ./customizer.js: SyntaxError');
   assert.equal(errorLogs.length, 1);
 });
@@ -297,15 +311,20 @@ test('loader.js randomInt rejection sampling works correctly', () => {
     getRandomValues: (arr) => {
       getRandomValuesCalls++;
       if (getRandomValuesCalls === 1) {
-        arr[0] = 0xFFFFFFFF; // should trigger rejection
-      } else {
+        arr[0] = 0xFFFFFFFF; // should trigger rejection for range=100
+      } else if (getRandomValuesCalls === 2) {
         arr[0] = 42; // accepted
+      } else if (getRandomValuesCalls === 3) {
+        arr[0] = 0xFFFFFFFF; // rejection for range=1
+      } else if (getRandomValuesCalls === 4) {
+        arr[0] = 0; // accepted for range=1
       }
       return arr;
     }
   };
   
   const docStub = {
+    baseURI: 'http://localhost/',
     head: { appendChild: () => {} },
     body: { innerHTML: '', textContent: '', appendChild: () => {} },
     createElement(tag) { return { tag, type: '', src: '', onload: null, onerror: null, textContent: '', appendChild: () => {} }; }
@@ -321,9 +340,16 @@ test('loader.js randomInt rejection sampling works correctly', () => {
   vm.runInContext(loaderSrc, sandbox);
   
   const cryptoModule = sandbox.window.require('node:crypto');
-  const result = cryptoModule.randomInt(0, 100);
+  const result1 = cryptoModule.randomInt(0, 100);
   assert.equal(getRandomValuesCalls, 2);
-  assert.equal(result, 42);
+  assert.equal(result1, 42);
+
+  const result2 = cryptoModule.randomInt(0, 1);
+  assert.equal(getRandomValuesCalls, 3);
+  assert.equal(result2, 0);
+  
+  assert.throws(() => cryptoModule.randomInt(1, 0), (err) => err.name === 'RangeError');
+  assert.throws(() => cryptoModule.randomInt(0, 0), (err) => err.name === 'RangeError');
 });
 
 test.afterEach(() => {
@@ -369,6 +395,18 @@ test('app.js filter feature narrows vitrine and handles empty state and full res
   checkbox.checked = false;
   applyBtn.click();
   assert.ok(vitrine.children.length > 10);
+  
+  // Empty state test
+  document.getElementById('category-filter').value = 'entradas';
+  document.getElementById('dietary-filter').value = 'sem-gluten';
+  const checkboxCastanhas = new Element('input');
+  checkboxCastanhas.type = 'checkbox';
+  checkboxCastanhas.value = 'castanhas';
+  checkboxCastanhas.checked = true;
+  allergenContainer.appendChild(checkboxCastanhas);
+  applyBtn.click();
+  assert.equal(vitrine.children.length, 0);
+  assert.equal(vitrine.textContent, 'Nenhum prato encontrado com esses filtros.');
 });
 
 test('app.js checkout and cart failure paths (multiple items, NaN distance, bad coupon, empty checkout)', () => {
@@ -379,16 +417,29 @@ test('app.js checkout and cart failure paths (multiple items, NaN distance, bad 
   const cart = document.getElementById('cart-items');
   const checkoutBtn = document.getElementById('checkout-btn');
   const receiptContainer = document.getElementById('receipt');
+  receiptContainer.classList.add('hidden');
 
   checkoutBtn.click();
   assert.equal(alerts[0], 'A sacola está vazia.');
   
   const card1 = vitrine.children[0];
   const configDiv1 = card1.children[3];
+  
+  // Test invalid add
+  configDiv1.querySelector('.qty-input').value = '0';
+  configDiv1.children[configDiv1.children.length - 1].click();
+  assert.ok(alerts[1].includes('Erro ao adicionar'));
+  assert.equal(cart.children.length, 0);
+
   configDiv1.querySelector('.qty-input').value = '2';
   configDiv1.querySelector('.doneness-select').value = 'ao-ponto';
-  configDiv1.children[configDiv1.children.length - 1].click(); // Add btn
   
+  // Test extras
+  const extrasSelect = configDiv1.querySelector('.extras-select');
+  extrasSelect.selectedOptions = [{value: 'bacon-artesanal'}];
+  
+  configDiv1.children[configDiv1.children.length - 1].click(); // Add btn
+
   const card2 = vitrine.children[1];
   const configDiv2 = card2.children[3];
   configDiv2.querySelector('.qty-input').value = '1';
@@ -397,21 +448,42 @@ test('app.js checkout and cart failure paths (multiple items, NaN distance, bad 
 
   assert.equal(cart.children.length, 2);
   
+  // Test remove
+  cart.children[1].querySelector('.remove-btn').click();
+  assert.equal(cart.children.length, 1);
+  
+  // Add back card2 for checkout tests
+  configDiv2.children[configDiv2.children.length - 1].click();
+  assert.equal(cart.children.length, 2);
+  
   document.getElementById('distance-input').value = 'abc';
   checkoutBtn.click();
-  assert.equal(alerts[1], 'Erro ao finalizar pedido: Distância inválida');
+  assert.equal(alerts[2], 'Erro ao finalizar pedido: Distância inválida');
+  assert.equal(receiptContainer.classList.contains('hidden'), true);
   
   document.getElementById('distance-input').value = '5';
+  document.getElementById('tip-input').value = 'abc';
+  checkoutBtn.click();
+  assert.equal(alerts[3], 'Erro ao finalizar pedido: Gorjeta inválida');
+  assert.equal(receiptContainer.classList.contains('hidden'), true);
+
   document.getElementById('tip-input').value = '10';
   document.getElementById('coupon-input').value = 'INVALID';
   document.getElementById('name-input').value = 'Danilo';
   document.getElementById('address-input').value = 'Rua Foo';
   checkoutBtn.click();
-  assert.ok(alerts[2].includes('Unknown coupon'));
+  assert.ok(alerts[4].includes('Unknown coupon'));
+  assert.equal(receiptContainer.classList.contains('hidden'), true);
   
   document.getElementById('coupon-input').value = 'DANCHEF10';
   checkoutBtn.click();
   assert.equal(receiptContainer.classList.contains('hidden'), false);
+  
+  const receiptContent = document.getElementById('receipt-content').textContent;
+  assert.ok(receiptContent.includes('Pedido: PED-'));
+  assert.ok(receiptContent.includes('Danilo'));
+  assert.ok(receiptContent.includes('Total:'));
+  assert.ok(receiptContent.includes('Desconto:'));
   
   assert.equal(cart.children.length, 0);
   assert.equal(cart.textContent, 'Sacola vazia');

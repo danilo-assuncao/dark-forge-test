@@ -33,7 +33,8 @@ async function loadApp() {
       script.src = file;
       
       const errorHandler = (e) => {
-        if (e.filename && !e.filename.endsWith(file.replace('./', ''))) return;
+        if (!e.filename || new URL(file, document.baseURI).href !== e.filename) return;
+        window.removeEventListener('error', errorHandler);
         reject(new Error(`Execution error in ${file}: ${e.message}`));
       };
       
