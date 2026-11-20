@@ -118,7 +118,10 @@
       $('cart-toggle').setAttribute('aria-expanded', 'false');
     }
 
-    $('cart-toggle').addEventListener('click', openCart);
+    $('cart-toggle').addEventListener('click', function() {
+      if ($('cart-drawer').hidden) openCart();
+      else closeCart();
+    });
     $('cart-close').addEventListener('click', closeCart);
 
     function renderCart() {
@@ -131,9 +134,10 @@
       clear(ul);
       
       if (empty) {
-        $('checkout-msg').hidden = true;
         return;
       }
+      $('checkout-msg').hidden = true;
+      $('coupon-error').hidden = true;
 
       var items = S.items();
       items.forEach(function (it) {
@@ -160,7 +164,7 @@
         var inp = el('input');
         inp.type = 'number';
         inp.min = 1;
-        inp.max = S.MAX_QTY;
+        inp.max = 99;
         inp.value = it.qty;
         var btn = el('button', 'Atualizar');
         btn.type = 'submit';
@@ -181,7 +185,7 @@
       $('t-subtotal').textContent = C.formatBRL(totals.subtotalCents);
       
       if (totals.coupon) {
-        var cinfo = S.COUPONS[totals.coupon];
+        var cinfo = S.coupons[totals.coupon];
         $('t-discount').textContent = '-' + C.formatBRL(totals.discountCents) + ' (' + cinfo.value + '%)';
         $('t-discount-row').hidden = false;
         $('c-remove').hidden = false;
@@ -191,9 +195,10 @@
       }
 
       var hasPhysical = totals.lines.some(function(l) { return l.format !== 'ebook'; });
+      if (!hasPhysical && totals.giftWrap) { S.setGiftWrap(false); return; }
       $('c-gift').disabled = !hasPhysical;
       $('c-gift').checked = totals.giftWrap;
-      $('gift-price').textContent = C.formatBRL(S.GIFT_WRAP_CENTS);
+      $('gift-price').textContent = C.formatBRL(totals.giftWrapCents > 0 ? totals.giftWrapCents : 890);
       
       if (totals.giftWrap && hasPhysical) {
         $('t-gift').textContent = C.formatBRL(totals.giftWrapCents);
@@ -203,13 +208,24 @@
       }
 
       $('t-total').textContent = C.formatBRL(totals.totalCents);
-      $('checkout-msg').hidden = true;
     }
 
     $('coupon-form').addEventListener('submit', function (e) {
       e.preventDefault();
-      var code = $('c-code').value;
-      if (code) S.applyCoupon(code);
+      var code = ($('c-code').value || '').trim();
+      var err = $('coupon-error');
+      if (!code) {
+        err.textContent = 'Informe um código de cupom.';
+        err.hidden = false;
+        return;
+      }
+      if (!S.applyCoupon(code)) {
+        err.textContent = 'Cupom inválido.';
+        err.hidden = false;
+      } else {
+        err.hidden = true;
+        err.textContent = '';
+      }
     });
 
     $('c-remove').addEventListener('click', function () {
@@ -225,7 +241,7 @@
       var totals = S.totals();
       if (totals.count === 0) return;
       var msg = $('checkout-msg');
-      msg.textContent = 'Pedido finalizado no valor de ' + C.formatBRL(totals.totalCents) + '. Redirecionando...';
+      msg.textContent = 'Pedido finalizado no valor de ' + C.formatBRL(totals.totalCents) + '.';
       msg.className = 'ok';
       msg.hidden = false;
       S.clear();

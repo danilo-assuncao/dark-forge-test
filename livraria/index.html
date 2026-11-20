@@ -58,9 +58,11 @@
     </div>
     <div class="drawer-body">
       <p id="cart-empty" class="muted">A sacola está vazia.</p>
+      <div id="checkout-msg" role="alert" aria-live="polite" class="ok" hidden></div>
       <ul id="cart-items" class="cart-items"></ul>
       <div id="cart-summary" hidden>
         <form id="coupon-form" novalidate>
+          <p id="coupon-error" class="error" hidden></p>
           <label>Cupom
             <div class="input-group">
               <input type="text" id="c-code" placeholder="DANBOOK10">
@@ -78,7 +80,6 @@
           <div id="t-gift-row" hidden><dt>Embalagem</dt><dd id="t-gift"></dd></div>
           <div class="total-row"><dt>Total</dt><dd id="t-total"></dd></div>
         </dl>
-        <div id="checkout-msg" role="alert" aria-live="polite" class="ok" hidden></div>
         <button type="button" id="checkout-btn">Finalizar Compra</button>
       </div>
     </div>
