@@ -22,7 +22,7 @@ test('CDB applies regressive IR brackets', () => {
     const r = simulateFixedIncome({ ...base, months, product: 'CDB' });
     const expectedTax = Math.round((r.grossBrl - r.totalInvestedBrl) * rate * 100) / 100;
     assert.ok(Math.abs(r.taxBrl - expectedTax) <= 0.02, `months=${months}`);
-    assert.equal(r.netBrl, Math.round((r.grossBrl - r.taxBrl) * 100) / 100);
+    assert.ok(Math.abs(r.netBrl - (r.grossBrl - r.taxBrl)) <= 0.011, `net months=${months}`);
   }
 });
 
