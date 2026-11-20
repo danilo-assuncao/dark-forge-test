@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="only light">
+    <title>Dan Saúde - Clínica Médica</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1>Dan Saúde</h1>
+            <p>Excelência e cuidado para você e sua família.</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="specialist-search" class="section card">
+            <h2>Busca de Especialistas</h2>
+            <div class="form-group">
+                <label for="search-input">Encontre o especialista ideal para você:</label>
+                <div class="search-bar">
+                    <input type="text" id="search-input" placeholder="Ex: Cardiologia, Pediatria, Dr. João...">
+                    <button id="search-button">Buscar</button>
+                </div>
+            </div>
+            <div id="search-results" class="results-container"></div>
+        </section>
+
+        <section id="appointment-booking" class="section card">
+            <h2>Agendamento de Consulta</h2>
+            <form id="booking-form">
+                <div class="form-group">
+                    <label for="specialist-select">Especialista / Especialidade:</label>
+                    <select id="specialist-select" required>
+                        <option value="">Selecione um especialista...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="appointment-date">Data:</label>
+                    <input type="date" id="appointment-date" required min="">
+                </div>
+                <div class="form-group">
+                    <label for="appointment-time">Horário:</label>
+                    <input type="time" id="appointment-time" required>
+                </div>
+                <div class="form-group">
+                    <label for="patient-name">Nome do Paciente:</label>
+                    <input type="text" id="patient-name" required placeholder="Seu nome completo">
+                </div>
+                <button type="submit" class="btn-primary">Agendar Consulta</button>
+                <div id="booking-feedback" class="feedback-msg"></div>
+            </form>
+        </section>
+
+        <section id="exam-preparation" class="section card">
+            <h2>Montagem de Bateria de Exames e Preparo</h2>
+            <p>Selecione os exames solicitados para consultar as orientações de preparo.</p>
+            <form id="exam-form">
+                <div class="checkbox-group" id="exam-list">
+                    <!-- Checkboxes will be rendered here by JS -->
+                </div>
+                <button type="submit" class="btn-secondary">Gerar Orientações de Preparo</button>
+            </form>
+            <div id="preparation-results" class="preparation-container"></div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; <span id="current-year"></span> Dan Saúde. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
