@@ -5,4 +5,4 @@
 - Avoid `innerHTML` with untrusted inputs; prefer `textContent` and DOM APIs (`createElement`).
 - Ensure responsive layout across mobile and desktop viewports and accessible contrast.
 - Run both `.factory/project.yaml` verification gates locally before committing.
-- Support SLA module: suporte/sla.js
+- Registered modules: suporte/sla.js, cambio/fx.js
