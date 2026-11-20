@@ -7,16 +7,27 @@ function toCents(value, label) {
   if (value < 0) {
     throw new RangeError(`${label} must not be negative.`);
   }
-  const cents = Math.round((value + Number.EPSILON) * 100);
-  if (!Number.isSafeInteger(cents)) {
+  // Round the number's decimal representation, without binary half-cent errors.
+  const [coefficient, exponent = '0'] = value.toString().split('e');
+  const [whole, fraction = ''] = coefficient.split('.');
+  const digits = BigInt(whole + fraction);
+  const scale = Number(exponent) - fraction.length + 2;
+  let cents;
+  if (scale >= 0) {
+    cents = digits * 10n ** BigInt(scale);
+  } else {
+    const divisor = 10n ** BigInt(-scale);
+    cents = (digits + divisor / 2n) / divisor;
+  }
+  if (cents > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new RangeError(`${label} is too large to represent in cents.`);
   }
-  return cents;
+  return Number(cents);
 }
 
 /**
  * Creates an independent gift card with a nonempty string code and BRL balance.
- * Amounts are rounded to the nearest cent; initial balances may be zero.
+ * Decimal amounts are rounded to the nearest cent (half up); initial balances may be zero.
  * redeem requires at least one cent after rounding and returns the remaining BRL.
  * Invalid amounts and overdrafts throw without changing the balance.
  */

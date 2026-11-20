@@ -36,12 +36,33 @@ test('rounds initial and redeemed BRL amounts to cents', () => {
 });
 
 test('accepts zero initial balances', () => {
-  for (const amount of [0, -0]) {
+  for (const amount of [0, -0, 0.004, Number.MIN_VALUE]) {
     const card = createGiftCard('EMPTY', amount);
     assert.equal(card.balance(), 0);
     assert.throws(() => card.redeem(1), RangeError);
     assert.equal(card.balance(), 0);
   }
+});
+
+test('rounds decimal half cents consistently across magnitudes', () => {
+  for (const [amount, rounded] of [[1.005, 1.01], [2.675, 2.68], [8.345, 8.35], [10.075, 10.08]]) {
+    assert.equal(createGiftCard('ROUND', amount).balance(), rounded);
+    const card = createGiftCard('REDEEM', rounded);
+    assert.equal(card.redeem(amount), 0);
+  }
+  assert.equal(createGiftCard('BELOW', 8.344999999999999).balance(), 8.34);
+});
+
+test('accepts large balances and enforces the safe-integer cents boundary', () => {
+  for (const amount of [1e13, 90071992547409.9]) {
+    const card = createGiftCard('LARGE', amount);
+    assert.equal(card.balance(), amount);
+    assert.equal(card.redeem(amount), 0);
+  }
+  assert.throws(() => createGiftCard('TOO-LARGE', 90071992547409.92), RangeError);
+  const card = createGiftCard('LIMIT', 90071992547409.9);
+  assert.throws(() => card.redeem(90071992547409.92), RangeError);
+  assert.equal(card.balance(), 90071992547409.9);
 });
 
 test('rejects missing, blank and non-string codes', () => {
