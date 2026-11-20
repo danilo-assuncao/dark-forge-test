@@ -74,8 +74,8 @@
   }
 
   function getWatched(courseId, storage) {
-    totalLessons(courseId);
-    return (load(storage).courses[courseId] || []).slice();
+    var total = totalLessons(courseId);
+    return (load(storage).courses[courseId] || []).filter(function (n) { return n <= total; });
   }
 
   function getPercent(courseId, storage) {
@@ -93,19 +93,27 @@
     return h >>> 0;
   }
 
-  function generateCode(courseId, state) {
+  function generateCode(courseId, state, hashFn, maxAttempts) {
+    hashFn = hashFn || hash;
+    maxAttempts = maxAttempts || 1000;
     var used = {};
     Object.keys(state.certificates).forEach(function (id) { used[state.certificates[id].code] = true; });
-    var seed = hash(courseId);
-    for (var attempt = 0; attempt < 1000; attempt++) {
-      var n = hash(courseId + ':' + attempt) ^ seed;
+    var seed = hashFn(courseId);
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      var n = (hashFn(courseId + ':' + attempt) ^ seed) >>> 0;
       var s = '';
-      for (var i = 0; i < 4; i++) { s += CODE_CHARS.charAt(n % CODE_CHARS.length); n = Math.floor(n / CODE_CHARS.length) || hash(s + attempt); }
+      for (var i = 0; i < 4; i++) {
+        s += CODE_CHARS.charAt(n % CODE_CHARS.length);
+        n = Math.floor(n / CODE_CHARS.length) || (hashFn(s + attempt) >>> 0);
+      }
       var code = 'CERT-' + s;
-      if (!used[code]) return code;
+      if (CODE_RE.test(code) && !used[code]) return code;
     }
     throw new Error('Could not generate a unique certificate code');
   }
+
+  /* NOTE: certificates are a cosmetic client-side badge only. The code is not
+     secret nor verifiable; real proof of completion needs server-side issuance. */
 
   /* Marks a lesson (1..modules) as watched. Idempotent. Issues the certificate
      once the course reaches 100%. Returns { courseId, watched, percent, certificate }. */
@@ -134,7 +142,8 @@
 
   function getCertificate(courseId, storage) {
     totalLessons(courseId);
-    var c = load(storage).certificates[courseId];
+    // Only honour certificates for courses currently at 100%.
+    var c = getPercent(courseId, storage) === 100 ? load(storage).certificates[courseId] : null;
     return c ? { code: c.code, issuedAt: c.issuedAt } : null;
   }
 
@@ -145,7 +154,8 @@
   var api = {
     STORAGE_KEY: STORAGE_KEY,
     markWatched: markWatched, getWatched: getWatched, getPercent: getPercent,
-    getCertificate: getCertificate, reset: reset
+    getCertificate: getCertificate, reset: reset,
+    _generateCode: generateCode
   };
 
   root.DanAcademyProgress = api;

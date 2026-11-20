@@ -89,3 +89,92 @@ test('reset clears progress', () => {
   P.reset(s);
   assert.equal(P.getPercent('ux-research', s), 0);
 });
+
+const CAT = require('../catalog.js');
+const CODE = /^CERT-[A-Z0-9]{4}$/;
+
+test('every catalog course issues a valid certificate that survives reload', () => {
+  const s = mem();
+  const codes = new Set();
+  CAT.CURSOS.forEach((c) => {
+    let r;
+    for (let i = 1; i <= c.modules; i++) r = P.markWatched(c.id, i, s);
+    assert.match(r.certificate.code, CODE);
+    codes.add(r.certificate.code);
+  });
+  assert.equal(codes.size, CAT.CURSOS.length);
+  CAT.CURSOS.forEach((c) => {
+    assert.match(P.getCertificate(c.id, s).code, CODE);
+  });
+});
+
+test('issuedAt is ISO and unchanged on re-mark', () => {
+  const s = mem();
+  P.markWatched('sql-fundamentos', 1, s);
+  const r = P.markWatched('sql-fundamentos', 2, s);
+  assert.equal(new Date(r.certificate.issuedAt).toISOString(), r.certificate.issuedAt);
+  assert.equal(P.markWatched('sql-fundamentos', 2, s).certificate.issuedAt, r.certificate.issuedAt);
+});
+
+test('out-of-order marks are returned sorted', () => {
+  const s = mem();
+  P.markWatched('algoritmos-101', 3, s);
+  P.markWatched('algoritmos-101', 1, s);
+  assert.deepEqual(P.getWatched('algoritmos-101', s), [1, 3]);
+});
+
+test('stale lessons beyond total are ignored and do not block completion', () => {
+  const s = mem();
+  s.setItem('dan-academy-progress', JSON.stringify({ courses: { 'sql-fundamentos': [1, 99] } }));
+  assert.deepEqual(P.getWatched('sql-fundamentos', s), [1]);
+  assert.match(P.markWatched('sql-fundamentos', 2, s).certificate.code, CODE);
+});
+
+test('non-object roots fall back to empty state', () => {
+  [null, [], 'x', 5].forEach((root) => {
+    const s = mem();
+    s.setItem('dan-academy-progress', JSON.stringify(root));
+    assert.equal(P.getPercent('sql-fundamentos', s), 0);
+  });
+});
+
+test('stored certificate: kept when complete, ignored when course incomplete', () => {
+  const s = mem();
+  s.setItem('dan-academy-progress', JSON.stringify({
+    courses: { 'sql-fundamentos': [1, 2], 'ux-research': [1] },
+    certificates: {
+      'sql-fundamentos': { code: 'CERT-AAAA', issuedAt: '2026-01-01T00:00:00.000Z' },
+      'ux-research': { code: 'CERT-BBBB', issuedAt: null }
+    }
+  }));
+  assert.equal(P.getCertificate('sql-fundamentos', s).code, 'CERT-AAAA');
+  assert.equal(P.getCertificate('ux-research', s), null);
+});
+
+test('rejections use clear messages, do not mutate storage, cover NaN/Infinity/-1', () => {
+  const s = mem();
+  [NaN, Infinity, -1, 0, 3].forEach((l) => {
+    assert.throws(() => P.markWatched('sql-fundamentos', l, s), /Invalid lesson/);
+  });
+  assert.throws(() => P.markWatched('nope', 1, s), /Unknown course/);
+  assert.deepEqual(s._d, {});
+});
+
+test('default storage fallback works and reset clears it', () => {
+  P.markWatched('ux-research', 2);
+  assert.equal(P.getPercent('ux-research'), 25);
+  P.reset();
+  assert.equal(P.getPercent('ux-research'), 0);
+});
+
+test('code generator retries on collision and throws when exhausted', () => {
+  const state = { courses: {}, certificates: {} };
+  const first = P._generateCode('a', state);
+  state.certificates.a = { code: first };
+  const second = P._generateCode('a', state);
+  assert.notEqual(second, first);
+  assert.match(second, CODE);
+  const constant = () => 12345;
+  state.certificates.b = { code: P._generateCode('b', { certificates: {} }, constant) };
+  assert.throws(() => P._generateCode('b', state, constant, 5), /unique certificate code/);
+});
