@@ -45,6 +45,17 @@ test('rejects zero and negative amounts before rounding', () => {
   }
 });
 
+test('combines exponential and fractional amounts in either order', () => {
+  for (const [amounts, totalBrl] of [
+    [[1e21, 0.005], 1e21],
+    [[0.005, 1e21], 1e21],
+    [[1.5e3, 0.005], 1500.01],
+    [[0.005, 1.5e3], 1500.01]
+  ]) {
+    assert.deepEqual(summarizeRedemptions(amounts), { count: amounts.length, totalBrl });
+  }
+});
+
 test('supports exponential notation and rejects overflowing totals', () => {
   assert.deepEqual(summarizeRedemptions([1e21, 1e21]), { count: 2, totalBrl: 2e21 });
   assert.deepEqual(summarizeRedemptions([Number.MAX_VALUE]), {
