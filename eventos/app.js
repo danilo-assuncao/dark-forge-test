@@ -91,9 +91,11 @@
     var params = {};
     qs.split('&').forEach(function (pair) {
       if (!pair) return;
-      var kv = pair.split('=');
+      var eq = pair.indexOf('=');
+      var k = eq > -1 ? pair.slice(0, eq) : pair;
+      var v = eq > -1 ? pair.slice(eq + 1) : '';
       try {
-        params[decodeURIComponent(kv[0])] = decodeURIComponent((kv[1] || '').replace(/\+/g, ' '));
+        params[decodeURIComponent(k.replace(/\+/g, ' '))] = decodeURIComponent(v.replace(/\+/g, ' '));
       } catch (err) { /* ignore malformed pair */ }
     });
     var m = /^\/evento\/([^/]+)(?:\/([^/]+))?\/?$/.exec(h);
@@ -163,6 +165,16 @@
 
     var cats = uniqueSorted(allEvents.map(function (e) { return e.type; }));
     var cities = uniqueSorted(allEvents.map(cityOf));
+    // Map URL values onto the real option (case/accent-insensitive); unknown -> '' ("Todas").
+    function resolveOption(options, value) {
+      var n = normalize(value);
+      for (var i = 0; i < options.length; i++) {
+        if (normalize(options[i]) === n && n) return options[i];
+      }
+      return '';
+    }
+    filters.category = resolveOption(cats, filters.category);
+    filters.city = resolveOption(cities, filters.city);
     var catField = buildSelect('categoryFilter', 'Categoria',
       [{ value: '', label: 'Todas' }].concat(cats.map(function (c) { return { value: c, label: c }; })),
       filters.category);
