@@ -3,8 +3,8 @@
 const { createSeatMap } = require('./seats.js');
 const { calculateSnacksTotal } = require('./snacks.js');
 
-// Sequential, deterministic identifiers are unique within this module instance.
-// Four hex digits allow 65,536 orders; never wrap and reuse an identifier.
+// Display-only sequence number, not a security handle.
+// Does not provide unpredictability or collision resistance.
 let nextProtocol = 0;
 
 /**

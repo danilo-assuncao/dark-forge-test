@@ -66,31 +66,47 @@ test('recalculates catalog prices without mutating or retaining input objects', 
 
 test('rejects invalid buyers, coupons, sessions, seats, and snacks', () => {
   const invalid = [
-    { buyerName: '' }, { buyerName: ' \t' }, { buyerName: null },
-    { couponCode: null }, { couponCode: 15 }, { sessionId: 'missing' },
-    { sessionId: 1 }, { seats: null }, { seats: [null] }, { seats: [[]] },
-    { seats: new Array(1) }, { seats: [{ code: 'G1', ticketKind: 'full' }] },
-    { seats: [{ code: 'A1', ticketKind: 'child' }] },
-    { seats: [{ code: 'A1', ticketKind: 'full' }, { code: 'A1', ticketKind: 'half' }] },
-    { snacks: null }, { snacks: [null] }, { snacks: new Array(1) },
-    { snacks: [{ snackId: 'missing', qty: 1 }] },
-    { snacks: [{ snackId: 'chocolate', qty: 0 }] },
-    { snacks: [{ snackId: 'chocolate', qty: 11 }] },
-    { snacks: [{ snackId: 'chocolate', qty: 1.5 }] },
+    [{ buyerName: '' }, TypeError, /buyerName must be a non-empty string/],
+    [{ buyerName: ' \t' }, TypeError, /buyerName must be a non-empty string/],
+    [{ buyerName: null }, TypeError, /buyerName must be a non-empty string/],
+    [{ couponCode: null }, TypeError, /couponCode must be a string/],
+    [{ couponCode: 15 }, TypeError, /couponCode must be a string/],
+    [{ sessionId: 'missing' }, RangeError, /unknown session/],
+    [{ sessionId: 1 }, TypeError, /sessionId must be a string/],
+    [{ seats: undefined }, TypeError, /seats must be an array/],
+    [{ seats: null }, TypeError, /seats must be an array/],
+    [{ seats: [null] }, TypeError, /each seat must be an object/],
+    [{ seats: [[]] }, TypeError, /each seat must be an object/],
+    [{ seats: new Array(1) }, TypeError, /each seat must be an object/],
+    [{ seats: [{ code: 'G1', ticketKind: 'full' }] }, RangeError, /invalid seat code/],
+    [{ seats: [{ code: 'A1', ticketKind: 'child' }] }, RangeError, /ticketKind must be one of/],
+    [{ seats: [{ code: 'A1', ticketKind: 'full' }, { code: 'A1', ticketKind: 'half' }] }, RangeError, /seat already selected/],
+    [{ snacks: null }, TypeError, /items must be an array/],
+    [{ snacks: [null] }, TypeError, /each item must be an object/],
+    [{ snacks: new Array(1) }, TypeError, /each item must be an object/],
+    [{ snacks: [{ snackId: 'missing', qty: 1 }] }, RangeError, /unknown snackId/],
+    [{ snacks: [{ snackId: 'chocolate', qty: 0 }] }, RangeError, /qty per line/],
+    [{ snacks: [{ snackId: 'chocolate', qty: 11 }] }, RangeError, /qty per line/],
+    [{ snacks: [{ snackId: 'chocolate', qty: 1.5 }] }, RangeError, /qty per line/],
   ];
-  for (const overrides of invalid) assert.throws(() => buildCinemaOrder(input(overrides)));
+  for (const [overrides, Err, msg] of invalid) {
+    assert.throws(() => buildCinemaOrder(input(overrides)), (e) => {
+      return e instanceof Err && msg.test(e.message);
+    });
+  }
 });
 
 test('protocols are deterministic, unique per successful order, and never wrap', () => {
-  const fs = require('node:fs');
-  const vm = require('node:vm');
-  const { createRequire } = require('node:module');
   const filename = require.resolve('../checkout.js');
-  const context = { require: createRequire(filename), module: { exports: {} } };
-  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), context);
-  const build = context.module.exports.buildCinemaOrder;
+  delete require.cache[filename];
+  const { buildCinemaOrder: build } = require('../checkout.js');
   const args = input({ seats: [] });
+  
   assert.throws(() => build(input({ buyerName: '' })));
+  assert.throws(() => build(input({ couponCode: null })));
+  assert.throws(() => build(input({ seats: [{ code: 'G1', ticketKind: 'full' }] })));
+  assert.throws(() => build(input({ snacks: [{ snackId: 'missing', qty: 1 }] })));
+
   assert.equal(build(args).protocol, 'CINE-0000');
   const codes = new Set(['CINE-0000']);
   for (let i = 1; i <= 0xFFFF; i++) {
