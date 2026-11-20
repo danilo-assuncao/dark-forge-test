@@ -45,3 +45,11 @@ input, select, button { font: inherit; padding: 0.5rem; border: 1px solid #76767
 .cart-summary .total { font-weight: 700; }
 .coupon-msg { margin: 0.25rem 0 0; }
 .coupon-msg--error { color: #b00020; }
+.showcase { margin-bottom: 2rem; background: #f9f9f9; padding: 1.5rem; border-radius: 8px; }
+.showcase__title { margin: 0 0 1rem; color: #0b4fb3; font-size: 1.25rem; }
+.event-card--featured { border: 2px solid #0b4fb3; background: #fff; }
+.checkout-fieldset { border: 1px solid #d4d4d4; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.checkout-fieldset legend { font-weight: bold; padding: 0 0.5rem; color: #333; }
+.checkout-form { display: grid; gap: 1rem; }
+.btn-checkout { display: inline-block; padding: 0.75rem 1.5rem; background: #1b6e2d; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold; }
+.voucher-code { font-size: 1.5rem; font-weight: bold; color: #1b6e2d; padding: 1rem; background: #e8f5e9; border-radius: 8px; display: inline-block; }

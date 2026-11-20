@@ -113,6 +113,8 @@
     });
     var parts = h.split('/').filter(Boolean);
     if (parts[0] === 'sacola') return { name: 'cart', params: params };
+    if (parts[0] === 'checkout') return { name: 'checkout', params: params };
+    if (parts[0] === 'voucher') return { name: 'voucher', params: params };
     if (parts[0] === 'evento' && parts[1]) {
       return { name: 'event', id: safeDecode(parts[1]), params: params };
     }
@@ -124,7 +126,11 @@
     var qs = Object.keys(p).filter(function (k) { return p[k]; }).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
     }).join('&');
-    var base = route.name === 'event' ? '#/evento/' + encodeURIComponent(route.id) : route.name === 'cart' ? '#/sacola' : '#/';
+    var base = route.name === 'event' ? '#/evento/' + encodeURIComponent(route.id) 
+      : route.name === 'cart' ? '#/sacola' 
+      : route.name === 'checkout' ? '#/checkout'
+      : route.name === 'voucher' ? '#/voucher'
+      : '#/';
     return qs ? base + '?' + qs : base;
   }
 
@@ -180,6 +186,19 @@
     var p = route.params;
     app.textContent = '';
     app.appendChild(el('h1', 'page-title', 'Eventos'));
+
+    if (!p.q && !p.category && !p.city && events.length > 0) {
+      var showcase = el('section', 'showcase');
+      showcase.appendChild(el('h2', 'showcase__title', 'Em Destaque'));
+      var fCard = el('div', 'event-card event-card--featured');
+      var fA = el('a', 'event-card__link', events[0].name);
+      fA.href = buildHash({ name: 'event', id: events[0].id });
+      fCard.appendChild(fA);
+      fCard.appendChild(el('p', 'event-card__meta', events[0].category + ' · ' + events[0].city));
+      fCard.appendChild(el('p', null, events[0].description));
+      showcase.appendChild(fCard);
+      app.appendChild(showcase);
+    }
 
     var form = el('form', 'filters');
     form.setAttribute('role', 'search');
@@ -413,6 +432,66 @@
     row('Taxa de serviço após descontos (' + Math.round(cart.SERVICE_FEE_RATE * 100) + '%)', formatPrice(t.serviceFeeCents));
     row('Total', formatPrice(t.totalCents), 'total');
     app.appendChild(dl);
+
+    var checkoutAct = el('div', 'checkout-actions');
+    var checkoutBtn = el('a', 'btn-checkout', 'Finalizar Compra');
+    checkoutBtn.href = '#/checkout';
+    checkoutAct.appendChild(checkoutBtn);
+    app.appendChild(checkoutAct);
+  }
+
+  function renderCheckout(app) {
+    var cart = root.DanCart;
+    app.textContent = '';
+    var back = el('a', 'back', '← Voltar para sacola');
+    back.href = '#/sacola';
+    app.appendChild(back);
+    app.appendChild(el('h1', 'page-title', 'Checkout'));
+
+    if (!cart) return;
+    var state = cart.load();
+    if (!state.items.length) {
+      app.appendChild(el('p', 'empty', 'Sua sacola está vazia.'));
+      return;
+    }
+
+    var form = el('form', 'checkout-form');
+    state.items.forEach(function (i, idx) {
+      for (var q = 0; q < i.qty; q++) {
+        var fs = el('fieldset', 'checkout-fieldset');
+        var leg = el('legend', null, i.eventName + ' – ' + i.sectorName + ' – ' + i.lotName + ' (' + (i.type === 'meia' ? 'Meia' : 'Inteira') + ') - Ingresso ' + (q + 1));
+        fs.appendChild(leg);
+        
+        var nameInput = el('input'); nameInput.type = 'text'; nameInput.name = 'nome-' + idx + '-' + q; nameInput.required = true;
+        fs.appendChild(field('Nome', nameInput));
+        
+        var cpfInput = el('input'); cpfInput.type = 'text'; cpfInput.name = 'cpf-' + idx + '-' + q; cpfInput.required = true;
+        fs.appendChild(field('CPF', cpfInput));
+        
+        form.appendChild(fs);
+      }
+    });
+
+    var submit = el('button', null, 'Emitir Voucher'); submit.type = 'submit';
+    form.appendChild(submit);
+
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      cart.save(cart.emptyState());
+      root.location.hash = '#/voucher';
+    });
+
+    app.appendChild(form);
+  }
+
+  function renderVoucher(app) {
+    app.textContent = '';
+    app.appendChild(el('h1', 'page-title', 'Comprovante'));
+    app.appendChild(el('p', null, 'Seu pedido foi confirmado!'));
+    app.appendChild(el('p', 'voucher-code', 'Código: TKT-XXXX'));
+    var back = el('a', 'back', '← Voltar para Home');
+    back.href = '#/';
+    app.appendChild(back);
   }
 
   function render() {
@@ -424,6 +503,8 @@
     var focusKey = active && app.contains(active) ? (active.name || active.getAttribute('data-lot') || '') : '';
     var focusIsLot = !!(active && active.getAttribute && active.getAttribute('data-lot'));
     if (route.name === 'cart') renderCart(app);
+    else if (route.name === 'checkout') renderCheckout(app);
+    else if (route.name === 'voucher') renderVoucher(app);
     else if (route.name === 'event') renderEvent(app, route, events);
     else renderList(app, route, events);
     updateCartCount();
