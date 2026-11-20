@@ -132,7 +132,8 @@
     return form;
   }
 
-  function renderQuote(container, state, handlers) {
+  function renderQuote(container, state, handlers, opts) {
+    opts = opts || {};
     container.textContent = '';
     container.appendChild(el('h2', 'Minha cotacao'));
     var res = quote.compute(state);
@@ -175,6 +176,7 @@
     apply.type = 'button';
     apply.addEventListener('click', function () { handlers.onCoupon(cin.value); });
     container.appendChild(apply);
+    if (opts.couponError) { container.appendChild(el('p', 'Cupom invalido.', 'coupon-error')); }
     if (state.coupon) {
       container.appendChild(el('p', 'Cupom ' + state.coupon + ' aplicado (-' + quote.COUPON_PERCENT + '%).', 'coupon-ok'));
     }
@@ -245,7 +247,9 @@
     var quoteBox = document.getElementById('quote');
     var qstate = quote.load();
 
+    var couponError = false;
     function commit(next) {
+      couponError = false;
       qstate = next;
       quote.save(qstate);
       drawQuote();
@@ -256,13 +260,10 @@
         onUpdate: function (id, dur, patch) { commit(quote.updateItem(qstate, id, dur, patch)); },
         onRemove: function (id, dur) { commit(quote.removeItem(qstate, id, dur)); },
         onCoupon: function (code) {
-          var next = quote.setCoupon(qstate, code);
-          commit(next);
-          if (String(code || '').trim() && !next.coupon && quoteBox) {
-            quoteBox.appendChild(el('p', 'Cupom invalido.', 'coupon-error'));
-          }
+          var res = quote.applyCoupon(qstate, code);
+          if (res.error) { couponError = true; drawQuote(); } else { commit(res.state); }
         }
-      });
+      }, { couponError: couponError });
     }
 
     function route() {

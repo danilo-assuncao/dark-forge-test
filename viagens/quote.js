@@ -40,7 +40,8 @@
       seen[key] = true;
       state.items.push({ id: d.id, duration: dur, travelers: clampTravelers(it.travelers), insurance: it.insurance === true });
     });
-    state.coupon = isValidCoupon(raw.coupon) ? COUPON_CODE : '';
+    // A coupon only makes sense with items in the bag.
+    state.coupon = state.items.length && isValidCoupon(raw.coupon) ? COUPON_CODE : '';
     return state;
   }
 
@@ -83,11 +84,21 @@
   }
 
   function removeItem(state, id, duration) {
-    return { coupon: state.coupon, items: state.items.filter(function (i) { return !(i.id === id && i.duration === duration); }) };
+    var items = state.items.filter(function (i) { return !(i.id === id && i.duration === duration); });
+    return { coupon: items.length ? state.coupon : '', items: items };
   }
 
   function setCoupon(state, code) {
     return { items: state.items, coupon: isValidCoupon(code) ? COUPON_CODE : '' };
+  }
+
+  // Invalid non-empty codes keep the current state and flag an error; an empty
+  // code clears the coupon; a valid code applies it.
+  function applyCoupon(state, code) {
+    var c = normalizeCoupon(code);
+    if (!c) { return { state: setCoupon(state, ''), error: false }; }
+    if (!isValidCoupon(c)) { return { state: state, error: true }; }
+    return { state: setCoupon(state, c), error: false };
   }
 
   function compute(state) {
@@ -107,7 +118,7 @@
     STORAGE_KEY: STORAGE_KEY, INSURANCE_CENTS: INSURANCE_CENTS, COUPON_CODE: COUPON_CODE,
     COUPON_PERCENT: COUPON_PERCENT, MAX_TRAVELERS: MAX_TRAVELERS,
     emptyState: emptyState, sanitize: sanitize, load: load, save: save, addItem: addItem,
-    updateItem: updateItem, removeItem: removeItem, setCoupon: setCoupon, isValidCoupon: isValidCoupon,
+    updateItem: updateItem, removeItem: removeItem, setCoupon: setCoupon, applyCoupon: applyCoupon, isValidCoupon: isValidCoupon,
     clampTravelers: clampTravelers, compute: compute
   };
   root.ViagensQuote = api;
