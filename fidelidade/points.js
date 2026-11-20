@@ -25,4 +25,4 @@ function earnPoints(amountBrl, tier) {
   return points === 0 ? 0 : points;
 }
 
-module.exports = { earnPoints };
+module.exports = { earnPoints, LOYALTY_SCHEMA_VERSION: '1.0' };

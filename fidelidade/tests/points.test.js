@@ -2,7 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { earnPoints } = require('../points.js');
+const { earnPoints, LOYALTY_SCHEMA_VERSION } = require('../points.js');
+
+test('exports the required loyalty schema version', () => {
+  assert.equal(LOYALTY_SCHEMA_VERSION, '1.0');
+});
 
 test('awards points using each tier multiplier', () => {
   assert.equal(earnPoints(100, 'bronze'), 100);
