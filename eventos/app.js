@@ -175,7 +175,10 @@
     return wrap;
   }
 
+  var lastListHash = '#/';
+
   function renderList(app, route, events) {
+    lastListHash = buildHash({ name: 'list', params: route.params });
     var p = route.params;
     app.textContent = '';
     app.appendChild(el('h1', 'page-title', 'Eventos'));
@@ -224,7 +227,7 @@
     var e = events.filter(function (x) { return x.id === route.id; })[0];
     app.textContent = '';
     var back = el('a', 'back', '← Todos os eventos');
-    back.href = '#/';
+    back.href = lastListHash;
     app.appendChild(back);
     if (!e) {
       app.appendChild(el('h1', 'page-title', 'Evento não encontrado'));

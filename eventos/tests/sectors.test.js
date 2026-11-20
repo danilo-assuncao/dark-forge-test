@@ -117,3 +117,9 @@ test('boundary cases for hash, filter and lotStatus', function () {
   assert.equal(api.lotStatus(11, 100), 'available');
   assert.equal(api.lotStatus(-1, 100), 'soldout');
 });
+
+test('app.js remembers list filters for the back link', function () {
+  const src = read('app.js');
+  assert.match(src, /lastListHash = buildHash\(\{ name: 'list'/);
+  assert.match(src, /back\.href = lastListHash/);
+});
