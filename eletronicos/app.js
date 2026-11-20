@@ -196,9 +196,12 @@ if (typeof document !== 'undefined') {
             const generateText = window.DanTechCart && window.DanTechCart.generateSpecsheetText;
             if (generateText) {
                 const text = generateText(build, requiredWatts, warrantyMonths);
-                $('specsheet-output').innerHTML = text.replace(/\n/g, '<br>');
+                $('specsheet-output').textContent = text;
                 $('specsheet-output').style.display = 'block';
             }
+        });
+        $('build-warranty').addEventListener('change', () => {
+            $('specsheet-output').style.display = 'none';
         });
         $('installments').addEventListener('change', renderCart);
         $('coupon-apply').addEventListener('click', () => {
