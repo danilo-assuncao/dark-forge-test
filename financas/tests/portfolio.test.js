@@ -51,15 +51,10 @@ test('distributes remainder cents deterministically (largest remainder, ties by 
     newContributionBrl: 0.01,
   });
   assert.deepEqual(r.allocation, { fixedIncome: 0.01, equities: 0, international: 0 });
-  const r2 = rebalancePortfolio({
-    profile: 'conservador',
-    holdings: { fixedIncome: 0, equities: 0, international: 0 },
-    newContributionBrl: 0.03,
-  });
-  assert.equal(Math.round(Object.values(r2.allocation).reduce((x, y) => x + y, 0) * 100), 3);
 });
 
 test('breaks equal remainders by class order', () => {
+  // Exact (BigInt) tie, independent of float noise.
   // arrojado, 2 cents from zero: exact shares 0.5 / 1 / 0.5 -> tie between
   // fixedIncome and international; the leftover cent goes to fixedIncome.
   const r = rebalancePortfolio({
@@ -248,4 +243,76 @@ test('rejects invalid arguments with field-specific messages', () => {
   assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: '10' }), /newContributionBrl/);
   assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: null }), /newContributionBrl/);
   assert.doesNotThrow(() => rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: -0 }));
+});
+
+test('rejects totals that overflow safe cents even if each amount fits', () => {
+  assert.throws(
+    () => rebalancePortfolio({
+      profile: 'moderado',
+      holdings: { fixedIncome: 4e13, equities: 4e13, international: 4e13 },
+    }),
+    /total portfolio value is too large/,
+  );
+  assert.throws(
+    () => rebalancePortfolio({
+      profile: 'moderado',
+      holdings: { fixedIncome: 4e13, equities: 4e13, international: 0 },
+      newContributionBrl: 4e13,
+    }),
+    /total portfolio value is too large/,
+  );
+});
+
+test('single-amount limit boundary: just below fits, just above is rejected', () => {
+  const zero = { fixedIncome: 0, equities: 0, international: 0 };
+  const ok = rebalancePortfolio({ profile: 'moderado', holdings: zero, newContributionBrl: 9e13 });
+  assert.equal(ok.totalBrl, 9e13);
+  assert.throws(
+    () => rebalancePortfolio({ profile: 'moderado', holdings: zero, newContributionBrl: 1e14 }),
+    /newContributionBrl is too large/,
+  );
+});
+
+test('allocation sums exactly to the contribution near the upper bound', () => {
+  const r = rebalancePortfolio({
+    profile: 'moderado',
+    holdings: { fixedIncome: 1234567890123.45, equities: 100.01, international: 0.01 },
+    newContributionBrl: 87654321098.76,
+  });
+  const cents = Object.values(r.allocation).reduce((a, b) => a + Math.round(b * 100), 0);
+  assert.equal(cents, 8765432109876);
+  // Tiny contribution on a huge portfolio is never dropped.
+  const t = rebalancePortfolio({
+    profile: 'arrojado',
+    holdings: { fixedIncome: 3e13, equities: 3e13, international: 3e13 },
+    newContributionBrl: 0.01,
+  });
+  assert.equal(Object.values(t.allocation).reduce((a, b) => a + b, 0), 0.01);
+});
+
+test('uses a single snapshot of holdings and ignores inherited properties', () => {
+  let reads = 0;
+  const holdings = {
+    fixedIncome: 1,
+    equities: 1,
+    get international() {
+      reads += 1;
+      return reads === 1 ? 1 : -5;
+    },
+  };
+  const r = rebalancePortfolio({ profile: 'moderado', holdings, newContributionBrl: 1 });
+  assert.equal(reads, 1);
+  assert.equal(r.newHoldings.international >= 1, true);
+  const inherited = Object.create({ fixedIncome: 1, equities: 1, international: 1 });
+  assert.throws(() => rebalancePortfolio({ profile: 'moderado', holdings: inherited }), /holdings\.fixedIncome/);
+});
+
+test('sub-cent holdings are rejected for every class', () => {
+  for (const cls of ['fixedIncome', 'equities', 'international']) {
+    const holdings = { fixedIncome: 1, equities: 1, international: 1, [cls]: 1.005 };
+    assert.throws(
+      () => rebalancePortfolio({ profile: 'moderado', holdings }),
+      new RegExp(`holdings\\.${cls}`),
+    );
+  }
 });
