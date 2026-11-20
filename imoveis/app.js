@@ -293,12 +293,12 @@
       var out = $('proposal-msg');
       if (res.ok) {
         out.textContent = 'Proposta enviada com sucesso! Protocolo ' + res.proposal.protocol + '.';
-        out.className = 'ok';
+        out.className = 'ok'; $('proposal-form').reset();
         var sum = P.generateSummary(res.proposal);
         var sumDl = $('summary-facts');
         clear(sumDl);
         [
-          ['Protocolo', sum.title],
+          ['Protocolo', sum.protocol],
           ['Data', sum.date],
           ['Proponente', sum.buyer.name],
           ['Imóvel', sum.property.title],
@@ -308,8 +308,9 @@
           ['Valor proposto', sum.offer.amount],
         ].forEach(function (p) { var d = el('div'); d.appendChild(el('dt', p[0])); d.appendChild(el('dd', p[1])); sumDl.appendChild(d); });
         $('proposal-summary').hidden = false;
+        $('proposal-summary').querySelector('h4').textContent = sum.title;
       } else {
-        var firstError = res.errors.contact ? res.errors.contact.name || res.errors.contact.email || res.errors.contact.phone : res.errors.condition || res.errors.amount || res.errors.listingId;
+        var errList = []; if (res.errors.listingId) errList.push(res.errors.listingId); if (res.errors.condition) errList.push(res.errors.condition); if (res.errors.amount) errList.push(res.errors.amount); if (res.errors.contact) { if (res.errors.contact.name) errList.push(res.errors.contact.name); if (res.errors.contact.email) errList.push(res.errors.contact.email); if (res.errors.contact.phone) errList.push(res.errors.contact.phone); } var firstError = errList.join(' ');
         out.textContent = firstError || 'Não foi possível enviar a proposta.';
         out.className = 'error';
         $('proposal-summary').hidden = true;

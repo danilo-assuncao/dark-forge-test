@@ -26,7 +26,7 @@
     if (!cond) errors.condition = 'Condição de pagamento inválida.';
     
     var amount = Number(p.amount);
-    if (isNaN(amount) || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0 || amount > (listing ? listing.price * 10 : 99999999999) || typeof p.amount === "boolean" || typeof p.amount === "object") {
       errors.amount = 'Valor proposto inválido.';
     }
 
@@ -51,6 +51,7 @@
     if (!proposal) return null;
     return {
       title: 'Proposta Comercial - ' + proposal.protocol,
+      protocol: proposal.protocol,
       date: new Date(proposal.date).toLocaleDateString('pt-BR'),
       buyer: proposal.contact,
       property: {
