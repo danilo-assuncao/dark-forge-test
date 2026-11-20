@@ -90,3 +90,30 @@ test('rejects invalid inputs', () => {
   assert.throws(() => calculateBaseQuote({ ...base, deductibleType: 'x' }), /deductibleType/);
   assert.throws(() => calculateBaseQuote(), RangeError);
 });
+
+test('garage discount applies in isolation', () => {
+  assert.equal(calculateBaseQuote({ ...base, hasGarage: true }).annualPremiumCents, 575000);
+});
+
+test('majorada combined with bonus class 10', () => {
+  // 625000 * 0.7 * 0.86 = 376250
+  const q = calculateBaseQuote({ ...base, bonusClass: 10, deductibleType: 'majorada' });
+  assert.equal(q.annualPremiumCents, 376250);
+  assert.equal(q.deductibleCents, 1250000);
+});
+
+test('missing driverAge throws', () => {
+  assert.throws(() => calculateBaseQuote({ vehicleId: 'sedan-medio', hasGarage: true }), /driverAge/);
+});
+
+test('browser path attaches SegurosQuote to window using SegurosVehicles', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const win = {};
+  vm.runInNewContext(read('vehicles.js'), { window: win });
+  vm.runInNewContext(read('quote.js'), { window: win });
+  assert.equal(typeof win.SegurosQuote.calculateBaseQuote, 'function');
+  assert.equal(win.SegurosQuote.calculateBaseQuote(base).annualPremiumCents, 625000);
+});
