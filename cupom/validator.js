@@ -12,6 +12,11 @@ function assertFiniteNumber(value, label) {
  * Usage counts must be nonnegative safe integers; fractional percentages are valid.
  * Returns false for orders below the minimum or exhausted coupons (including maxUses 0).
  * This check never mutates the coupon or consumes a use.
+ * Eligibility is advisory only: concurrent redemptions can observe the same counts.
+ * Server-side callers must load coupons (including usage counts and limits) from
+ * trusted storage, never from request input, and atomically enforce the usage limit
+ * when consuming a use (for example, a conditional increment where used_count <
+ * max_uses, treating no updated row as a failed redemption).
  */
 function validateCoupon(coupon, orderTotalBrl) {
   if (coupon === null || typeof coupon !== 'object' || Array.isArray(coupon)) {
