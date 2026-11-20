@@ -43,6 +43,23 @@
     return remaining <= Math.max(1, Math.ceil(total * 0.1)) ? 'last' : 'available';
   }
 
+  function isValidCPF(cpf) {
+    var strCPF = String(cpf).replace(/[^\d]/g, '');
+    if (strCPF.length !== 11) return false;
+    if (/^(\d)\1+$/.test(strCPF)) return false;
+    var soma = 0, resto;
+    for (var i = 1; i <= 9; i++) soma = soma + parseInt(strCPF.substring(i - 1, i)) * (11 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(strCPF.substring(9, 10))) return false;
+    soma = 0;
+    for (var i = 1; i <= 10; i++) soma = soma + parseInt(strCPF.substring(i - 1, i)) * (12 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(strCPF.substring(10, 11))) return false;
+    return true;
+  }
+
   function buildLots(rows) {
     return (rows || []).map(function (r) {
       var remaining = Math.max(0, r[3]);
@@ -113,6 +130,8 @@
     });
     var parts = h.split('/').filter(Boolean);
     if (parts[0] === 'sacola') return { name: 'cart', params: params };
+    if (parts[0] === 'checkout') return { name: 'checkout', params: params };
+    if (parts[0] === 'voucher') return { name: 'voucher', params: params };
     if (parts[0] === 'evento' && parts[1]) {
       return { name: 'event', id: safeDecode(parts[1]), params: params };
     }
@@ -124,7 +143,11 @@
     var qs = Object.keys(p).filter(function (k) { return p[k]; }).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
     }).join('&');
-    var base = route.name === 'event' ? '#/evento/' + encodeURIComponent(route.id) : route.name === 'cart' ? '#/sacola' : '#/';
+    var base = route.name === 'event' ? '#/evento/' + encodeURIComponent(route.id) 
+      : route.name === 'cart' ? '#/sacola' 
+      : route.name === 'checkout' ? '#/checkout'
+      : route.name === 'voucher' ? '#/voucher'
+      : '#/';
     return qs ? base + '?' + qs : base;
   }
 
@@ -147,7 +170,7 @@
   var api = {
     catalog: catalog, filterEvents: filterEvents, parseHash: parseHash,
     buildHash: buildHash, resolveSelection: resolveSelection, formatPrice: formatPrice, lotStatus: lotStatus,
-    LOT_STATUS: LOT_STATUS
+    LOT_STATUS: LOT_STATUS, isValidCPF: isValidCPF
   };
   root.DanSectors = api;
 
@@ -181,6 +204,23 @@
     app.textContent = '';
     app.appendChild(el('h1', 'page-title', 'Eventos'));
 
+    var found = filterEvents(events, p);
+    var isShowcase = !p.q && !p.category && !p.city && found.length > 0;
+
+    if (isShowcase) {
+      var sEv = found[0];
+      var showcase = el('section', 'showcase');
+      showcase.appendChild(el('h2', 'showcase__title', 'Em Destaque'));
+      var fCard = el('div', 'event-card event-card--featured');
+      var fA = el('a', 'event-card__link', sEv.name);
+      fA.href = buildHash({ name: 'event', id: sEv.id });
+      fCard.appendChild(fA);
+      fCard.appendChild(el('p', 'event-card__meta', (sEv.category || '') + ' · ' + (sEv.city || '')));
+      fCard.appendChild(el('p', null, sEv.description || ''));
+      showcase.appendChild(fCard);
+      app.appendChild(showcase);
+    }
+
     var form = el('form', 'filters');
     form.setAttribute('role', 'search');
     var q = el('input'); q.type = 'search'; q.name = 'q'; q.value = p.q || '';
@@ -208,13 +248,14 @@
     status.setAttribute('role', 'status');
     app.appendChild(status);
     var ul = el('ul', 'event-list');
-    found.forEach(function (e) {
+    found.forEach(function (e, index) {
+      if (isShowcase && index === 0) return;
       var li = el('li', 'event-card');
       var a = el('a', 'event-card__link', e.name);
       a.href = buildHash({ name: 'event', id: e.id });
       li.appendChild(a);
-      li.appendChild(el('p', 'event-card__meta', e.category + ' · ' + e.city));
-      li.appendChild(el('p', null, e.description));
+      li.appendChild(el('p', 'event-card__meta', (e.category || '') + ' · ' + (e.city || '')));
+      li.appendChild(el('p', null, e.description || ''));
       ul.appendChild(li);
     });
     app.appendChild(ul);
@@ -320,6 +361,40 @@
     if (n && root.DanCart) n.textContent = String(root.DanCart.totals(root.DanCart.load()).tickets);
   }
 
+  function revalidateCartItems(stateItems, events, cart) {
+    var revalidated = [];
+    var changed = false;
+    var notices = [];
+    stateItems.forEach(function (i) {
+      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
+      if (!ev) { changed = true; notices.push('"' + i.eventName + '" foi removido (evento não encontrado).'); return; }
+      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
+      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.id !== i.lotId || sel.lot.status === 'soldout') { 
+        changed = true; 
+        notices.push('"' + i.eventName + ' - ' + i.sectorName + '" foi removido (lote esgotado ou indisponível).'); 
+        return; 
+      }
+      
+      var validQty = Math.max(1, Math.min(i.qty || 1, cart.MAX_QTY, sel.lot.remaining));
+      if (i.qty !== validQty) {
+        i.qty = validQty;
+        changed = true;
+        notices.push('Quantidade de "' + i.eventName + '" ajustada para ' + validQty + ' (limite de estoque).');
+      }
+      
+      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
+        i.unitCents = sel.lot.priceCents; 
+        i.sectorName = sel.sector.name;
+        i.lotName = sel.lot.name;
+        i.eventName = ev.name;
+        changed = true; 
+        notices.push('Detalhes ou preço de "' + ev.name + '" foram atualizados.');
+      }
+      revalidated.push(i);
+    });
+    return { items: revalidated, changed: changed, notices: notices };
+  }
+
   function renderCart(app) {
     var cart = root.DanCart;
     app.textContent = '';
@@ -330,29 +405,18 @@
     if (!cart) return;
     var state = cart.load();
     var events = catalog();
-    var revalidated = [];
-    var changed = false;
-    state.items.forEach(function (i) {
-      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
-      if (!ev) { changed = true; return; }
-      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
-      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
-      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
-        i.unitCents = sel.lot.priceCents; 
-        i.sectorName = sel.sector.name;
-        i.lotName = sel.lot.name;
-        i.eventName = ev.name;
-        changed = true; 
-      }
-      revalidated.push(i);
-    });
-    if (changed) {
-      state.items = revalidated;
+    var rev = revalidateCartItems(state.items, events, cart);
+    if (rev.changed) {
+      state.items = rev.items;
       cart.save(state);
     }
 
     var saveMessage = el('p', 'coupon-msg');
     saveMessage.setAttribute('role', 'status');
+    if (rev.changed && rev.notices && rev.notices.length) {
+      saveMessage.textContent = 'Atenção: ' + rev.notices.join(' ');
+      saveMessage.className = 'coupon-msg coupon-msg--error';
+    }
     app.appendChild(saveMessage);
     function commit(next) {
       if (!cart.save(next)) {
@@ -413,6 +477,175 @@
     row('Taxa de serviço após descontos (' + Math.round(cart.SERVICE_FEE_RATE * 100) + '%)', formatPrice(t.serviceFeeCents));
     row('Total', formatPrice(t.totalCents), 'total');
     app.appendChild(dl);
+
+    var checkoutAct = el('div', 'checkout-actions');
+    var checkoutBtn = el('a', 'btn-checkout', 'Finalizar Compra');
+    checkoutBtn.href = '#/checkout';
+    checkoutAct.appendChild(checkoutBtn);
+    app.appendChild(checkoutAct);
+  }
+
+  function renderCheckout(app, events, errorMessage) {
+    var cart = root.DanCart;
+    app.textContent = '';
+    var back = el('a', 'back', '← Voltar para sacola');
+    back.href = '#/sacola';
+    app.appendChild(back);
+    app.appendChild(el('h1', 'page-title', 'Checkout'));
+
+    if (!cart) return;
+    var state = cart.load();
+    var rev = revalidateCartItems(state.items, events, cart);
+    if (rev.changed) {
+      state.items = rev.items;
+      cart.save(state);
+    }
+
+    if (!state.items.length) {
+      app.appendChild(el('p', 'empty', 'Sua sacola está vazia.'));
+      if (errorMessage) {
+        app.appendChild(el('p', 'coupon-msg coupon-msg--error', errorMessage));
+      } else if (rev.notices && rev.notices.length) {
+        app.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Atenção: ' + rev.notices.join(' ')));
+      }
+      return;
+    }
+
+    var form = el('form', 'checkout-form');
+    if (rev.notices && rev.notices.length) {
+      form.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Atenção: ' + rev.notices.join(' ')));
+    }
+    var inputs = [];
+    state.items.forEach(function (i, idx) {
+      for (var q = 0; q < i.qty; q++) {
+        var fs = el('fieldset', 'checkout-fieldset');
+        var leg = el('legend', null, i.eventName + ' – ' + i.sectorName + ' – ' + i.lotName + ' (' + (i.type === 'meia' ? 'Meia' : 'Inteira') + ') - Ingresso ' + (q + 1));
+        fs.appendChild(leg);
+        
+        var nameInput = el('input'); nameInput.type = 'text'; nameInput.name = 'nome-' + idx + '-' + q; nameInput.required = true;
+        fs.appendChild(field('Nome', nameInput));
+        
+        var cpfInput = el('input'); cpfInput.type = 'text'; cpfInput.name = 'cpf-' + idx + '-' + q; cpfInput.required = true;
+        fs.appendChild(field('CPF', cpfInput));
+        
+        inputs.push({ item: i, nameInput: nameInput, cpfInput: cpfInput });
+        form.appendChild(fs);
+      }
+    });
+
+    var errContainer = el('div', 'checkout-errors');
+    if (errorMessage) {
+      errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', errorMessage));
+    }
+    form.appendChild(errContainer);
+
+    var submit = el('button', null, 'Emitir Voucher'); submit.type = 'submit';
+    form.appendChild(submit);
+
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      if (form.getAttribute('data-obsolete') === 'true') return;
+      errContainer.textContent = '';
+      var hasError = false;
+      var firstInvalidInput = null;
+      var holders = [];
+      
+      inputs.forEach(function(entry) {
+        var n = entry.nameInput.value.trim();
+        var c = entry.cpfInput.value.trim();
+        if (!n || !c) {
+          hasError = true;
+          if (!firstInvalidInput) firstInvalidInput = !n ? entry.nameInput : entry.cpfInput;
+          var msgEmpty = el('p', 'coupon-msg coupon-msg--error', 'Preencha nome e CPF do ingresso: ' + entry.item.eventName);
+          errContainer.appendChild(msgEmpty);
+        } else if (!isValidCPF(c)) {
+          hasError = true;
+          if (!firstInvalidInput) firstInvalidInput = entry.cpfInput;
+          var msg = el('p', 'coupon-msg coupon-msg--error', 'CPF inválido: ' + c);
+          errContainer.appendChild(msg);
+        }
+        var maskedCPF = c.replace(/[^\d]/g, '');
+        if (maskedCPF.length === 11) {
+          maskedCPF = '***.' + maskedCPF.substring(3, 6) + '.' + maskedCPF.substring(6, 9) + '-**';
+        }
+        holders.push({ eventName: entry.item.eventName, sectorName: entry.item.sectorName, type: entry.item.type, name: n, cpf: maskedCPF });
+      });
+
+      if (hasError) {
+        if (firstInvalidInput) firstInvalidInput.focus();
+        return;
+      }
+      
+      var currentState = cart.load();
+      var preSubmitRev = revalidateCartItems(currentState.items, events, cart);
+      if (preSubmitRev.changed) {
+        cart.save({ items: preSubmitRev.items, coupon: currentState.coupon });
+        form.setAttribute('data-obsolete', 'true');
+        var noticeStr = (preSubmitRev.notices && preSubmitRev.notices.length) ? preSubmitRev.notices.join(' ') : 'Alguns itens da sua sacola mudaram (preço ou disponibilidade). Verifique e tente novamente.';
+        renderCheckout(app, events, noticeStr);
+        return;
+      }
+
+      var orderId = 'TKT-';
+      if (root.crypto && root.crypto.getRandomValues) {
+        var arr = new Uint32Array(2);
+        root.crypto.getRandomValues(arr);
+        orderId += arr[0].toString(16).padStart(8, '0').toUpperCase() + '-' + arr[1].toString(16).padStart(8, '0').toUpperCase();
+      } else {
+        orderId += Date.now().toString(16).toUpperCase() + '-' + Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0').toUpperCase();
+      }
+      
+      var order = { orderId: orderId, holders: holders };
+      try {
+        root.sessionStorage.setItem('dan-tickets-order', JSON.stringify(order));
+        if (cart.save(cart.emptyState())) {
+          root.location.hash = '#/voucher';
+        } else {
+          root.sessionStorage.removeItem('dan-tickets-order');
+          errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Não foi possível limpar a sacola. Verifique o armazenamento.'));
+        }
+      } catch (e) {
+        errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Não foi possível salvar o pedido. Verifique o armazenamento.'));
+      }
+    });
+
+    app.appendChild(form);
+  }
+
+  function renderVoucher(app) {
+    app.textContent = '';
+    app.appendChild(el('h1', 'page-title', 'Comprovante (Demonstração)'));
+    
+    var order = null;
+    try {
+      var saved = root.sessionStorage.getItem('dan-tickets-order');
+      if (saved) {
+        order = JSON.parse(saved);
+        root.sessionStorage.removeItem('dan-tickets-order');
+      }
+    } catch(e) {}
+
+    if (!order) {
+      app.appendChild(el('p', null, 'Nenhum pedido recente encontrado.'));
+      var backEmpty = el('a', 'back', '← Voltar para Home');
+      backEmpty.href = '#/';
+      app.appendChild(backEmpty);
+      return;
+    }
+
+    app.appendChild(el('p', null, 'Seu pedido foi confirmado!'));
+    app.appendChild(el('p', 'voucher-code', 'Código: ' + order.orderId));
+    
+    var hUl = el('ul', 'voucher-holders');
+    order.holders.forEach(function(h) {
+      var itemType = h.type === 'meia' ? 'Meia' : 'Inteira';
+      hUl.appendChild(el('li', null, h.eventName + ' - ' + h.sectorName + ' (' + itemType + ') - ' + h.name + ' (' + h.cpf + ')'));
+    });
+    app.appendChild(hUl);
+
+    var back = el('a', 'back', '← Voltar para Home');
+    back.href = '#/';
+    app.appendChild(back);
   }
 
   function render() {
@@ -424,6 +657,8 @@
     var focusKey = active && app.contains(active) ? (active.name || active.getAttribute('data-lot') || '') : '';
     var focusIsLot = !!(active && active.getAttribute && active.getAttribute('data-lot'));
     if (route.name === 'cart') renderCart(app);
+    else if (route.name === 'checkout') renderCheckout(app, events);
+    else if (route.name === 'voucher') renderVoucher(app);
     else if (route.name === 'event') renderEvent(app, route, events);
     else renderList(app, route, events);
     updateCartCount();
