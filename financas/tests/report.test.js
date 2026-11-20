@@ -165,6 +165,48 @@ test('preserves validation of budget, both rates, term and portfolio', () => {
   }
 });
 
+test('rejects missing rate if annualRatePct and specific rate are both absent', () => {
+  const input = scenario();
+  delete input.simulation.annualRatePct;
+  assert.throws(() => generateWealthPlan(input), /annualRatePct/);
+});
+
+test('falls back to annualRatePct when one product rate is missing', () => {
+  // Only CDB is set, LCI should fall back to annualRatePct
+  const inputCDB = scenario();
+  inputCDB.simulation.cdbAnnualRatePct = 15;
+  const resCDB = generateWealthPlan(inputCDB);
+  assert.equal(resCDB.simulationComparison.CDB.netBrl, 1120); // 15% CDB, 12 months -> 1120 net
+  assert.equal(resCDB.simulationComparison.LCI.netBrl, 1120); // 12% LCI, 12 months -> 1120 net
+
+  // Only LCI is set, CDB should fall back to annualRatePct
+  const inputLCI = scenario();
+  inputLCI.simulation.lciAnnualRatePct = 10;
+  const resLCI = generateWealthPlan(inputLCI);
+  assert.equal(resLCI.simulationComparison.CDB.netBrl, 1096); // 12% CDB, 12 months -> 1096 net
+  assert.equal(resLCI.simulationComparison.LCI.netBrl, 1100); // 10% LCI, 12 months -> 1100 net
+});
+
+test('flat input supports independent product rates', () => {
+  const input = {
+    netIncomeBrl: 10000,
+    essentialsBrl: 5000,
+    lifestyleBrl: 3000,
+    employmentType: 'clt',
+    initialBrl: 1000,
+    months: 12,
+    cdbAnnualRatePct: 15,
+    lciAnnualRatePct: 10,
+    profile: 'moderado',
+    holdings: { fixedIncome: 500, equities: 200, international: 100 }
+  };
+  const result = generateWealthPlan(input);
+  // CDB at 15% with 1000 initial + 2000 monthly for 12 months vs LCI at 10%
+  assert.ok(result.simulationComparison.CDB);
+  assert.ok(result.simulationComparison.LCI);
+  assert.notEqual(result.simulationComparison.CDB.netBrl, result.simulationComparison.LCI.netBrl);
+});
+
 test('does not mutate frozen input or share mutable results between plans', () => {
   const input = scenario();
   const before = structuredClone(input);
