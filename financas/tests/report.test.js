@@ -1,7 +1,7 @@
 'use strict';
 
 const test = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const { generateWealthPlan } = require('../report');
 
 test('generateWealthPlan - flat input with implicit monthlyBrl and newContributionBrl', () => {
@@ -19,7 +19,7 @@ test('generateWealthPlan - flat input with implicit monthlyBrl and newContributi
 
   const result = generateWealthPlan(input);
 
-  assert.strictEqual(result.protocol, 'INV-XXXX');
+  assert.match(result.protocol, /^INV-\d{4}$/);
   
   // Budget diagnosis
   assert.strictEqual(result.budgetDiagnosis.monthlySavingsCapacityBrl, 2000);
@@ -69,4 +69,114 @@ test('generateWealthPlan - structured input with explicit values', () => {
 
   // explicit newContributionBrl was 5000
   assert.strictEqual(result.rebalancingSuggestion.totalBrl, 5000);
+});
+
+function scenario() {
+  return {
+    budget: { netIncomeBrl: 10000, essentialsBrl: 5000, lifestyleBrl: 3000 },
+    simulation: { initialBrl: 1000, monthlyBrl: 0, months: 12, annualRatePct: 12 },
+    portfolio: {
+      profile: 'moderado',
+      holdings: { fixedIncome: 550, equities: 300, international: 100 },
+      newContributionBrl: 50
+    }
+  };
+}
+
+test('reports the diagnosis, net comparison and underweight allocation together', () => {
+  const result = generateWealthPlan(scenario());
+  assert.deepEqual(result.budgetDiagnosis.actualPercentages, { essentials: 50, lifestyle: 30, savings: 20 });
+  assert.deepEqual(result.budgetDiagnosis.differencePercentages, { essentials: 0, lifestyle: 0, savings: 0 });
+  assert.equal(result.budgetDiagnosis.emergencyReserveTargetBrl, 30000);
+  assert.deepEqual(result.simulationComparison, {
+    CDB: { totalInvestedBrl: 1000, grossBrl: 1120, taxBrl: 24, netBrl: 1096 },
+    LCI: { totalInvestedBrl: 1000, grossBrl: 1120, taxBrl: 0, netBrl: 1120 },
+    netWinner: 'LCI'
+  });
+  assert.deepEqual(result.rebalancingSuggestion.allocation, { fixedIncome: 0, equities: 0, international: 50 });
+});
+
+for (const [cdbRate, lciRate, winner, cdbNet, lciNet] of [
+  [15, 10, 'CDB', 1120, 1100],
+  [12, 10, 'LCI', 1096, 1100],
+  [0, 0, 'Draw', 1000, 1000],
+  [12.5, 10, 'Draw', 1100, 1100]
+]) {
+  test(`compares independent rates ${cdbRate}/${lciRate} after tax: ${winner}`, () => {
+    const input = scenario();
+    Object.assign(input.simulation, { cdbAnnualRatePct: cdbRate, lciAnnualRatePct: lciRate });
+    const { simulationComparison: comparison } = generateWealthPlan(input);
+    assert.equal(comparison.netWinner, winner);
+    assert.equal(comparison.CDB.netBrl, cdbNet);
+    assert.equal(comparison.LCI.netBrl, lciNet);
+  });
+}
+
+test('negative savings are reported but never used as negative contributions', () => {
+  const input = scenario();
+  input.budget.netIncomeBrl = 7000;
+  delete input.simulation.monthlyBrl;
+  delete input.portfolio.newContributionBrl;
+  const result = generateWealthPlan(input);
+  assert.equal(result.budgetDiagnosis.monthlySavingsCapacityBrl, -1000);
+  assert.equal(result.simulationComparison.CDB.totalInvestedBrl, 1000);
+  assert.deepEqual(result.rebalancingSuggestion.newHoldings, input.portfolio.holdings);
+});
+
+test('undefined contributions default to savings and explicit zero overrides them', () => {
+  const input = scenario();
+  input.simulation.monthlyBrl = undefined;
+  input.portfolio.newContributionBrl = undefined;
+  let result = generateWealthPlan(input);
+  assert.equal(result.simulationComparison.CDB.totalInvestedBrl, 25000);
+  assert.equal(result.rebalancingSuggestion.totalBrl, 2950);
+  input.simulation.monthlyBrl = 0;
+  input.portfolio.newContributionBrl = 0;
+  result = generateWealthPlan(input);
+  assert.equal(result.simulationComparison.CDB.totalInvestedBrl, 1000);
+  assert.equal(result.rebalancingSuggestion.totalBrl, 950);
+});
+
+test('rejects malformed input and sections', () => {
+  for (const value of [undefined, null, [], false, 5, 'input']) {
+    assert.throws(() => generateWealthPlan(value), TypeError);
+  }
+  for (const section of ['budget', 'simulation', 'portfolio']) {
+    for (const value of [null, [], false, 5, 'section']) {
+      assert.throws(() => generateWealthPlan({ ...scenario(), [section]: value }), TypeError);
+    }
+  }
+});
+
+test('preserves validation of budget, both rates, term and portfolio', () => {
+  for (const [section, key, value] of [
+    ['budget', 'netIncomeBrl', 0],
+    ['simulation', 'cdbAnnualRatePct', -1],
+    ['simulation', 'lciAnnualRatePct', NaN],
+    ['simulation', 'cdbAnnualRatePct', null],
+    ['simulation', 'monthlyBrl', -1],
+    ['simulation', 'months', 0],
+    ['portfolio', 'profile', 'unknown'],
+    ['portfolio', 'newContributionBrl', 0.001]
+  ]) {
+    const input = scenario();
+    input[section][key] = value;
+    assert.throws(() => generateWealthPlan(input), new RegExp(key.endsWith('AnnualRatePct') ? 'annualRatePct' : key));
+  }
+});
+
+test('does not mutate frozen input or share mutable results between plans', () => {
+  const input = scenario();
+  const before = structuredClone(input);
+  Object.freeze(input.portfolio.holdings);
+  for (const section of Object.values(input)) Object.freeze(section);
+  Object.freeze(input);
+  const first = generateWealthPlan(input);
+  first.budgetDiagnosis.targetPercentages.essentials = 0;
+  first.rebalancingSuggestion.newHoldings.fixedIncome = 0;
+  const second = generateWealthPlan(input);
+  assert.deepEqual(input, before);
+  assert.equal(second.budgetDiagnosis.targetPercentages.essentials, 50);
+  assert.equal(second.rebalancingSuggestion.newHoldings.fixedIncome, 550);
+  assert.match(second.protocol, /^INV-\d{4}$/);
 });
