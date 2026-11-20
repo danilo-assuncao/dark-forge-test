@@ -48,7 +48,6 @@ test('throws RangeError when a finite input overflows the result', () => {
             assert.throws(() => fn(big), { name: 'RangeError' }, `${fn.name}(${big})`);
         }
     }
-    assert.throws(() => kmToMiles(Number.MAX_VALUE * 1), (e) => e instanceof RangeError === false || true);
 });
 
 test('handles negative distances and preserves -0', () => {
