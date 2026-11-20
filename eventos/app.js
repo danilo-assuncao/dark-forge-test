@@ -293,13 +293,21 @@
         ev.preventDefault();
         var n = Number(qty.value);
         if (!(Number.isInteger(n) && n >= 1 && n <= cart.MAX_QTY)) { msg.textContent = 'Quantidade deve ser de 1 a ' + cart.MAX_QTY + '.'; return; }
-        var st = cart.addItem(cart.load(), {
+        var previous = cart.load();
+        var st = cart.addItem(previous, {
           eventId: e.id, eventName: e.name, sectorId: sector.id, sectorName: sector.name,
           lotId: lot.id, lotName: lot.name, type: typeSel.value, qty: n, unitCents: lot.priceCents
         });
+        var added = cart.totals(st).tickets - cart.totals(previous).tickets;
+        if (!added) {
+          msg.textContent = 'Limite de ' + cart.MAX_QTY + ' ingressos por evento, setor, lote e tipo atingido.';
+          return;
+        }
         if (!cart.save(st)) { msg.textContent = 'Não foi possível salvar a sacola. Verifique o armazenamento do navegador e tente novamente.'; return; }
         updateCartCount();
-        msg.textContent = 'Adicionado à sacola.';
+        msg.textContent = added < n
+          ? 'Adicionados ' + added + ' de ' + n + ' ingressos solicitados. Limite de ' + cart.MAX_QTY + ' por evento, setor, lote e tipo.'
+          : 'Adicionado à sacola.';
       });
       app.appendChild(buy);
       app.appendChild(msg);

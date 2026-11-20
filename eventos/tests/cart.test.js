@@ -246,6 +246,24 @@ test('UI adds both ticket types, reloads the bag, applies and removes coupons, e
   assert.equal(bag.count.textContent, '0');
 });
 
+test('UI reports partial additions and does not claim success when the line is full', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/evento/rock-festival?setor=pista&lote=lote-2');
+  const buy = page.find(n => n.tag === 'form');
+  page.find(n => n.name === 'qtd').value = '8';
+  buy.fire('submit');
+  page.find(n => n.name === 'qtd').value = '3';
+  buy.fire('submit');
+  assert.equal(page.count.textContent, '10');
+  assert.match(page.app.textContent, /Adicionados 2 de 3 ingressos solicitados/);
+  assert.equal(JSON.parse(storage._m['dan-tickets-cart']).items[0].qty, 10);
+  storage.setItem = () => { throw Error('A full line must not write to storage'); };
+  buy.fire('submit');
+  assert.match(page.app.textContent, /Limite de 10 ingressos por evento, setor, lote e tipo atingido/);
+  assert.doesNotMatch(page.app.textContent, /Adicionado à sacola|Não foi possível salvar/);
+  assert.equal(page.count.textContent, '10');
+});
+
 test('UI reports failed persistence and restores the saved quantity', () => {
   const storage = memStorage();
   const cart = require('../cart.js');
