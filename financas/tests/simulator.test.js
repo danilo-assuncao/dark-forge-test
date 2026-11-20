@@ -19,6 +19,7 @@ test('CDB applies regressive IR brackets with independent expected values', () =
     [6, { grossBrl: 1058.3, taxBrl: 13.12, netBrl: 1045.18 }],
     [7, { grossBrl: 1068.34, taxBrl: 13.67, netBrl: 1054.67 }],
     [13, { grossBrl: 1130.63, taxBrl: 22.86, netBrl: 1107.77 }],
+    [24, { grossBrl: 1254.4, taxBrl: 44.52, netBrl: 1209.88 }],
     [25, { grossBrl: 1266.3, taxBrl: 39.95, netBrl: 1226.35 }],
   ];
   for (const [months, expected] of cases) {
@@ -27,11 +28,25 @@ test('CDB applies regressive IR brackets with independent expected values', () =
   }
 });
 
-test('reported figures always reconcile exactly', () => {
-  for (let months = 1; months <= 60; months += 1) {
-    for (const product of ['CDB', 'LCI']) {
-      const r = simulateFixedIncome({ initialBrl: 1234.56, monthlyBrl: 77.77, months, annualRatePct: 13.37, product });
-      assert.equal(Math.round((r.grossBrl - r.taxBrl) * 100), Math.round(r.netBrl * 100));
+test('reported figures reconcile exactly in integer cents', () => {
+  const sets = [
+    { initialBrl: 1234.56, monthlyBrl: 77.77, annualRatePct: 13.37 },
+    { initialBrl: 1e12, monthlyBrl: 0, annualRatePct: 5.55 },
+    { initialBrl: 0.03, monthlyBrl: 0.07, annualRatePct: 999.99 },
+  ];
+  for (const params of sets) {
+    for (let months = 1; months <= 36; months += 1) {
+      for (const product of ['CDB', 'LCI']) {
+        let r;
+        try {
+          r = simulateFixedIncome({ ...params, months, product });
+        } catch (e) {
+          assert.ok(e instanceof RangeError);
+          continue;
+        }
+        const cents = (v) => Math.round(v * 100);
+        assert.equal(cents(r.netBrl), cents(r.grossBrl) - cents(r.taxBrl));
+      }
     }
   }
 });
@@ -105,4 +120,38 @@ test('rejects Infinity, missing args, negatives, NaN months and out-of-range bou
   assert.throws(() => simulateFixedIncome({ ...ok, initialBrl: 1e21 }), RangeError);
   assert.throws(() => simulateFixedIncome({ ...ok, annualRatePct: 1e6 }), RangeError);
   assert.doesNotThrow(() => simulateFixedIncome({ ...ok, months: 1200 }));
+});
+
+test('rejects results too large to represent in cents instead of returning NaN or 0', () => {
+  for (const product of ['CDB', 'LCI']) {
+    assert.throws(
+      () => simulateFixedIncome({ initialBrl: 1e12, monthlyBrl: 0, months: 1200, annualRatePct: 1000, product }),
+      RangeError,
+    );
+    assert.throws(
+      () => simulateFixedIncome({ initialBrl: 1e12, monthlyBrl: 1e12, months: 1200, annualRatePct: 1000, product }),
+      RangeError,
+    );
+  }
+  assert.throws(
+    () => simulateFixedIncome({ initialBrl: 1e12, monthlyBrl: 1e12, months: 1200, annualRatePct: 0, product: 'LCI' }),
+    RangeError,
+  );
+});
+
+test('inclusive input bounds are accepted and just-over values rejected', () => {
+  const ok = { initialBrl: 1, monthlyBrl: 1, months: 1, annualRatePct: 10, product: 'CDB' };
+  assert.doesNotThrow(() => simulateFixedIncome({ ...ok, annualRatePct: 1000 }));
+  assert.throws(() => simulateFixedIncome({ ...ok, annualRatePct: 1000.01 }), RangeError);
+  assert.doesNotThrow(() => simulateFixedIncome({ ...ok, monthlyBrl: 1e12 }));
+  assert.throws(() => simulateFixedIncome({ ...ok, monthlyBrl: 1e12 + 1 }), RangeError);
+  assert.doesNotThrow(() => simulateFixedIncome({ ...ok, initialBrl: 1e12 }));
+  assert.throws(() => simulateFixedIncome({ ...ok, initialBrl: 1e12 + 1 }), RangeError);
+  assert.doesNotThrow(() => simulateFixedIncome({ ...ok, months: 1 }));
+});
+
+test('rejects missing product and numeric-string months', () => {
+  const ok = { ...base, months: 12, product: 'CDB' };
+  assert.throws(() => simulateFixedIncome({ ...ok, product: undefined }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, months: '12' }), RangeError);
 });

@@ -4,6 +4,8 @@ const PRODUCTS = ['CDB', 'LCI'];
 const MAX_MONTHS = 1200;
 const MAX_BRL = 1e12;
 const MAX_ANNUAL_RATE_PCT = 1000;
+// Largest amount whose cent count is still an exactly representable integer.
+const MAX_RESULT_BRL = Number.MAX_SAFE_INTEGER / 100;
 
 function assertNonNegativeFinite(value, name, max) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -30,7 +32,9 @@ function round2(value) {
   const sign = value < 0 ? -1 : 1;
   const [coefficient, exponent = '0'] = String(Math.abs(value)).split('e');
   const cents = Math.round(Number(`${coefficient}e${Number(exponent) + 2}`));
-  return sign * Number(`${cents}e-2`) || 0;
+  const result = sign * Number(`${cents}e-2`);
+  if (Number.isNaN(result)) throw new RangeError('Amount cannot be rounded to cents');
+  return result + 0; // normalizes -0 to 0
 }
 
 // The initial amount is deposited at month 0; each monthly deposit is made at
@@ -56,7 +60,7 @@ function simulateFixedIncome({ initialBrl, monthlyBrl, months, annualRatePct, pr
 
   const totalInvested = initialBrl + monthlyBrl * months;
   const gross = balance;
-  if (!Number.isFinite(gross) || !Number.isFinite(totalInvested)) {
+  if (!(gross <= MAX_RESULT_BRL) || !(totalInvested <= MAX_RESULT_BRL)) {
     throw new RangeError('Simulation result is out of range');
   }
   const yieldBrl = Math.max(gross - totalInvested, 0);
