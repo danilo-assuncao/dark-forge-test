@@ -39,13 +39,52 @@ test('rounds percentages and amounts to two decimals', () => {
   assert.equal(r.monthlySavingsCapacityBrl, 999.45);
 });
 
-test('rejects invalid inputs', () => {
-  const ok = { netIncomeBrl: 1000, essentialsBrl: 500, lifestyleBrl: 300 };
-  assert.throws(() => analyzeMonthlyBudget({ ...ok, netIncomeBrl: 0 }), RangeError);
-  assert.throws(() => analyzeMonthlyBudget({ ...ok, netIncomeBrl: '1000' }), TypeError);
-  assert.throws(() => analyzeMonthlyBudget({ ...ok, essentialsBrl: -1 }), RangeError);
-  assert.throws(() => analyzeMonthlyBudget({ ...ok, lifestyleBrl: NaN }), TypeError);
-  assert.throws(() => analyzeMonthlyBudget({ ...ok, employmentType: 'pj' }), RangeError);
-  assert.throws(() => analyzeMonthlyBudget({ ...ok, employmentType: 'toString' }), RangeError);
+test('canonical employmentType wins over the EmploymentType alias', () => {
+  const base = { netIncomeBrl: 5000, essentialsBrl: 2500, lifestyleBrl: 1000 };
+  assert.equal(analyzeMonthlyBudget({ ...base, employmentType: 'clt', EmploymentType: 'autonomo' }).employmentType, 'clt');
+  assert.equal(analyzeMonthlyBudget({ ...base, employmentType: null, EmploymentType: 'autonomo' }).employmentType, 'autonomo');
+  assert.throws(() => analyzeMonthlyBudget({ ...base, employmentType: '' }), RangeError);
+});
+
+test('never returns -0 for near-zero negative capacity', () => {
+  const r = analyzeMonthlyBudget({ netIncomeBrl: 1000, essentialsBrl: 500, lifestyleBrl: 500.001 });
+  assert.ok(Object.is(r.monthlySavingsCapacityBrl, 0));
+  assert.ok(Object.is(r.actualPercentages.savings, 0));
+  assert.ok(Object.is(r.differencePercentages.savings, -20));
+});
+
+test('rounds half cents up regardless of magnitude', () => {
+  const r = analyzeMonthlyBudget({ netIncomeBrl: 100000, essentialsBrl: 1.005, lifestyleBrl: 0 });
+  assert.equal(r.monthlySavingsCapacityBrl, 99998.99);
+  assert.equal(r.emergencyReserveTargetBrl, 6.03);
+});
+
+test('accepts zero essentials and lifestyle', () => {
+  const r = analyzeMonthlyBudget({ netIncomeBrl: 1000, essentialsBrl: 0, lifestyleBrl: 0 });
+  assert.equal(r.emergencyReserveTargetBrl, 0);
+  assert.equal(r.monthlySavingsCapacityBrl, 1000);
+});
+
+const ok = { netIncomeBrl: 1000, essentialsBrl: 500, lifestyleBrl: 300 };
+const invalid = [
+  ['zero income', { netIncomeBrl: 0 }, RangeError, /netIncomeBrl must be positive/],
+  ['negative income', { netIncomeBrl: -1 }, RangeError, /netIncomeBrl/],
+  ['string income', { netIncomeBrl: '1000' }, TypeError, /netIncomeBrl must be a finite number/],
+  ['Infinity income', { netIncomeBrl: Infinity }, TypeError, /netIncomeBrl/],
+  ['negative essentials', { essentialsBrl: -1 }, RangeError, /essentialsBrl must be non-negative/],
+  ['undefined essentials', { essentialsBrl: undefined }, TypeError, /essentialsBrl/],
+  ['Infinity essentials', { essentialsBrl: Infinity }, TypeError, /essentialsBrl/],
+  ['negative lifestyle', { lifestyleBrl: -1 }, RangeError, /lifestyleBrl must be non-negative/],
+  ['NaN lifestyle', { lifestyleBrl: NaN }, TypeError, /lifestyleBrl/],
+  ['unknown type', { employmentType: 'pj' }, RangeError, /employmentType/],
+  ['prototype key type', { employmentType: 'toString' }, RangeError, /employmentType/],
+];
+for (const [name, override, error, message] of invalid) {
+  test(`rejects ${name}`, () => {
+    assert.throws(() => analyzeMonthlyBudget({ ...ok, ...override }), (e) => e instanceof error && message.test(e.message));
+  });
+}
+
+test('rejects a missing argument', () => {
   assert.throws(() => analyzeMonthlyBudget(), TypeError);
 });

@@ -13,7 +13,9 @@ function assertAmount(value, name, { positive = false } = {}) {
 }
 
 function round2(value) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  // Scaled epsilon keeps half-cent values from rounding down at any magnitude;
+  // `+ 0` normalizes -0 to 0.
+  return Math.round(value * 100 * (1 + Number.EPSILON)) / 100 + 0;
 }
 
 // Accepts `employmentType` (canonical) and `EmploymentType` (alias from the brief).
