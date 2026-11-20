@@ -87,12 +87,12 @@ test('uses the longest preparation time and rounds fractional travel minutes up'
 test('rejects missing or empty line items and customer details', () => {
   for (const input of [undefined, null, {}, validOrder({ lineItems: [] }),
     validOrder({ lineItems: {} }), validOrder({ lineItems: null })]) {
-    assert.throws(() => submitRestaurantOrder(input), /lineItems must be a non-empty array/);
+    assert.throws(() => submitRestaurantOrder(input), /lineItems must be a non-empty array with at most 50 items/);
   }
   for (const field of ['customerName', 'address']) {
     for (const value of [undefined, null, '', ' \n ', 123]) {
       assert.throws(() => submitRestaurantOrder(validOrder({ [field]: value })), {
-        name: 'TypeError', message: `${field} must be a non-empty string`,
+        name: 'TypeError', message: new RegExp(`${field} must be a valid string up to [0-9]+ characters without control characters`),
       });
     }
   }
@@ -109,46 +109,51 @@ test('propagates dish customization errors', () => {
 });
 
 test('enforces delivery minimum, radius, tip and coupon validation', () => {
-  const invalidOrders = [
-    { lineItems: [{ dishId: 'beb-suco-laranja' }] },
-    ...[undefined, null, -1, 15.1, NaN, Infinity, '2'].map(distanceKm => ({ distanceKm })),
-    { tipPct: 5 }, { couponCode: 'UNKNOWN' },
+  const cases = [
+    [{ lineItems: [{ dishId: 'beb-suco-laranja' }] }, /minimum/i],
+    ...[undefined, null, -1, 15.1, NaN, Infinity, '2'].map(distanceKm => [{ distanceKm }, /distance/i]),
+    [{ tipPct: 5 }, /tipPct/i],
+    [{ couponCode: 'UNKNOWN' }, /Unknown coupon/i],
   ];
-  for (const overrides of invalidOrders) {
-    assert.throws(() => submitRestaurantOrder(validOrder(overrides)), RangeError);
+  for (const [overrides, errRegex] of cases) {
+    assert.throws(() => submitRestaurantOrder(validOrder(overrides)), { name: 'RangeError', message: errRegex });
   }
 });
 
 test('pads protocol numbers to four digits', (t) => {
-  t.mock.method(Math, 'random', () => 0);
+  const crypto = require('node:crypto');
+  t.mock.method(crypto, 'randomInt', () => 0);
   assert.strictEqual(submitRestaurantOrder(validOrder()).protocol, 'PED-0000');
-  Math.random.mock.mockImplementation(() => 0.99999);
+  crypto.randomInt.mock.mockImplementation(() => 9999);
   assert.strictEqual(submitRestaurantOrder(validOrder()).protocol, 'PED-9999');
 });
 
-test('submitRestaurantOrder fails on invalid customer', () => {
-  assert.throws(() => {
-    submitRestaurantOrder({
-      lineItems: [{ dishId: 'ent-bruschetta' }],
-      distanceKm: 5,
-      customerName: '   ',
-      address: 'Rua A, 123'
-    });
-  }, TypeError);
+test('rejects hostile or oversized free-text input and large lineItems', () => {
+  const longName = 'A'.repeat(101);
+  const longAddress = 'B'.repeat(301);
+  assert.throws(() => submitRestaurantOrder(validOrder({ customerName: longName })), /valid string up to 100 characters/);
+  assert.throws(() => submitRestaurantOrder(validOrder({ address: longAddress })), /valid string up to 300 characters/);
+  assert.throws(() => submitRestaurantOrder(validOrder({ customerName: 'Alice\x00' })), /without control characters/);
+  assert.throws(() => submitRestaurantOrder(validOrder({ address: 'Rua \n 123' })), /without control characters/);
+  
+  const manyItems = Array(51).fill({ dishId: 'pri-risoto-cogumelos' });
+  assert.throws(() => submitRestaurantOrder(validOrder({ lineItems: manyItems })), /at most 50 items/);
 });
 
-test('submitRestaurantOrder applies coupon code', () => {
+test('applies coupon code but charges delivery fee if net subtotal drops below 120', () => {
   const result = submitRestaurantOrder({
     lineItems: [
-      { dishId: 'pri-moqueca-camarao', qty: 2 } // 79.9 * 2 = 159.8
+      { dishId: 'pri-moqueca-camarao', qty: 1 }, // 79.9
+      { dishId: 'ent-bruschetta', qty: 2 } // 49.8
     ],
-    distanceKm: 2, // Fee: 700 cents, but subtotal > 120 so fee = 0
+    distanceKm: 2, 
     couponCode: 'DANCHEF10',
     customerName: 'Bob',
     address: 'Avenida B'
   });
 
-  // discount: 10% of 159.8 = 15.98
-  assert.strictEqual(result.totals.discountBrl, 15.98);
-  assert.strictEqual(result.totals.deliveryFeeBrl, 0); // free delivery
+  // Gross subtotal is 129.7. Discount is 12.97. Net is 116.73.
+  // Net subtotal < 120, so delivery fee of 7.00 is applied.
+  assert.strictEqual(result.totals.discountBrl, 12.97);
+  assert.strictEqual(result.totals.deliveryFeeBrl, 7); 
 });
