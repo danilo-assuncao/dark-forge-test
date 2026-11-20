@@ -62,3 +62,27 @@ test('rejects invalid nights and guests', () => {
   }
   assert.throws(() => calculateAddonsTotal([]), RangeError);
 });
+
+test('null and non-object counts are rejected', () => {
+  assert.throws(() => calculateAddonsTotal(['breakfast'], null), RangeError);
+  assert.throws(() => calculateAddonsTotal(['breakfast'], 5), RangeError);
+  assert.throws(() => calculateAddonsTotal(['breakfast'], 'abc'), RangeError);
+  assert.equal(calculateAddonsTotal(['breakfast'], { nights: 1, guests: 1 }).total, 48);
+});
+
+test('rejects non-string, inherited-name and partially valid id lists', () => {
+  for (const bad of [undefined, 42, {}, ['breakfast'], '__proto__', 'constructor', 'toString']) {
+    assert.throws(() => calculateAddonsTotal([bad], ctx), RangeError);
+  }
+  assert.throws(() => calculateAddonsTotal(['breakfast', 'pool'], ctx), RangeError);
+  assert.throws(() => calculateAddonsTotal(['pool', 'breakfast'], ctx), RangeError);
+});
+
+test('catalog pricing modes, strict-mode mutation and global export', () => {
+  const modes = { breakfast: 'per-guest-night', 'airport-transfer': 'flat', 'spa-access': 'per-guest', 'late-checkout': 'flat' };
+  for (const a of listAddons()) { assert.equal(a.pricing, modes[a.id]); }
+  assert.ok(listAddons().every((a, i) => a === ADDONS[i]));
+  assert.throws(() => { ADDONS[0].priceCents = 1; }, TypeError);
+  assert.throws(() => { ADDONS.push({}); }, TypeError);
+  assert.equal(globalThis.HotelAddons.calculateAddonsTotal, calculateAddonsTotal);
+});
