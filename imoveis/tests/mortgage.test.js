@@ -88,7 +88,7 @@ test('golden values: R$200k at 12% a.a. over 120 months', () => {
   assert.ok(Math.abs(r.sac.first - 356443) <= 1);
   assert.ok(Math.abs(r.sac.last - 168248) <= 1);
   assert.ok(Math.abs(r.price.first - 279894) <= 1);
-  assert.ok(Math.abs(r.price.last - 279894) <= 100); // last row absorbs rounding residue
+  assert.equal(r.price.last, 279975); // pinned: last row absorbs rounding residue (+81 cents)
 });
 
 test('rounding residue is spread and balance ends at zero', () => {
@@ -127,4 +127,36 @@ test('loads in a browser-like context and sets window.ImoveisMortgage', () => {
   const win = {};
   vm.runInNewContext(fs.readFileSync(require.resolve('../mortgage.js'), 'utf8'), { window: win });
   assert.equal(typeof win.ImoveisMortgage.simulate, 'function');
+});
+
+test('Price last-row residue stays bounded at long terms', () => {
+  const r = M.simulate({ price: 60000000, down: 12000000, annualRate: 10.5, months: 360 });
+  // pinned: the rounded fixed installment's error compounds over the term,
+  // so the final row absorbs it (-1095 cents here)
+  assert.equal(r.price.first, 422164);
+  assert.equal(r.price.last, 421069);
+});
+
+test('near-zero positive rates do not break the Price installment', () => {
+  const rows = M.schedule('price', 1000000, 1e-13, 120);
+  assert.equal(rows[119].balance, 0);
+  rows.forEach((x) => assert.ok(Number.isFinite(x.installment)));
+  assert.ok(Math.abs(rows[0].installment - 1000000 / 120) <= 2);
+});
+
+test('boundaries: MAX_ANNUAL_RATE, types, fractional cents, missing opts', () => {
+  const ok = { price: 100000, down: 0, annualRate: 10, months: 12 };
+  assert.doesNotThrow(() => M.simulate({ ...ok, annualRate: M.MAX_ANNUAL_RATE }));
+  assert.throws(() => M.simulate({ ...ok, annualRate: M.MAX_ANNUAL_RATE + 0.01 }), /annualRate/);
+  assert.throws(() => M.simulate({ ...ok, months: '12' }), /months/);
+  assert.throws(() => M.simulate({ ...ok, annualRate: '10' }), /annualRate/);
+  assert.throws(() => M.simulate({ ...ok, months: 12.5 }), /months/);
+  assert.throws(() => M.simulate({ ...ok, price: -1 }), RangeError);
+  assert.throws(() => M.simulate(), RangeError);
+  assert.throws(() => M.simulate({}), RangeError);
+  assert.throws(() => M.financedAmount(Infinity, 0), RangeError);
+  assert.throws(() => M.schedule('price', -5, 10, 12), RangeError);
+  assert.equal(M.financedAmount(100.4, 0.4), 100);
+  assert.equal(M.financedAmount(100.6, 0.4), 101);
+  assert.equal(M.schedule('sac', 100.4, 0, 1)[0].installment, 100);
 });

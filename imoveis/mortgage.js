@@ -35,10 +35,9 @@
   function priceInstallment(financed, rate, months) {
     if (financed === 0) return 0;
     if (rate === 0) return Math.round(financed / months);
-    return Math.round(financed * rate / (1 - Math.pow(1 + rate, -months)));
+    return Math.round(financed * rate / (-Math.expm1(-months * Math.log1p(rate))));
   }
 
-  // Returns [{ n, installment, interest, amortization, balance }] in cents.
   function validateTerms(annualPercent, months) {
     if (typeof annualPercent !== 'number' || !isFinite(annualPercent) || annualPercent < 0 || annualPercent > MAX_ANNUAL_RATE) {
       throw new RangeError('annualRate must be a number between 0 and ' + MAX_ANNUAL_RATE);
@@ -48,6 +47,10 @@
     }
   }
 
+  // Returns [{ n, installment, interest, amortization, balance }] in cents.
+  // Limitation: for cent-level balances the Price installment and interest round
+  // to the same value, so principal may be deferred to the last row (the
+  // schedule still sums to `financed` and ends at 0).
   function schedule(system, financed, annualPercent, months) {
     if (system !== 'sac' && system !== 'price') throw new RangeError('unknown system: ' + system);
     if (!isMoney(financed)) throw new RangeError('invalid financed amount');
