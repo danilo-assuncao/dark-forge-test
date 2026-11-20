@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Dan Books</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main-content">Ir para o conteúdo</a>
+  <header class="site-header">
+    <div class="container header-container">
+      <h1>Dan Books</h1>
+      <button type="button" id="cart-toggle" aria-expanded="false" aria-controls="cart-drawer">
+        Sacola (<span id="cart-count">0</span>)
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content" class="container">
+    <section aria-labelledby="vitrine-title" class="panel">
+      <h2 id="vitrine-title">Acervo</h2>
+      <form id="filters" class="filters" novalidate>
+        <label>Gênero
+          <select id="f-genre" name="genre"><option value="">Todos</option></select>
+        </label>
+      </form>
+      <ul id="catalog-list" class="cards" aria-live="polite"></ul>
+    </section>
+
+    <section aria-labelledby="recommender-title" class="panel">
+      <h2 id="recommender-title">Simulador de Leitura</h2>
+      <form id="recommender-form" class="filters" novalidate>
+        <label>Gênero favorito
+          <select id="r-genre" name="genre"><option value="">Qualquer</option></select>
+        </label>
+        <label>Minutos por dia
+          <input id="r-minutes" name="minutes" type="number" min="1" max="1440" step="1" inputmode="numeric">
+        </label>
+        <button type="submit">Recomendar</button>
+      </form>
+      <div id="recommender-result" hidden aria-live="polite" class="result-box">
+        <h3 id="plan-name"></h3>
+        <p id="plan-price"></p>
+        <p class="muted">Capacidade estimada: <span id="plan-capacity"></span> livro(s)/mês.</p>
+        <h4>Livros sugeridos:</h4>
+        <ul id="plan-titles" class="simple-list"></ul>
+      </div>
+      <p id="recommender-error" class="error" role="alert"></p>
+    </section>
+  </main>
+
+  <aside id="cart-drawer" class="drawer" aria-labelledby="cart-title" hidden>
+    <div class="drawer-head">
+      <h2 id="cart-title">Sua Sacola</h2>
+      <button type="button" id="cart-close">Fechar</button>
+    </div>
+    <div class="drawer-body">
+      <p id="cart-empty" class="muted">A sacola está vazia.</p>
+      <div id="checkout-msg" role="alert" aria-live="polite" class="ok" hidden></div>
+      <ul id="cart-items" class="cart-items"></ul>
+      <div id="cart-summary" hidden>
+        <form id="coupon-form" novalidate>
+          <p id="coupon-error" class="error" hidden></p>
+          <label>Cupom
+            <div class="input-group">
+              <input type="text" id="c-code" placeholder="DANBOOK10">
+              <button type="submit">Aplicar</button>
+            </div>
+          </label>
+          <button type="button" id="c-remove" class="secondary" hidden>Remover Cupom</button>
+        </form>
+        <label class="checkbox-label">
+          <input type="checkbox" id="c-gift"> Embalagem para presente (<span id="gift-price"></span>)
+        </label>
+        <dl class="facts totals">
+          <div><dt>Subtotal</dt><dd id="t-subtotal"></dd></div>
+          <div id="t-discount-row" hidden><dt>Desconto</dt><dd id="t-discount" class="discount"></dd></div>
+          <div id="t-gift-row" hidden><dt>Embalagem</dt><dd id="t-gift"></dd></div>
+          <div class="total-row"><dt>Total</dt><dd id="t-total"></dd></div>
+        </dl>
+        <button type="button" id="checkout-btn">Finalizar Compra</button>
+      </div>
+    </div>
+  </aside>
+
+  <script src="books.js"></script>
+  <script src="recommender.js"></script>
+  <script src="shelf.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
