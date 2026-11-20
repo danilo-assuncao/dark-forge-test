@@ -2,7 +2,7 @@
    drawer and visit scheduling on top of the ImoveisListings, ImoveisMortgage,
    ImoveisCompare and ImoveisVisits modules. Pure helpers are exported via
    module.exports for Node tests; the DOM part runs only in the browser.
-   All dynamic text is written with textContent (never innerHTML). */
+   All dynamic text is written with textContent (no HTML injection). */
 (function (root) {
   'use strict';
 
