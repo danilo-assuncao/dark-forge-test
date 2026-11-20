@@ -2,7 +2,21 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateCoupon } = require('../validator.js');
+const { validateCoupon, normalizeCouponCode } = require('../validator.js');
+
+test('normalizes coupon codes by trimming and uppercasing strings', () => {
+  assert.equal(normalizeCouponCode(' \tSaVe10\n '), 'SAVE10');
+  assert.equal(normalizeCouponCode('SAVE10'), 'SAVE10');
+  assert.equal(normalizeCouponCode(' save 10 '), 'SAVE 10');
+  assert.equal(normalizeCouponCode(''), '');
+  assert.equal(normalizeCouponCode(' \t\n '), '');
+});
+
+test('normalization rejects non-string codes without coercion', () => {
+  for (const raw of [undefined, null, 10, true, {}, []]) {
+    assert.throws(() => normalizeCouponCode(raw), TypeError);
+  }
+});
 
 const coupon = { code: 'SAVE10', minOrderBrl: 100, percentOff: 10, maxUses: 3, usedCount: 0 };
 

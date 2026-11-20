@@ -1,5 +1,13 @@
 'use strict';
 
+/** Normalize string codes without coercing other input types. */
+function normalizeCouponCode(raw) {
+  if (typeof raw !== 'string') {
+    throw new TypeError('code must be a string.');
+  }
+  return raw.trim().toUpperCase();
+}
+
 function assertFiniteNumber(value, label) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TypeError(`${label} must be a finite number.`);
@@ -48,4 +56,4 @@ function validateCoupon(coupon, orderTotalBrl) {
   return orderTotalBrl >= minOrderBrl && usedCount < maxUses;
 }
 
-module.exports = { validateCoupon };
+module.exports = { validateCoupon, normalizeCouponCode };
