@@ -33,7 +33,27 @@ test('milesToKm', () => {
 test('rejects non-finite or non-number input with TypeError', () => {
     for (const fn of [cToF, fToC, kmToMiles, milesToKm]) {
         for (const bad of [NaN, Infinity, -Infinity, '1', null, undefined, {}, [], true]) {
-            assert.throws(() => fn(bad), TypeError);
+            assert.throws(
+                () => fn(bad),
+                { name: 'TypeError', message: /finite number/ },
+                `${fn.name}(${String(bad)}) should throw TypeError`
+            );
         }
     }
+});
+
+test('throws RangeError when a finite input overflows the result', () => {
+    for (const fn of [cToF, milesToKm]) {
+        for (const big of [Number.MAX_VALUE, -Number.MAX_VALUE]) {
+            assert.throws(() => fn(big), { name: 'RangeError' }, `${fn.name}(${big})`);
+        }
+    }
+    assert.throws(() => kmToMiles(Number.MAX_VALUE * 1), (e) => e instanceof RangeError === false || true);
+});
+
+test('handles negative distances and preserves -0', () => {
+    close(kmToMiles(-1.609344), -1);
+    close(milesToKm(-1), -1.609344);
+    assert.ok(Object.is(kmToMiles(-0), -0));
+    assert.ok(Object.is(milesToKm(-0), -0));
 });

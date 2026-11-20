@@ -6,26 +6,33 @@ function assertFinite(value, name) {
     }
 }
 
+function assertFiniteResult(result, name) {
+    if (!Number.isFinite(result)) {
+        throw new RangeError(`${name} result is out of range`);
+    }
+    return result;
+}
+
 const KM_PER_MILE = 1.609344;
 
 function cToF(c) {
     assertFinite(c, 'c');
-    return (c * 9) / 5 + 32;
+    return assertFiniteResult(c * 1.8 + 32, 'cToF');
 }
 
 function fToC(f) {
     assertFinite(f, 'f');
-    return ((f - 32) * 5) / 9;
+    return assertFiniteResult(((f - 32) * 5) / 9, 'fToC');
 }
 
 function kmToMiles(km) {
     assertFinite(km, 'km');
-    return km / KM_PER_MILE;
+    return assertFiniteResult(km / KM_PER_MILE, 'kmToMiles');
 }
 
 function milesToKm(mi) {
     assertFinite(mi, 'mi');
-    return mi * KM_PER_MILE;
+    return assertFiniteResult(mi * KM_PER_MILE, 'milesToKm');
 }
 
 module.exports = { cToF, fToC, kmToMiles, milesToKm };
