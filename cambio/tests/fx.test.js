@@ -12,6 +12,8 @@ test('converts BRL using a rate expressed in BRL per USD', () => {
 test('rounds down, up, and half cents to two decimal places', () => {
   assert.equal(convertBrlToUsd(10, 3), 3.33);
   assert.equal(convertBrlToUsd(20, 3), 6.67);
+  assert.equal(convertBrlToUsd(1.01, 2), 0.51);
+  assert.equal(convertBrlToUsd(2.01, 2), 1.01);
   assert.equal(convertBrlToUsd(1.005, 1), 1.01);
   assert.equal(convertBrlToUsd(2.675, 1), 2.68);
   assert.equal(convertBrlToUsd(10.005, 1), 10.01);
