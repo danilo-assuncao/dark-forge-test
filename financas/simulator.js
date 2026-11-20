@@ -1,13 +1,19 @@
 'use strict';
 
 const PRODUCTS = ['CDB', 'LCI'];
+const MAX_MONTHS = 1200;
+const MAX_BRL = 1e12;
+const MAX_ANNUAL_RATE_PCT = 1000;
 
-function assertNonNegativeFinite(value, name) {
+function assertNonNegativeFinite(value, name, max) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TypeError(`${name} must be a finite number`);
   }
   if (value < 0) {
     throw new RangeError(`${name} must not be negative`);
+  }
+  if (value > max) {
+    throw new RangeError(`${name} must not exceed ${max}`);
   }
 }
 
@@ -32,11 +38,11 @@ function round2(value) {
 // regressive IR rate is based on the total term and applies to the whole gross
 // yield, which is a simplification of per-deposit taxation.
 function simulateFixedIncome({ initialBrl, monthlyBrl, months, annualRatePct, product } = {}) {
-  assertNonNegativeFinite(initialBrl, 'initialBrl');
-  assertNonNegativeFinite(monthlyBrl, 'monthlyBrl');
-  assertNonNegativeFinite(annualRatePct, 'annualRatePct');
-  if (!Number.isInteger(months) || months <= 0) {
-    throw new RangeError('months must be a positive integer');
+  assertNonNegativeFinite(initialBrl, 'initialBrl', MAX_BRL);
+  assertNonNegativeFinite(monthlyBrl, 'monthlyBrl', MAX_BRL);
+  assertNonNegativeFinite(annualRatePct, 'annualRatePct', MAX_ANNUAL_RATE_PCT);
+  if (!Number.isInteger(months) || months <= 0 || months > MAX_MONTHS) {
+    throw new RangeError(`months must be an integer between 1 and ${MAX_MONTHS}`);
   }
   if (!PRODUCTS.includes(product)) {
     throw new RangeError("product must be 'CDB' or 'LCI'");
@@ -50,14 +56,20 @@ function simulateFixedIncome({ initialBrl, monthlyBrl, months, annualRatePct, pr
 
   const totalInvested = initialBrl + monthlyBrl * months;
   const gross = balance;
+  if (!Number.isFinite(gross) || !Number.isFinite(totalInvested)) {
+    throw new RangeError('Simulation result is out of range');
+  }
   const yieldBrl = Math.max(gross - totalInvested, 0);
   const tax = product === 'CDB' ? yieldBrl * cdbTaxRate(months) : 0;
 
+  // Round the components first so the reported figures always reconcile.
+  const grossBrl = round2(gross);
+  const taxBrl = round2(tax);
   return {
     totalInvestedBrl: round2(totalInvested),
-    grossBrl: round2(gross),
-    taxBrl: round2(tax),
-    netBrl: round2(gross - tax),
+    grossBrl,
+    taxBrl,
+    netBrl: round2(grossBrl - taxBrl),
   };
 }
 

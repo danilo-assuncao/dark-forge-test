@@ -14,15 +14,25 @@ test('LCI is tax free', () => {
   assert.equal(r.netBrl, 1120);
 });
 
-test('CDB applies regressive IR brackets', () => {
+test('CDB applies regressive IR brackets with independent expected values', () => {
   const cases = [
-    [1, 0.225], [6, 0.225], [7, 0.2], [12, 0.2], [13, 0.175], [24, 0.175], [25, 0.15], [36, 0.15],
+    [6, { grossBrl: 1058.3, taxBrl: 13.12, netBrl: 1045.18 }],
+    [7, { grossBrl: 1068.34, taxBrl: 13.67, netBrl: 1054.67 }],
+    [13, { grossBrl: 1130.63, taxBrl: 22.86, netBrl: 1107.77 }],
+    [25, { grossBrl: 1266.3, taxBrl: 39.95, netBrl: 1226.35 }],
   ];
-  for (const [months, rate] of cases) {
+  for (const [months, expected] of cases) {
     const r = simulateFixedIncome({ ...base, months, product: 'CDB' });
-    const expectedTax = Math.round((r.grossBrl - r.totalInvestedBrl) * rate * 100) / 100;
-    assert.ok(Math.abs(r.taxBrl - expectedTax) <= 0.02, `months=${months}`);
-    assert.ok(Math.abs(r.netBrl - (r.grossBrl - r.taxBrl)) <= 0.011, `net months=${months}`);
+    assert.deepEqual(r, { totalInvestedBrl: 1000, ...expected }, `months=${months}`);
+  }
+});
+
+test('reported figures always reconcile exactly', () => {
+  for (let months = 1; months <= 60; months += 1) {
+    for (const product of ['CDB', 'LCI']) {
+      const r = simulateFixedIncome({ initialBrl: 1234.56, monthlyBrl: 77.77, months, annualRatePct: 13.37, product });
+      assert.equal(Math.round((r.grossBrl - r.taxBrl) * 100), Math.round(r.netBrl * 100));
+    }
   }
 });
 
@@ -49,4 +59,50 @@ test('rejects invalid input', () => {
   assert.throws(() => simulateFixedIncome({ ...ok, initialBrl: -1 }), RangeError);
   assert.throws(() => simulateFixedIncome({ ...ok, annualRatePct: NaN }), TypeError);
   assert.throws(() => simulateFixedIncome({ ...ok, monthlyBrl: '1' }), TypeError);
+});
+
+test('monthly deposits earn interest from the following month', () => {
+  const r = simulateFixedIncome({ initialBrl: 0, monthlyBrl: 100, months: 2, annualRatePct: 12.6825, product: 'LCI' });
+  assert.deepEqual(r, { totalInvestedBrl: 200, grossBrl: 201, taxBrl: 0, netBrl: 201 });
+});
+
+test('CDB taxes gross minus total invested with initial and monthly deposits', () => {
+  const r = simulateFixedIncome({ initialBrl: 1000, monthlyBrl: 100, months: 12, annualRatePct: 12, product: 'CDB' });
+  assert.deepEqual(r, { totalInvestedBrl: 2200, grossBrl: 2384.65, taxBrl: 36.93, netBrl: 2347.72 });
+});
+
+test('CDB with zero yield has zero tax, and zero input is all zeros', () => {
+  assert.deepEqual(
+    simulateFixedIncome({ initialBrl: 1000, monthlyBrl: 0, months: 3, annualRatePct: 0, product: 'CDB' }),
+    { totalInvestedBrl: 1000, grossBrl: 1000, taxBrl: 0, netBrl: 1000 },
+  );
+  assert.deepEqual(
+    simulateFixedIncome({ initialBrl: 0, monthlyBrl: 0, months: 3, annualRatePct: 10, product: 'CDB' }),
+    { totalInvestedBrl: 0, grossBrl: 0, taxBrl: 0, netBrl: 0 },
+  );
+});
+
+test('rounds half cents up', () => {
+  const r = simulateFixedIncome({ initialBrl: 0.005, monthlyBrl: 0, months: 1, annualRatePct: 0, product: 'LCI' });
+  assert.equal(r.grossBrl, 0.01);
+});
+
+test('handles the largest allowed amount', () => {
+  const r = simulateFixedIncome({ initialBrl: 1e12, monthlyBrl: 0, months: 1, annualRatePct: 0, product: 'CDB' });
+  assert.deepEqual(r, { totalInvestedBrl: 1e12, grossBrl: 1e12, taxBrl: 0, netBrl: 1e12 });
+});
+
+test('rejects Infinity, missing args, negatives, NaN months and out-of-range bounds', () => {
+  const ok = { ...base, months: 12, product: 'CDB' };
+  assert.throws(() => simulateFixedIncome(), TypeError);
+  assert.throws(() => simulateFixedIncome({}), TypeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, initialBrl: Infinity }), TypeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, monthlyBrl: -1 }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, annualRatePct: -1 }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, months: NaN }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, months: 1201 }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, months: 1e15 }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, initialBrl: 1e21 }), RangeError);
+  assert.throws(() => simulateFixedIncome({ ...ok, annualRatePct: 1e6 }), RangeError);
+  assert.doesNotThrow(() => simulateFixedIncome({ ...ok, months: 1200 }));
 });
