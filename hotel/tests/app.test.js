@@ -25,6 +25,12 @@ test('reservation validates input and returns a formatted reference and current 
   const reservation = createReservation(base);
   assert.match(reservation.code, /^HTL-[0-9A-F]{4}$/);
   assert.equal(reservation.total, 1012.4);
+  
+  const baseNoAddons = { ...base };
+  delete baseNoAddons.addonIds;
+  const noAddonsQuote = calculateBooking(baseNoAddons);
+  assert.equal(noAddonsQuote.extras.total, 0);
+
   for (const overrides of [{ guests: 3 }, { checkOutIso: base.checkInIso }, { checkInIso: '2026-02-30' }, { checkOutIso: '2026-08-01' }, { addonIds: ['unknown'] }]) {
     assert.throws(() => createReservation({ ...base, ...overrides }), RangeError);
   }
@@ -33,6 +39,7 @@ test('reservation validates input and returns a formatted reference and current 
 // Minimal DOM harness exercises event handlers without adding runtime dependencies.
 class Element {
   constructor(tag = 'div') { this.tagName = tag; this.children = []; this.events = {}; this.value = ''; this.checked = false; this.hidden = false; this.text = ''; }
+  set innerHTML(_) { throw new Error('innerHTML is forbidden. Use textContent or DOM nodes.'); }
   set textContent(value) { this.text = String(value); this.children = []; }
   get textContent() { return this.text + this.children.map(child => child.textContent).join(''); }
   append(...children) { this.children.push(...children); }
@@ -50,6 +57,22 @@ function setup() {
   return { elements, set };
 }
 
+test('browser bootstrap path exports to globalThis and calls init', () => {
+  const globalObj = {
+    document: { getElementById: () => new Element(), createElement: tag => new Element(tag) },
+    HotelRooms: { listRooms: () => [] },
+    HotelPricing: {},
+    HotelAddons: { listAddons: () => [] },
+    Intl: { NumberFormat: class { format(v) { return String(v); } } }
+  };
+  require('node:vm').runInNewContext(`
+    const module = undefined;
+    ${require('node:fs').readFileSync('./hotel/app.js', 'utf8')}
+  `, globalObj);
+  assert.ok(globalObj.HotelApp.init);
+  assert.ok(globalObj.HotelApp.calculateBooking);
+});
+
 test('DOM filters suites, handles empty results and recovers after invalid input', () => {
   const { elements: el, set } = setup();
   assert.equal(el.rooms.children.length, 4);
@@ -62,6 +85,13 @@ test('DOM filters suites, handles empty results and recovers after invalid input
   assert.match(el['room-status'].textContent, /Nenhuma/);
   set('guests', '1.5');
   assert.match(el.error.textContent, /inteira/);
+  
+  for (const invalid of ['', '0', '-1']) {
+    set('guests', invalid);
+    assert.equal(el.confirm.disabled, true);
+    assert.match(el.error.textContent, /inteira/);
+  }
+
   set('guests', '2');
   set('check-in', base.checkInIso);
   set('check-out', base.checkOutIso);
@@ -71,11 +101,39 @@ test('DOM filters suites, handles empty results and recovers after invalid input
   assert.equal(el.quote.textContent, '');
 });
 
+test('DOM maintains room fallback and handles addon unchecking', () => {
+  const { elements: el, set } = setup();
+  set('check-in', base.checkInIso);
+  set('check-out', base.checkOutIso);
+  
+  // Select an addon
+  const breakfastInput = el.addons.children[0].children[0];
+  breakfastInput.checked = true;
+  breakfastInput.fire('change');
+  
+  // Change guests to force a re-render
+  set('guests', '4');
+  
+  // Assert fallback to first available suite (family)
+  const firstAvailable = el.rooms.children[0].children[0];
+  assert.equal(firstAvailable.value, 'family');
+  assert.equal(firstAvailable.checked, true);
+  
+  // Assert addon is still selected
+  assert.match(el.quote.textContent, /Cafe da manha/i);
+  
+  // Uncheck addon
+  breakfastInput.checked = false;
+  breakfastInput.fire('change');
+  assert.doesNotMatch(el.quote.textContent, /Cafe da manha/i);
+});
+
 test('DOM updates extras and coupon, confirms current selection, and clears stale confirmations', () => {
   const { elements: el, set } = setup();
   set('check-in', base.checkInIso);
   set('check-out', base.checkOutIso);
   set('coupon', 'danstay10');
+  assert.match(el['coupon-status'].textContent, /aplicado/i);
   for (const label of el.addons.children.slice(0, 2)) {
     const input = label.children[0]; input.checked = true; input.fire('change');
   }

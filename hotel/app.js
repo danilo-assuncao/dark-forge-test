@@ -74,10 +74,13 @@
       byId('quote').replaceChildren();
       const input = read();
       const coupon = input.couponCode.trim().toUpperCase();
-      byId('coupon-status').textContent = !coupon ? 'Use DANSTAY10 para 10% de desconto na hospedagem.'
-        : coupon === 'DANSTAY10' ? 'Cupom DANSTAY10 aplicado à hospedagem.' : 'Cupom não reconhecido. Nenhum desconto de cupom aplicado.';
-      if (!Number.isInteger(input.guests) || input.guests < 1 || !selectedRoom) {
-        byId('error').textContent = 'Informe uma quantidade inteira de hóspedes compatível com uma suíte.';
+      byId('coupon-status').textContent = '';
+      if (!Number.isInteger(input.guests) || input.guests < 1) {
+        byId('error').textContent = 'Informe uma quantidade inteira de hóspedes (mínimo 1).';
+        return;
+      }
+      if (!selectedRoom) {
+        byId('error').textContent = 'Nenhuma suíte disponível para essa quantidade de hóspedes.';
         return;
       }
       if (!input.checkInIso || !input.checkOutIso) {
@@ -86,6 +89,8 @@
       }
       try {
         const quote = calculateBooking(input);
+        byId('coupon-status').textContent = !coupon ? 'Use DANSTAY10 para 10% de desconto na hospedagem.'
+          : coupon === 'DANSTAY10' ? 'Cupom DANSTAY10 aplicado à hospedagem.' : 'Cupom não reconhecido. Nenhum desconto de cupom aplicado.';
         const dl = element('dl');
         const lines = [
           [`Hospedagem · ${quote.stay.nights} noite(s)`, quote.stay.baseTotal],
@@ -100,7 +105,7 @@
         lines.forEach(([label, amount], index) => {
           const row = element('div');
           row.className = index === lines.length - 1 ? 'line total' : 'line';
-          row.append(element('dt', label), element('dd', money(amount)));
+          row.append(element('dt', label), element('dd', money(amount === 0 ? 0 : amount)));
           dl.append(row);
         });
         byId('quote').append(dl);
