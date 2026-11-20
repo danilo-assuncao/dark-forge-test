@@ -1,40 +1,108 @@
 'use strict';
 
+// WARNING: localStorage stores PII in plaintext. Query methods do not enforce authorization.
 const STORAGE_KEY = 'clinica-appointments';
 
 function generateProtocol() {
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
     let code = '';
-    for (let i = 0; i < 4; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
+    const cryptoObj = typeof crypto !== 'undefined' ? crypto : (typeof require !== 'undefined' ? require('crypto') : null);
+    
+    if (cryptoObj && cryptoObj.getRandomValues) {
+        const arr = new Uint8Array(12);
+        cryptoObj.getRandomValues(arr);
+        for (let i = 0; i < 12; i++) {
+            code += chars[arr[i] % chars.length];
+        }
+    } else if (cryptoObj && cryptoObj.randomBytes) {
+        const arr = cryptoObj.randomBytes(12);
+        for (let i = 0; i < 12; i++) {
+            code += chars[arr[i] % chars.length];
+        }
+    } else {
+        for (let i = 0; i < 12; i++) {
+            code += chars[Math.floor(Math.random() * chars.length)];
+        }
     }
     return `MED-${code}`;
+}
+
+function generateCancelToken() {
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    let code = '';
+    const cryptoObj = typeof crypto !== 'undefined' ? crypto : (typeof require !== 'undefined' ? require('crypto') : null);
+    
+    if (cryptoObj && cryptoObj.getRandomValues) {
+        const arr = new Uint8Array(16);
+        cryptoObj.getRandomValues(arr);
+        for (let i = 0; i < 16; i++) {
+            code += chars[arr[i] % chars.length];
+        }
+    } else if (cryptoObj && cryptoObj.randomBytes) {
+        const arr = cryptoObj.randomBytes(16);
+        for (let i = 0; i < 16; i++) {
+            code += chars[arr[i] % chars.length];
+        }
+    } else {
+        for (let i = 0; i < 16; i++) {
+            code += chars[Math.floor(Math.random() * chars.length)];
+        }
+    }
+    return code;
+}
+
+function isValidCalendarDate(d) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    const [y, m, day] = d.split('-').map(Number);
+    const date = new Date(y, m - 1, day);
+    return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === day;
+}
+
+function isValidTime(t) {
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 }
 
 class AppointmentEngine {
     constructor(storage) {
         this.storage = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-        this.appointments = this._load();
+        this.quarantined = [];
+        this.appointments = this._load(true);
     }
 
-    _load() {
-        if (!this.storage) return [];
+    _load(isInit = false) {
+        if (!this.storage) {
+            return isInit ? [] : (this.appointments || []);
+        }
         try {
             const data = this.storage.getItem(STORAGE_KEY);
             if (!data) return [];
             const parsed = JSON.parse(data);
             if (!Array.isArray(parsed)) return [];
             
-            return parsed.filter(a => {
-                if (!a || typeof a !== 'object') return false;
-                if (typeof a.protocol !== 'string' || !a.protocol.startsWith('MED-')) return false;
-                if (typeof a.doctorId !== 'string' || !a.doctorId.trim()) return false;
-                if (typeof a.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) return false;
-                if (typeof a.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(a.time)) return false;
-                if (typeof a.patientName !== 'string' || !a.patientName.trim()) return false;
-                if (a.status !== 'BOOKED' && a.status !== 'CANCELLED') return false;
-                return true;
-            });
+            const valid = [];
+            const invalid = [];
+            const seenProtocols = new Set();
+            
+            for (const a of parsed) {
+                let isValid = true;
+                if (!a || typeof a !== 'object') isValid = false;
+                else if (typeof a.protocol !== 'string' || !a.protocol.startsWith('MED-')) isValid = false;
+                else if (typeof a.doctorId !== 'string' || !a.doctorId.trim()) isValid = false;
+                else if (typeof a.date !== 'string' || !isValidCalendarDate(a.date)) isValid = false;
+                else if (typeof a.time !== 'string' || !isValidTime(a.time)) isValid = false;
+                else if (typeof a.patientName !== 'string' || !a.patientName.trim() || a.patientName.trim().length > 200) isValid = false;
+                else if (a.status !== 'BOOKED' && a.status !== 'CANCELLED') isValid = false;
+                else if (seenProtocols.has(a.protocol)) isValid = false;
+                
+                if (isValid) {
+                    seenProtocols.add(a.protocol);
+                    valid.push(a);
+                } else {
+                    invalid.push(a);
+                }
+            }
+            this.quarantined = invalid;
+            return valid;
         } catch (e) {
             return [];
         }
@@ -42,7 +110,8 @@ class AppointmentEngine {
 
     _save() {
         if (!this.storage) return;
-        this.storage.setItem(STORAGE_KEY, JSON.stringify(this.appointments));
+        const allData = [...this.appointments, ...this.quarantined];
+        this.storage.setItem(STORAGE_KEY, JSON.stringify(allData));
     }
     
     _generateUniqueProtocol() {
@@ -77,11 +146,11 @@ class AppointmentEngine {
             throw new Error("Patient name is too long");
         }
 
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+        if (!isValidCalendarDate(normalizedDate)) {
             throw new Error("Invalid date format. Expected YYYY-MM-DD");
         }
         
-        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(normalizedTime)) {
+        if (!isValidTime(normalizedTime)) {
             throw new Error("Invalid time format. Expected HH:MM");
         }
 
@@ -97,8 +166,10 @@ class AppointmentEngine {
         }
 
         const protocol = this._generateUniqueProtocol();
+        const cancelToken = generateCancelToken();
         const appointment = {
             protocol,
+            cancelToken,
             doctorId: normalizedDoctorId,
             date: normalizedDate,
             time: normalizedTime,
@@ -119,29 +190,55 @@ class AppointmentEngine {
     }
 
     getAppointmentsByDoctor(doctorId) {
+        this.appointments = this._load();
         if (doctorId == null) return [];
         return this.appointments
             .filter(a => a.doctorId === String(doctorId).trim())
-            .map(a => ({ ...a }));
+            .map(a => {
+                const copy = { ...a };
+                delete copy.cancelToken; // Do not expose token on query
+                return copy;
+            });
     }
 
     getAppointmentsByPatient(patientName) {
-        if (patientName == null) return [];
+        this.appointments = this._load();
+        if (patientName == null || !String(patientName).trim()) return [];
         const target = String(patientName).trim().toLowerCase();
         return this.appointments
             .filter(a => String(a.patientName || '').toLowerCase() === target)
-            .map(a => ({ ...a }));
+            .map(a => {
+                const copy = { ...a };
+                delete copy.cancelToken;
+                return copy;
+            });
     }
 
     getAllAppointments() {
-        return this.appointments.map(a => ({ ...a }));
+        this.appointments = this._load();
+        return this.appointments.map(a => {
+            const copy = { ...a };
+            delete copy.cancelToken;
+            return copy;
+        });
     }
     
-    cancelAppointment(protocol, patientName) {
+    // Constant time string comparison
+    _constantTimeEqual(a, b) {
+        if (typeof a !== 'string' || typeof b !== 'string') return false;
+        if (a.length !== b.length) return false;
+        let result = 0;
+        for (let i = 0; i < a.length; i++) {
+            result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+        }
+        return result === 0;
+    }
+
+    cancelAppointment(protocol, cancelToken) {
         this.appointments = this._load();
 
-        if (!patientName) {
-            throw new Error("Patient name is required to cancel an appointment.");
+        if (!cancelToken || typeof cancelToken !== 'string') {
+            return false;
         }
 
         const index = this.appointments.findIndex(a => a.protocol === protocol);
@@ -149,12 +246,12 @@ class AppointmentEngine {
 
         const apt = this.appointments[index];
 
-        if (String(apt.patientName).trim().toLowerCase() !== String(patientName).trim().toLowerCase()) {
-            throw new Error("Authorization failed: Patient name does not match.");
+        if (!apt.cancelToken || !this._constantTimeEqual(apt.cancelToken, cancelToken)) {
+            return false; // same response as not found
         }
         
         if (apt.status === 'CANCELLED') {
-            return true;
+            return false;
         }
 
         apt.status = 'CANCELLED';
@@ -179,6 +276,7 @@ if (typeof module !== 'undefined' && module.exports) {
         STORAGE_KEY,
         AppointmentEngine,
         createEngine,
-        generateProtocol
+        generateProtocol,
+        generateCancelToken
     };
 }
