@@ -65,6 +65,10 @@
     return PROTOCOL_PREFIX + ('0000' + n).slice(-4);
   }
 
+  // The protocol is a non-secret, non-unique display reference (random over
+  // only 9,999 values). Never use it as an access token or a unique key; if
+  // uniqueness or unguessability is needed, assign sequence numbers server-side
+  // and pair them with a separate secret.
   // Generates a protocol; `rng` (default Math.random) must return a value in
   // [0, 1). Out-of-range or non-finite values yield a RangeError.
   function generateProtocol(rng) {

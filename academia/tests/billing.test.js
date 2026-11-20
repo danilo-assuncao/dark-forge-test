@@ -107,3 +107,34 @@ test('netMonthly with coupon and annualSavings literals', () => {
   assert.equal(bad.couponCode, null);
   assert.equal(bad.savingsCents, 31176);
 });
+
+test('browser context: exports window.DanFitBilling and uses window.DanFitPlans', () => {
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const load = (file, ctx) => vm.runInNewContext(fs.readFileSync(require.resolve(file), 'utf8'), ctx);
+  const ctx = { window: {} };
+  load('../plans.js', ctx);
+  load('../billing.js', ctx);
+  assert.equal(ctx.window.DanFitBilling.simulate('start', 'mensal').totalCents, 8990);
+});
+
+test('browser context without plans.js throws a clear error from simulate', () => {
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const ctx = { window: {} };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../billing.js'), 'utf8'), ctx);
+  assert.throws(() => ctx.window.DanFitBilling.simulate('start', 'mensal'),
+    /billing\.js requires plans\.js to be loaded first/);
+});
+
+test('generateProtocol falls back to Math.random for a non-function rng', () => {
+  const original = Math.random;
+  Math.random = () => 0.5;
+  try {
+    assert.equal(b.generateProtocol(), 'FIT-5000');
+    assert.equal(b.generateProtocol(null), 'FIT-5000');
+    assert.equal(b.generateProtocol(42), 'FIT-5000');
+  } finally {
+    Math.random = original;
+  }
+});
