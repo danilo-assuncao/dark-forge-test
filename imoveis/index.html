@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Dan Imóveis — Venda e Aluguel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#results">Ir para os resultados</a>
+  <header class="site-header">
+    <h1>Dan Imóveis</h1>
+    <p>Encontre, compare, simule o financiamento e agende sua visita.</p>
+  </header>
+
+  <main>
+    <section aria-labelledby="search-title" class="panel">
+      <h2 id="search-title">Buscar imóveis</h2>
+      <form id="filters" class="filters" novalidate>
+        <label>Tipo
+          <select id="f-type" name="type"><option value="">Todos</option></select>
+        </label>
+        <label>Modalidade
+          <select id="f-modality" name="modality"><option value="">Todas</option></select>
+        </label>
+        <label>Bairro
+          <select id="f-neighborhood" name="neighborhood"><option value="">Todos</option></select>
+        </label>
+        <label>Quartos (mín.)
+          <input id="f-bedrooms" name="bedrooms" type="number" min="0" max="10" inputmode="numeric">
+        </label>
+        <label>Preço máx. (R$)
+          <input id="f-maxprice" name="maxPrice" type="number" min="0" step="1000" inputmode="numeric">
+        </label>
+        <label>Busca
+          <input id="f-q" name="q" type="search" placeholder="Título ou bairro">
+        </label>
+        <button type="reset" id="f-reset">Limpar</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="results-title" id="results" tabindex="-1">
+      <h2 id="results-title">Resultados</h2>
+      <p id="results-count" role="status" aria-live="polite"></p>
+      <ul id="cards" class="cards"></ul>
+    </section>
+
+    <section id="detail" class="panel" aria-labelledby="detail-title" hidden>
+      <div class="detail-head">
+        <h2 id="detail-title" tabindex="-1"></h2>
+        <button type="button" id="detail-close">Fechar</button>
+      </div>
+      <dl id="detail-facts" class="facts"></dl>
+
+      <div id="sim" class="sim" hidden>
+        <h3>Simulador de financiamento</h3>
+        <form id="sim-form" novalidate>
+          <label>Entrada (%)
+            <input id="s-down" type="number" min="0" max="100" step="1" value="20">
+          </label>
+          <label>Taxa (% a.a.)
+            <input id="s-rate" type="number" min="0" max="100" step="0.1" value="10.5">
+          </label>
+          <label>Prazo (anos)
+            <input id="s-years" type="number" min="1" max="50" step="1" value="30">
+          </label>
+        </form>
+        <p id="sim-error" class="error" role="alert"></p>
+        <table id="sim-table" class="table">
+          <caption>SAC × Price</caption>
+          <thead><tr><th scope="col"></th><th scope="col">SAC</th><th scope="col">Price</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="sim-note" class="muted"></p>
+      </div>
+
+      <div class="visit">
+        <h3>Agendar visita</h3>
+        <form id="visit-form" novalidate>
+          <label>Modalidade
+            <select id="v-mode"></select>
+          </label>
+          <label>Data
+            <input id="v-date" type="date">
+          </label>
+          <label>Turno
+            <select id="v-shift"></select>
+          </label>
+          <label>Nome completo
+            <input id="v-name" type="text" autocomplete="name" maxlength="100">
+          </label>
+          <label>E-mail
+            <input id="v-email" type="email" autocomplete="email" maxlength="254">
+          </label>
+          <label>Telefone
+            <input id="v-phone" type="tel" autocomplete="tel" placeholder="(11) 98765-4321">
+          </label>
+          <button type="submit">Confirmar visita</button>
+        </form>
+        <p id="visit-msg" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <aside id="drawer" class="drawer" aria-labelledby="drawer-title">
+    <div class="drawer-head">
+      <h2 id="drawer-title">Comparar (<span id="cmp-count">0</span>/3)</h2>
+      <button type="button" id="drawer-toggle" aria-expanded="false" aria-controls="drawer-body">Abrir</button>
+    </div>
+    <div id="drawer-body" hidden>
+      <p id="cmp-empty" class="muted">Adicione até 3 imóveis para comparar.</p>
+      <table id="cmp-table" class="table" hidden>
+        <thead><tr id="cmp-head"></tr></thead>
+        <tbody id="cmp-body"></tbody>
+      </table>
+      <button type="button" id="cmp-clear">Limpar comparação</button>
+    </div>
+  </aside>
+
+  <script src="listings.js"></script>
+  <script src="mortgage.js"></script>
+  <script src="compare.js"></script>
+  <script src="visits.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
