@@ -300,7 +300,8 @@
         });
         var added = cart.totals(st).tickets - cart.totals(previous).tickets;
         if (!added) {
-          msg.textContent = 'Limite de ' + cart.MAX_QTY + ' ingressos por evento, setor, lote e tipo atingido.';
+          var isLimit = previous.items.some(function (i) { return i.eventId === e.id && i.sectorId === sector.id && i.lotId === lot.id && i.type === typeSel.value && i.qty >= cart.MAX_QTY; });
+          msg.textContent = isLimit ? 'Limite de ' + cart.MAX_QTY + ' ingressos por evento, setor, lote e tipo atingido.' : 'Erro ao adicionar à sacola. Verifique os dados.';
           return;
         }
         if (!cart.save(st)) { msg.textContent = 'Não foi possível salvar a sacola. Verifique o armazenamento do navegador e tente novamente.'; return; }
@@ -335,8 +336,14 @@
       var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
       if (!ev) { changed = true; return; }
       var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
-      if (!sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
-      if (i.unitCents !== sel.lot.priceCents) { i.unitCents = sel.lot.priceCents; changed = true; }
+      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
+      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
+        i.unitCents = sel.lot.priceCents; 
+        i.sectorName = sel.sector.name;
+        i.lotName = sel.lot.name;
+        i.eventName = ev.name;
+        changed = true; 
+      }
       revalidated.push(i);
     });
     if (changed) {

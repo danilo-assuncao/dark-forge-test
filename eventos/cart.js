@@ -71,8 +71,10 @@
     if (!isValidItem(item)) return state;
     var next = { items: state.items.map(function (i) { return Object.assign({}, i); }), coupon: state.coupon };
     var found = next.items.filter(function (i) { return sameLine(i, item); })[0];
-    if (found) found.qty = Math.min(MAX_QTY, found.qty + qty);
-    else next.items.push(Object.assign(item, { qty: Math.min(MAX_QTY, qty) }));
+    if (found) {
+      found.qty = Math.min(MAX_QTY, found.qty + qty);
+      found.unitCents = item.unitCents;
+    } else next.items.push(Object.assign(item, { qty: Math.min(MAX_QTY, qty) }));
     return next;
   }
 

@@ -236,6 +236,8 @@ test('UI adds both ticket types, reloads the bag, applies and removes coupons, e
   assert.equal(JSON.parse(storage._m['dan-tickets-cart']).coupon, 'DANSHOW10');
   bag.find(n => n.name === 'cupom').value = '';
   bag.find(n => n.tag === 'form').fire('submit');
+  assert.doesNotMatch(bag.app.textContent, /Cupom DANSHOW10/);
+  assert.equal(JSON.parse(storage._m['dan-tickets-cart']).coupon, '');
   const quantity = bag.find(n => n.type === 'number');
   quantity.value = '1.5'; quantity.fire('change');
   assert.equal(quantity.value, '1');
@@ -252,6 +254,12 @@ test('UI reports partial additions and does not claim success when the line is f
   const storage = memStorage();
   const page = mount(storage, '#/evento/rock-festival?setor=pista&lote=lote-2');
   const buy = page.find(n => n.tag === 'form');
+  page.find(n => n.name === 'qtd').value = '11';
+  buy.fire('submit');
+  assert.match(page.app.textContent, /Quantidade deve ser de 1 a 10/);
+  page.find(n => n.name === 'qtd').value = '0';
+  buy.fire('submit');
+  assert.match(page.app.textContent, /Quantidade deve ser de 1 a 10/);
   page.find(n => n.name === 'qtd').value = '8';
   buy.fire('submit');
   page.find(n => n.name === 'qtd').value = '3';
@@ -281,4 +289,40 @@ test('UI reports failed persistence and restores the saved quantity', () => {
   bag.find(n => n.tag === 'form').fire('submit');
   assert.match(bag.app.textContent, /Não foi possível salvar a sacola/);
   assert.equal(bag.count.textContent, '1');
+});
+
+test('UI revalidates cart lines against the catalog and drops or reprices accordingly', () => {
+  const cart = require('../cart.js');
+  const storage = memStorage();
+  
+  // (a) unknown eventId
+  // (b) sold-out lot
+  // (c) stale unitCents
+  // (d) unknown sectorId
+  const lUnknownEvent = line({ eventId: 'missing-event', sectorId: 'pista', lotId: 'lote-2' });
+  const lSoldOutLot = line({ eventId: 'rock-festival', sectorId: 'pista', lotId: 'lote-3' }); // lote-3 is sold out
+  const lStalePrice = line({ eventId: 'rock-festival', sectorId: 'pista', lotId: 'lote-2', unitCents: 99999, eventName: 'Old', sectorName: 'Old S', lotName: 'Old L' });
+  const lUnknownSector = line({ eventId: 'rock-festival', sectorId: 'missing-sector', lotId: 'lote-2' });
+  
+  let st = cart.emptyState();
+  st = cart.addItem(st, lUnknownEvent);
+  st = cart.addItem(st, lSoldOutLot);
+  st = cart.addItem(st, lStalePrice);
+  st = cart.addItem(st, lUnknownSector);
+  
+  cart.save(st, storage);
+  
+  const bag = mount(storage, '#/sacola');
+  const saved = JSON.parse(storage._m['dan-tickets-cart']);
+  
+  assert.equal(saved.items.length, 1);
+  assert.equal(saved.items[0].unitCents, 15000); // the real price of rock-festival pista lote-2
+  assert.equal(saved.items[0].eventName, 'Rock in Dan');
+  assert.equal(saved.items[0].sectorName, 'Pista');
+  assert.equal(saved.items[0].lotName, 'Lote 2');
+  
+  assert.match(bag.app.textContent, /Rock in Dan – Pista – Lote 2/);
+  assert.doesNotMatch(bag.app.textContent, /missing-event/);
+  assert.doesNotMatch(bag.app.textContent, /missing-sector/);
+  assert.doesNotMatch(bag.app.textContent, /Old S/);
 });
