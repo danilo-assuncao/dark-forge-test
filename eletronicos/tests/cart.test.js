@@ -122,6 +122,18 @@ function runTests() {
         assert.throws(() => cart.checkout('pix', 2), /PIX must be paid in a single installment/);
     });
 
+    test('checkout rounds monetary values to cents', () => {
+        const cart = new Cart();
+        cart.addItem(cpu, 19.99, 3);
+        cart.applyCoupon('DANTECH10');
+        const details = cart.checkout('pix', 1);
+        assert.strictEqual(details.subtotal, 59.97);
+        assert.strictEqual(details.couponDiscount, 6);
+        assert.strictEqual(details.paymentDiscount, 5.4);
+        assert.strictEqual(details.total, 48.57);
+        assert.strictEqual(cart.checkout('credit_card', 3).installmentValue, 17.99);
+    });
+
     console.log(`\nTests complete: ${passed} passed, ${failed} failed.`);
     if (failed > 0) {
         process.exit(1);

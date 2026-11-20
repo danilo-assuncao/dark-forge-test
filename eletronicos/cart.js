@@ -1,3 +1,5 @@
+const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 class Cart {
     constructor() {
         this.items = [];
@@ -38,7 +40,7 @@ class Cart {
     }
 
     getSubtotal() {
-        return this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        return round2(this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0));
     }
 
     checkout(paymentMethod = 'credit_card', installments = 1) {
@@ -57,14 +59,14 @@ class Cart {
         
         let couponDiscount = 0;
         if (this.coupon === 'DANTECH10') {
-            couponDiscount = subtotal * 0.10;
-            total -= couponDiscount;
+            couponDiscount = round2(subtotal * 0.10);
+            total = round2(total - couponDiscount);
         }
 
         let paymentDiscount = 0;
         if (paymentMethod === 'pix') {
-            paymentDiscount = total * 0.10;
-            total -= paymentDiscount;
+            paymentDiscount = round2(total * 0.10);
+            total = round2(total - paymentDiscount);
         }
 
         return {
@@ -74,7 +76,7 @@ class Cart {
             total,
             paymentMethod,
             installments,
-            installmentValue: total / installments
+            installmentValue: round2(total / installments)
         };
     }
 }
