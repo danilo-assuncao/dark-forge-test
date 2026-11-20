@@ -170,7 +170,7 @@
   var api = {
     catalog: catalog, filterEvents: filterEvents, parseHash: parseHash,
     buildHash: buildHash, resolveSelection: resolveSelection, formatPrice: formatPrice, lotStatus: lotStatus,
-    LOT_STATUS: LOT_STATUS
+    LOT_STATUS: LOT_STATUS, isValidCPF: isValidCPF
   };
   root.DanSectors = api;
 
@@ -361,6 +361,33 @@
     if (n && root.DanCart) n.textContent = String(root.DanCart.totals(root.DanCart.load()).tickets);
   }
 
+  function revalidateCartItems(stateItems, events, cart) {
+    var revalidated = [];
+    var changed = false;
+    stateItems.forEach(function (i) {
+      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
+      if (!ev) { changed = true; return; }
+      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
+      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.id !== i.lotId || sel.lot.status === 'soldout') { changed = true; return; }
+      
+      var validQty = Math.max(1, Math.min(i.qty || 1, cart.MAX_QTY, sel.lot.remaining));
+      if (i.qty !== validQty) {
+        i.qty = validQty;
+        changed = true;
+      }
+      
+      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
+        i.unitCents = sel.lot.priceCents; 
+        i.sectorName = sel.sector.name;
+        i.lotName = sel.lot.name;
+        i.eventName = ev.name;
+        changed = true; 
+      }
+      revalidated.push(i);
+    });
+    return { items: revalidated, changed: changed };
+  }
+
   function renderCart(app) {
     var cart = root.DanCart;
     app.textContent = '';
@@ -371,24 +398,9 @@
     if (!cart) return;
     var state = cart.load();
     var events = catalog();
-    var revalidated = [];
-    var changed = false;
-    state.items.forEach(function (i) {
-      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
-      if (!ev) { changed = true; return; }
-      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
-      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
-      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
-        i.unitCents = sel.lot.priceCents; 
-        i.sectorName = sel.sector.name;
-        i.lotName = sel.lot.name;
-        i.eventName = ev.name;
-        changed = true; 
-      }
-      revalidated.push(i);
-    });
-    if (changed) {
-      state.items = revalidated;
+    var rev = revalidateCartItems(state.items, events, cart);
+    if (rev.changed) {
+      state.items = rev.items;
       cart.save(state);
     }
 
@@ -472,24 +484,9 @@
 
     if (!cart) return;
     var state = cart.load();
-    var revalidated = [];
-    var changed = false;
-    state.items.forEach(function (i) {
-      var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
-      if (!ev) { changed = true; return; }
-      var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
-      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.status === 'soldout') { changed = true; return; }
-      if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
-        i.unitCents = sel.lot.priceCents; 
-        i.sectorName = sel.sector.name;
-        i.lotName = sel.lot.name;
-        i.eventName = ev.name;
-        changed = true; 
-      }
-      revalidated.push(i);
-    });
-    if (changed) {
-      state.items = revalidated;
+    var rev = revalidateCartItems(state.items, events, cart);
+    if (rev.changed) {
+      state.items = rev.items;
       cart.save(state);
     }
 
@@ -534,24 +531,50 @@
         var c = entry.cpfInput.value.trim();
         if (!n || !c) {
           hasError = true;
+          var msgEmpty = el('p', 'coupon-msg coupon-msg--error', 'Preencha todos os campos do ingresso: ' + entry.item.eventName);
+          errContainer.appendChild(msgEmpty);
         } else if (!isValidCPF(c)) {
           hasError = true;
           var msg = el('p', 'coupon-msg coupon-msg--error', 'CPF inválido: ' + c);
           errContainer.appendChild(msg);
         }
-        holders.push({ eventName: entry.item.eventName, sectorName: entry.item.sectorName, type: entry.item.type, name: n, cpf: c });
+        var maskedCPF = c.replace(/[^\d]/g, '');
+        if (maskedCPF.length === 11) {
+          maskedCPF = '***.' + maskedCPF.substring(3, 6) + '.' + maskedCPF.substring(6, 9) + '-**';
+        }
+        holders.push({ eventName: entry.item.eventName, sectorName: entry.item.sectorName, type: entry.item.type, name: n, cpf: maskedCPF });
       });
 
       if (hasError) return;
+      
+      var currentState = cart.load();
+      var preSubmitRev = revalidateCartItems(currentState.items, events, cart);
+      if (preSubmitRev.changed) {
+        cart.save({ items: preSubmitRev.items, coupon: currentState.coupon });
+        errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Alguns itens da sua sacola mudaram (preço ou disponibilidade). Verifique e tente novamente.'));
+        return;
+      }
 
-      var orderId = 'TKT-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0') + '-' + Date.now().toString().slice(-4);
+      var orderId = 'TKT-';
+      if (root.crypto && root.crypto.getRandomValues) {
+        var arr = new Uint16Array(2);
+        root.crypto.getRandomValues(arr);
+        orderId += arr[0].toString(16).padStart(4, '0').toUpperCase() + '-' + arr[1].toString(16).padStart(4, '0').toUpperCase();
+      } else {
+        orderId += Math.floor(Math.random() * 10000).toString().padStart(4, '0') + '-' + Date.now().toString().slice(-4);
+      }
+      
       var order = { orderId: orderId, holders: holders };
       try {
-        root.localStorage.setItem('dan-tickets-order', JSON.stringify(order));
-      } catch (e) {}
-
-      cart.save(cart.emptyState());
-      root.location.hash = '#/voucher';
+        root.sessionStorage.setItem('dan-tickets-order', JSON.stringify(order));
+        if (cart.save(cart.emptyState())) {
+          root.location.hash = '#/voucher';
+        } else {
+          errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Não foi possível limpar a sacola. Verifique o armazenamento.'));
+        }
+      } catch (e) {
+        errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Não foi possível salvar o pedido. Verifique o armazenamento.'));
+      }
     });
 
     app.appendChild(form);
@@ -559,12 +582,15 @@
 
   function renderVoucher(app) {
     app.textContent = '';
-    app.appendChild(el('h1', 'page-title', 'Comprovante'));
+    app.appendChild(el('h1', 'page-title', 'Comprovante (Demonstração)'));
     
     var order = null;
     try {
-      var saved = root.localStorage.getItem('dan-tickets-order');
-      if (saved) order = JSON.parse(saved);
+      var saved = root.sessionStorage.getItem('dan-tickets-order');
+      if (saved) {
+        order = JSON.parse(saved);
+        root.sessionStorage.removeItem('dan-tickets-order');
+      }
     } catch(e) {}
 
     if (!order) {

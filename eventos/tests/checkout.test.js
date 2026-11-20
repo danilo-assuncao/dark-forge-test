@@ -38,6 +38,8 @@ function mount(storage, hash) {
   const listeners = {};
   const window = {
     localStorage: storage,
+    sessionStorage: memStorage(),
+    crypto: { getRandomValues: arr => { arr[0] = 0xABCD; arr[1] = 0x1234; return arr; } },
     location: {
       get hash() { return hash; },
       set hash(v) { hash = v; if (listeners.hashchange) listeners.hashchange(); }
@@ -110,6 +112,15 @@ test('Checkout flow fills valid Name/CPF, rejects invalid CPF, generates real vo
   assert.equal(page.window.location.hash, '#/checkout', 'Should block navigation if CPF is invalid');
   assert.match(page.app.textContent, /CPF inválido: 111/, 'Should show error for invalid CPF');
   
+  // Empty name check
+  nameInputs[0].value = ''; 
+  const errContainer = page.find(n => n.className === 'checkout-errors');
+  form.fire('submit');
+  assert.equal(page.window.location.hash, '#/checkout', 'Should block navigation if name is empty');
+  assert.match(page.app.textContent, /Preencha todos os campos/, 'Should show error for missing fields');
+
+  nameInputs[0].value = 'Alice'; 
+  
   // Submit with valid CPF
   cpfInputs[0].value = '12345678909'; // valid CPF
   cpfInputs[1].value = '00000000191'; // valid CPF
@@ -119,9 +130,10 @@ test('Checkout flow fills valid Name/CPF, rejects invalid CPF, generates real vo
   assert.equal(page.window.location.hash, '#/voucher', 'Should navigate to voucher page');
   
   const voucherCode = page.find(n => n.className === 'voucher-code');
-  assert.match(voucherCode.textContent, /Código: TKT-\d{4}-\d{4}/, 'Voucher should display deterministic formatted code');
-  assert.match(page.app.textContent, /Alice \(12345678909\)/, 'Voucher must reference first holder');
-  assert.match(page.app.textContent, /Bob \(00000000191\)/, 'Voucher must reference second holder');
+  assert.ok(voucherCode, 'Voucher code element should exist');
+  assert.match(voucherCode.textContent, /Código: TKT-ABCD-1234/, 'Voucher should display crypto generated formatted code');
+  assert.match(page.app.textContent, /Alice \(\*\*\*\.456\.789-\*\*\)/, 'Voucher must reference first holder masked CPF');
+  assert.match(page.app.textContent, /Bob \(\*\*\*\.000\.001-\*\*\)/, 'Voucher must reference second holder masked CPF');
   
   const cartAfter = JSON.parse(storage._m['dan-tickets-cart']);
   assert.equal(cartAfter.items.length, 0, 'Cart should be empty after checkout');
@@ -131,11 +143,48 @@ test('Checkout flow fills valid Name/CPF, rejects invalid CPF, generates real vo
   assert.match(page.app.textContent, /Sua sacola está vazia/, 'Cart page should reflect empty state');
 });
 
+test('Cart revalidation drops invalid items and prevents checkout of stale data', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/checkout');
+  const cart = page.window.DanCart;
+  const events = page.window.DanEvents.all();
+  
+  cart.save(cart.addItem(cart.emptyState(), {
+    eventId: 'rock-festival', eventName: 'Rock in Dan',
+    sectorId: 'pista', sectorName: 'Pista',
+    lotId: 'lote-1', lotName: 'Lote 1',
+    type: 'inteira', qty: 2, unitCents: 1000 // wrong price
+  }), storage);
+
+  cart.save(cart.addItem(cart.load(storage), {
+    eventId: 'fake-event', eventName: 'Fake Event',
+    sectorId: 'fake-sector', sectorName: 'Fake Sector',
+    lotId: 'fake-lot', lotName: 'Fake Lot',
+    type: 'inteira', qty: 1, unitCents: 100
+  }), storage);
+
+  page.navigate('#/checkout');
+  
+  // Fake event should be dropped, correct price should be updated
+  const stored = JSON.parse(storage._m['dan-tickets-cart']);
+  assert.equal(stored.items.length, 1, 'Invalid items should be dropped');
+  assert.equal(stored.items[0].unitCents, 12000, 'Price should be corrected during revalidation');
+});
 test('Empty cart rejects checkout and direct voucher access shows no order', () => {
   const storage = memStorage();
   const page = mount(storage, '#/checkout');
   assert.match(page.app.textContent, /Sua sacola está vazia/, 'Empty cart checkout shows empty message');
-  
   page.navigate('#/voucher');
   assert.match(page.app.textContent, /Nenhum pedido recente encontrado/, 'Direct voucher access without order is rejected');
+});
+test('isValidCPF boundary tests', () => {
+  const ctx = vm.createContext({});
+  vm.runInContext(read('app.js'), ctx);
+  const isValidCPF = ctx.DanSectors.isValidCPF;
+  
+  assert.equal(isValidCPF('11111111111'), false, 'All-same digits should be invalid');
+  assert.equal(isValidCPF(''), false, 'Empty string should be invalid');
+  assert.equal(isValidCPF('1234567890'), false, '10 digits should be invalid');
+  assert.equal(isValidCPF('123.456.789-09'), true, 'Formatted valid CPF should be true');
+  assert.equal(isValidCPF('000.000.001-91'), true, 'CPF with leading zeros should be true');
 });
