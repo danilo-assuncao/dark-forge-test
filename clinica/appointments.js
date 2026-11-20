@@ -1,13 +1,18 @@
 /*
- * Client-side demo module. Protocols are sequential and the data lives in
- * plaintext localStorage, so this class MUST NOT be used as an authorization
- * boundary or to hold real patient data. A server-side store with access
- * control is required for production use.
+ * Client-side demo module. Protocols are sequential and guessable (MED-0001...),
+ * and the data lives in plaintext localStorage, so this class MUST NOT be used
+ * as an authorization boundary, to hold real patient data, or in any production path
+ * (it is vulnerable to IDOR by enumerating protocols). A server-side store with 
+ * access control and ownership checks is required for production use.
+ * 
+ * Note: Guarantees like conflict prevention and unique protocols are strictly
+ * single-tab only, as localStorage does not lock across concurrent browser tabs.
  */
 const STORAGE_KEY = 'clinica.appointments';
 const PROTOCOL_PATTERN = /^MED-\d{4,}$/;
 const MAX_DOCTOR_ID_LENGTH = 64;
 const MAX_PATIENT_NAME_LENGTH = 100;
+const MAX_APPOINTMENTS = 10000;
 // ISO-8601 date-time with an explicit offset (Z or +hh:mm), so the slot never depends on the host timezone.
 const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -16,7 +21,8 @@ function memoryStorage() {
     return {
         getItem: key => (data.has(key) ? data.get(key) : null),
         setItem: (key, value) => { data.set(key, String(value)); },
-        removeItem: key => { data.delete(key); }
+        removeItem: key => { data.delete(key); },
+        clear: () => { data.clear(); }
     };
 }
 
@@ -39,7 +45,19 @@ function nonEmptyString(value) {
 // Returns the slot (ISO UTC, minute granularity) or null when the input is not acceptable.
 function normalizeSlot(datetime) {
     if (typeof datetime !== 'string' || !ISO_WITH_OFFSET.test(datetime.trim())) return null;
-    const time = new Date(datetime.trim()).getTime();
+    const dt = datetime.trim();
+    const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (m) {
+        const year = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10);
+        const day = parseInt(m[3], 10);
+        const hour = parseInt(m[4], 10);
+        const minute = parseInt(m[5], 10);
+        if (month < 1 || month > 12 || hour > 23 || minute > 59) return null;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        if (day < 1 || day > daysInMonth) return null;
+    }
+    const time = new Date(dt).getTime();
     if (Number.isNaN(time)) return null;
     return new Date(Math.floor(time / 60000) * 60000).toISOString();
 }
@@ -49,10 +67,12 @@ function protocolNumber(protocol) {
 }
 
 function isValidAppointment(a) {
-    return a !== null && typeof a === 'object'
-        && typeof a.doctorId === 'string' && typeof a.datetime === 'string'
-        && typeof a.patientName === 'string' && typeof a.protocol === 'string'
-        && Number.isFinite(protocolNumber(a.protocol));
+    if (a === null || typeof a !== 'object') return false;
+    if (typeof a.doctorId !== 'string' || typeof a.datetime !== 'string' ||
+        typeof a.patientName !== 'string' || typeof a.protocol !== 'string') return false;
+    
+    const pNum = protocolNumber(a.protocol);
+    return Number.isFinite(pNum) && Number.isSafeInteger(pNum);
 }
 
 class AppointmentBook {
@@ -71,17 +91,37 @@ class AppointmentBook {
             throw new Error('Stored appointments are corrupted and could not be read.');
         }
         if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.appointments)
-            || !Number.isInteger(parsed.counter) || parsed.counter < 0
-            || !parsed.appointments.every(isValidAppointment)) {
+            || !Number.isInteger(parsed.counter) || parsed.counter < 0) {
             throw new Error('Stored appointments are corrupted and could not be read.');
         }
+
+        const seenProtocols = new Set();
+        const seenSlots = new Set();
+        if (!parsed.appointments.every(a => {
+            if (!isValidAppointment(a)) return false;
+            const slotKey = a.doctorId + '|' + a.datetime;
+            if (seenProtocols.has(a.protocol) || seenSlots.has(slotKey)) return false;
+            seenProtocols.add(a.protocol);
+            seenSlots.add(slotKey);
+            return true;
+        })) {
+            throw new Error('Stored appointments are corrupted and could not be read.');
+        }
+        
         // Never issue a protocol that already exists, even if the stored counter is stale.
         const highest = parsed.appointments.reduce((m, a) => Math.max(m, protocolNumber(a.protocol)), 0);
         return { counter: Math.max(parsed.counter, highest), appointments: parsed.appointments };
     }
 
     _save(state) {
-        this.storage.setItem(this.storageKey, JSON.stringify(state));
+        try {
+            this.storage.setItem(this.storageKey, JSON.stringify(state));
+        } catch (e) {
+            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                throw new Error('Storage quota exceeded. Cannot save appointment.');
+            }
+            throw e;
+        }
     }
 
     static formatProtocol(n) {
@@ -108,6 +148,10 @@ class AppointmentBook {
 
         const doctor = doctorId.trim();
         const state = this._load();
+
+        if (state.appointments.length >= MAX_APPOINTMENTS) {
+            throw new Error('Maximum number of appointments reached.');
+        }
 
         if (state.appointments.some(a => a.doctorId === doctor && a.datetime === slot)) {
             throw new Error('Time slot already booked for this doctor.');
@@ -153,5 +197,6 @@ class AppointmentBook {
 
 AppointmentBook.PROTOCOL_PATTERN = PROTOCOL_PATTERN;
 AppointmentBook.STORAGE_KEY = STORAGE_KEY;
+AppointmentBook.sharedMemoryStorage = sharedMemoryStorage; // Exported for testing
 
 module.exports = AppointmentBook;
