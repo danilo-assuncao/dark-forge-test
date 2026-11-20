@@ -30,9 +30,31 @@ test('uses the rounded billable weight before rounding the final price', () => {
   });
 });
 
-test('rounds currency down, up, and at half-cent boundaries', () => {
+test('rounds currency to the nearest centavo with decimal ties rounded up', () => {
   for (const [actualKg, totalBrl] of [[1.001, 19.5], [1.002, 19.51], [1.01, 19.55]]) {
     assert.equal(calculateShippingQuote({ ...shipment, actualKg }).totalBrl, totalBrl);
+  }
+});
+
+test('rounds the exact decimal total 16.935 BRL up to 16.94 BRL', () => {
+  assert.deepEqual(calculateShippingQuote({
+    ...shipment, actualKg: 0.43, lengthCm: 1, widthCm: 1, heightCm: 1
+  }), { zone: 'SP', weightKg: 0.43, totalBrl: 16.94 });
+});
+
+test('matches integer half-up pricing for every gram through 199.999 kg', () => {
+  for (let grams = 1; grams <= 199999; grams++) {
+    const quote = calculateShippingQuote({
+      ...shipment, actualKg: grams / 1000, lengthCm: 1, widthCm: 1, heightCm: 1
+    });
+    const expectedCentavos = 1500 + Math.floor((grams * 9 + 10) / 20);
+    assert.equal(quote.totalBrl, expectedCentavos / 100, `${grams} grams`);
+  }
+});
+
+test('rejects charges that overflow or exceed safe integer precision', () => {
+  for (const actualKg of [Number.MAX_VALUE, 1e12]) {
+    assert.throws(() => calculateShippingQuote({ ...shipment, actualKg }), RangeError);
   }
 });
 
@@ -43,7 +65,15 @@ test('propagates zone validation errors', () => {
 
 test('propagates validation errors for each shipment measurement', () => {
   for (const field of ['actualKg', 'lengthCm', 'widthCm', 'heightCm']) {
-    assert.throws(() => calculateShippingQuote({ ...shipment, [field]: undefined }), TypeError);
-    assert.throws(() => calculateShippingQuote({ ...shipment, [field]: 0 }), RangeError);
+    for (const value of [undefined, NaN, Infinity, -Infinity, '2']) {
+      assert.throws(() => calculateShippingQuote({ ...shipment, [field]: value }), TypeError);
+    }
+    for (const value of [0, -1]) {
+      assert.throws(() => calculateShippingQuote({ ...shipment, [field]: value }), RangeError);
+    }
   }
+});
+
+test('rejects a missing shipment', () => {
+  assert.throws(() => calculateShippingQuote(), TypeError);
 });
