@@ -51,3 +51,36 @@ test('throws RangeError for ages outside 18..85 or invalid', () => {
   });
   assert.throws(() => v.resolveRiskMultiplier(), RangeError);
 });
+
+test('hasGarage discount applies only for strict true', () => {
+  [undefined, null, 'true', 1, 0, 'false'].forEach((flag) => {
+    assert.equal(v.resolveRiskMultiplier({ driverAge: 30, hasGarage: flag }), 1);
+  });
+  assert.equal(v.resolveRiskMultiplier({ driverAge: 30 }), 1);
+});
+
+test('garage factor at every band boundary', () => {
+  const cases = [[18, 1.242], [24, 1.242], [25, 0.92], [59, 0.92], [60, 1.0304], [85, 1.0304]];
+  cases.forEach(([age, expected]) => {
+    assert.equal(v.resolveRiskMultiplier({ driverAge: age, hasGarage: true }), expected);
+  });
+});
+
+test('exports frozen categories and vehicles with stable FIPE data', () => {
+  assert.ok(Object.isFrozen(v.CATEGORIES));
+  Object.values(v.CATEGORIES).forEach((c) => assert.ok(Object.isFrozen(c)));
+  assert.deepEqual(
+    Object.values(v.CATEGORIES).map((c) => [c.id, c.baseRate]),
+    [['hatch', 0.045], ['sedan', 0.05], ['suv', 0.058], ['eletrico', 0.042]]
+  );
+  v.listVehicles().forEach((x) => {
+    assert.ok(Object.isFrozen(x));
+    assert.ok(typeof x.name === 'string' && x.name.length > 0);
+  });
+  assert.deepEqual(v.listVehicles().map((x) => [x.id, x.fipeCents]), [
+    ['hatch-compacto', 7500000], ['hatch-premium', 11000000],
+    ['sedan-medio', 12500000], ['sedan-executivo', 21000000],
+    ['suv-compacto', 14500000], ['suv-grande', 32000000],
+    ['eletrico-urbano', 15000000], ['eletrico-premium', 29000000]
+  ]);
+});
