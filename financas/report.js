@@ -1,48 +1,46 @@
 'use strict';
 
-const { randomInt } = require('node:crypto');
-const { analyzeMonthlyBudget } = require('./budget.js');
-const { simulateFixedIncome } = require('./simulator.js');
-const { rebalancePortfolio } = require('./portfolio.js');
+const { analyzeMonthlyBudget } = require('./budget');
+const { simulateFixedIncome } = require('./simulator');
+const { rebalancePortfolio } = require('./portfolio');
 
-function assertObject(value, name) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError(`${name} must be an object`);
+function generateWealthPlan(input = {}) {
+  const budgetInput = input.budget || input;
+  const budgetDiagnosis = analyzeMonthlyBudget(budgetInput);
+
+  const simInput = input.simulation || input;
+  const simParams = {
+    monthlyBrl: Math.max(0, budgetDiagnosis.monthlySavingsCapacityBrl),
+    ...simInput
+  };
+
+  const cdbSimulation = simulateFixedIncome({ ...simParams, product: 'CDB' });
+  const lciSimulation = simulateFixedIncome({ ...simParams, product: 'LCI' });
+
+  let netWinner = 'Draw';
+  if (cdbSimulation.netBrl > lciSimulation.netBrl) {
+    netWinner = 'CDB';
+  } else if (lciSimulation.netBrl > cdbSimulation.netBrl) {
+    netWinner = 'LCI';
   }
-}
 
-/**
- * Consolidate a wealth plan without changing the supplied inputs.
- * input.budget: analyzeMonthlyBudget options.
- * input.investment: { initialBrl, monthlyBrl, months,
- *                     cdbAnnualRatePct, lciAnnualRatePct }.
- * input.portfolio: rebalancePortfolio options (contribution defaults to zero).
- * Contributions are explicit, independent scenarios; budget savings are not
- * automatically invested. Both products use the same principal and term.
- * Returns { protocol, budget, comparison: { cdb, lci, winner }, portfolio }.
- * winner is 'CDB', 'LCI', or 'TIE', based on reported net balances in cents.
- * The four-digit protocol is a display reference, not a globally unique ID.
- */
-function generateWealthPlan(input) {
-  assertObject(input, 'input');
-  const { budget, investment, portfolio } = input;
-  assertObject(budget, 'budget');
-  assertObject(investment, 'investment');
-  assertObject(portfolio, 'portfolio');
+  const portInput = input.portfolio || input;
+  const portParams = {
+    newContributionBrl: Math.max(0, budgetDiagnosis.monthlySavingsCapacityBrl),
+    ...portInput
+  };
 
-  const diagnosis = analyzeMonthlyBudget(budget);
-  const { initialBrl, monthlyBrl, months, cdbAnnualRatePct, lciAnnualRatePct } = investment;
-  const common = { initialBrl, monthlyBrl, months };
-  const cdb = simulateFixedIncome({ ...common, annualRatePct: cdbAnnualRatePct, product: 'CDB' });
-  const lci = simulateFixedIncome({ ...common, annualRatePct: lciAnnualRatePct, product: 'LCI' });
-  const winner = cdb.netBrl === lci.netBrl ? 'TIE' : cdb.netBrl > lci.netBrl ? 'CDB' : 'LCI';
-  const rebalancing = rebalancePortfolio(portfolio);
+  const rebalancingSuggestion = rebalancePortfolio(portParams);
 
   return {
-    protocol: `INV-${String(randomInt(10000)).padStart(4, '0')}`,
-    budget: diagnosis,
-    comparison: { cdb, lci, winner },
-    portfolio: rebalancing,
+    protocol: 'INV-XXXX',
+    budgetDiagnosis,
+    simulationComparison: {
+      CDB: cdbSimulation,
+      LCI: lciSimulation,
+      netWinner
+    },
+    rebalancingSuggestion
   };
 }
 
