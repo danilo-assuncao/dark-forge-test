@@ -31,11 +31,61 @@ const exams = [
     }
 ];
 
+function normalizeText(text) {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function searchSpecialists(query) {
+    const normalizedQuery = normalizeText(query);
+    if (!normalizedQuery) return [];
+    
+    return specialists.filter(s => 
+        normalizeText(s.name).includes(normalizedQuery) || 
+        normalizeText(s.specialty).includes(normalizedQuery)
+    );
+}
+
+function buildPreparation(examIds) {
+    if (!examIds || examIds.length === 0) return [];
+    
+    return examIds.map(id => {
+        const exam = exams.find(e => e.id === id);
+        return exam ? exam : null;
+    }).filter(e => e !== null);
+}
+
+function validateBooking(specialistId, dateStr, timeStr, patientName) {
+    const trimmedName = patientName.trim();
+    if (!specialistId || !dateStr || !timeStr || !trimmedName) {
+        return { valid: false, error: "Todos os campos são obrigatórios." };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(dateStr + 'T00:00:00'); // Force local interpretation
+    
+    if (selectedDate < today) {
+        return { valid: false, error: "A data não pode ser no passado." };
+    }
+
+    return { valid: true, name: trimmedName };
+}
+
 if (typeof document !== 'undefined') {
     document.addEventListener("DOMContentLoaded", () => {
         // Current year in footer
         const yearSpan = document.getElementById("current-year");
         if (yearSpan) yearSpan.textContent = new Date().getFullYear();
+        
+        // Set min date
+        const dateInput = document.getElementById("appointment-date");
+        if (dateInput) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            dateInput.min = `${yyyy}-${mm}-${dd}`;
+        }
 
         initSpecialistSearch();
         initBookingForm();
@@ -51,20 +101,17 @@ function initSpecialistSearch() {
     if (!searchInput || !searchButton || !resultsContainer) return;
 
     function performSearch() {
-        const query = searchInput.value.toLowerCase().trim();
+        const query = searchInput.value;
         resultsContainer.innerHTML = "";
 
-        if (query === "") {
+        if (query.trim() === "") {
             const p = document.createElement("p");
             p.textContent = "Digite um nome ou especialidade para buscar.";
             resultsContainer.appendChild(p);
             return;
         }
 
-        const results = specialists.filter(s => 
-            s.name.toLowerCase().includes(query) || 
-            s.specialty.toLowerCase().includes(query)
-        );
+        const results = searchSpecialists(query);
 
         if (results.length === 0) {
             const p = document.createElement("p");
@@ -120,12 +167,24 @@ function initBookingForm() {
         const patientInput = document.getElementById("patient-name").value;
         const specialistId = select.value;
 
-        if (specialistId && dateInput && timeInput && patientInput) {
-            const specialistName = specialists.find(s => s.id == specialistId)?.name;
-            feedback.textContent = `Consulta agendada com sucesso para ${patientInput} com ${specialistName} no dia ${dateInput} às ${timeInput}.`;
-            feedback.className = "feedback-msg success";
-            form.reset();
+        const validation = validateBooking(specialistId, dateInput, timeInput, patientInput);
+
+        if (!validation.valid) {
+            feedback.textContent = validation.error;
+            feedback.className = "feedback-msg error";
+            feedback.style.display = "block";
+            return;
         }
+
+        const specialistName = specialists.find(s => s.id == specialistId)?.name;
+        
+        const [year, month, day] = dateInput.split('-');
+        const formattedDate = `${day}/${month}/${year}`;
+        
+        feedback.textContent = `Consulta agendada com sucesso para ${validation.name} com ${specialistName} no dia ${formattedDate} às ${timeInput}.`;
+        feedback.className = "feedback-msg success";
+        feedback.style.display = "block";
+        form.reset();
     });
 }
 
@@ -168,26 +227,25 @@ function initExamPreparation() {
             return;
         }
 
-        selectedIds.forEach(id => {
-            const exam = exams.find(e => e.id === id);
-            if (exam) {
-                const card = document.createElement("div");
-                card.className = "preparation-card";
-                
-                const h4 = document.createElement("h4");
-                h4.textContent = `Preparo para ${exam.name}:`;
-                
-                const ul = document.createElement("ul");
-                exam.preparation.forEach(prep => {
-                    const li = document.createElement("li");
-                    li.textContent = prep;
-                    ul.appendChild(li);
-                });
+        const results = buildPreparation(selectedIds);
+        
+        results.forEach(exam => {
+            const card = document.createElement("div");
+            card.className = "preparation-card";
+            
+            const h4 = document.createElement("h4");
+            h4.textContent = `Preparo para ${exam.name}:`;
+            
+            const ul = document.createElement("ul");
+            exam.preparation.forEach(prep => {
+                const li = document.createElement("li");
+                li.textContent = prep;
+                ul.appendChild(li);
+            });
 
-                card.appendChild(h4);
-                card.appendChild(ul);
-                resultsContainer.appendChild(card);
-            }
+            card.appendChild(h4);
+            card.appendChild(ul);
+            resultsContainer.appendChild(card);
         });
     });
 }
@@ -196,6 +254,10 @@ function initExamPreparation() {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         specialists,
-        exams
+        exams,
+        searchSpecialists,
+        buildPreparation,
+        validateBooking,
+        normalizeText
     };
 }
