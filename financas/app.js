@@ -6,12 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const target = btn.dataset.target;
+            const targetEl = document.getElementById(target);
+            if (!targetEl) return;
 
             tabBtns.forEach(b => b.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
 
             btn.classList.add('active');
-            document.getElementById(target).classList.add('active');
+            targetEl.classList.add('active');
         });
     });
 
@@ -28,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Cálculos simplificados (Juros Compostos ao dia - aproximação 252 dias úteis)
             const taxaDiDiaria = Math.pow(1 + (diAnual / 100), 1 / 252) - 1;
-            const diasUteisAprox = Math.floor(prazoDias * (252 / 365));
+            const diasUteisAprox = prazoDias * (252 / 365);
 
             const taxaCdbDiaria = taxaDiDiaria * (percCdb / 100);
             const taxaLciDiaria = taxaDiDiaria * (percLci / 100);
@@ -47,8 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const liquidoCdb = brutoCdb - irCdb;
             const liquidoLci = brutoLci; // isento
 
+            let melhorOpcao = 'Empate';
+            const dif = liquidoCdb - liquidoLci;
+            if (dif > 0.001) melhorOpcao = 'CDB';
+            else if (dif < -0.001) melhorOpcao = 'LCI';
+
             const resultDiv = document.getElementById('simulador-result');
-            resultDiv.textContent = `CDB Líquido: R$ ${liquidoCdb.toFixed(2)} | LCI Líquido: R$ ${liquidoLci.toFixed(2)} | Melhor opção: ${liquidoCdb > liquidoLci ? 'CDB' : 'LCI'}`;
+            resultDiv.textContent = `CDB Líquido: R$ ${liquidoCdb.toFixed(2)} | LCI Líquido: R$ ${liquidoLci.toFixed(2)} | Melhor opção: ${melhorOpcao}`;
         });
     }
 
@@ -83,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const aporte = parseFloat(document.getElementById('rebal-aporte').value) || 0;
 
-            if (Math.abs((ideal1 + ideal2) - 100) > 0.1) {
+            if (Math.abs((ideal1 + ideal2) - 100) > 1e-9) {
                 document.getElementById('rebal-result').textContent = "Erro: A soma dos alvos ideais deve ser 100%.";
                 return;
             }
@@ -97,7 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const dif1 = meta1 - atual1;
             const dif2 = meta2 - atual2;
 
-            const formatDif = (val) => val >= 0 ? `Comprar R$ ${val.toFixed(2)}` : `Vender R$ ${Math.abs(val).toFixed(2)}`;
+            const formatDif = (val) => {
+                const centVal = Math.round(val * 100) / 100;
+                if (centVal === 0) return 'Manter R$ 0.00';
+                return centVal > 0 ? `Comprar R$ ${centVal.toFixed(2)}` : `Vender R$ ${Math.abs(centVal).toFixed(2)}`;
+            };
 
             const resultDiv = document.getElementById('rebal-result');
             resultDiv.textContent = `${nome1}: ${formatDif(dif1)} | ${nome2}: ${formatDif(dif2)}`;
