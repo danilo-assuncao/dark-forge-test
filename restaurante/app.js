@@ -143,6 +143,7 @@ if (typeof window !== 'undefined') {
 
       const rmBtn = document.createElement('button');
       rmBtn.textContent = 'Remover';
+      rmBtn.className = 'remove-btn';
       rmBtn.style.marginLeft = '1rem';
       rmBtn.addEventListener('click', () => {
         cart.splice(idx, 1);
@@ -173,7 +174,13 @@ if (typeof window !== 'undefined') {
       return;
     }
     
-    const distanceKm = parseFloat(document.getElementById('distance-input').value);
+    const distStr = document.getElementById('distance-input').value;
+    const distanceKm = parseFloat(distStr);
+    if (isNaN(distanceKm)) {
+      alert('Erro ao finalizar pedido: Distância inválida');
+      return;
+    }
+    
     const tipPct = parseInt(document.getElementById('tip-input').value, 10);
     const couponCode = document.getElementById('coupon-input').value.trim();
     const customerName = document.getElementById('name-input').value;
@@ -190,6 +197,10 @@ if (typeof window !== 'undefined') {
       });
       
       showReceipt(result);
+      
+      // Clear cart
+      cart = [];
+      renderCart();
     } catch (e) {
       alert('Erro ao finalizar pedido: ' + e.message);
     }
@@ -208,6 +219,7 @@ if (typeof window !== 'undefined') {
     receiptContent.appendChild(customerInfo);
     
     const itemsList = document.createElement('ul');
+    itemsList.className = 'receipt-items';
     for (const item of order.items) {
       const li = document.createElement('li');
       li.textContent = `${item.qty}x ${item.name} - R$ ${item.totalBrl.toFixed(2)}`;
@@ -216,6 +228,7 @@ if (typeof window !== 'undefined') {
     receiptContent.appendChild(itemsList);
     
     const totalsDiv = document.createElement('div');
+    totalsDiv.className = 'receipt-totals';
     
     const subtotalP = document.createElement('p');
     subtotalP.textContent = `Subtotal: R$ ${order.totals.itemsSubtotalBrl.toFixed(2)}`;
