@@ -18,7 +18,22 @@ test('normalization rejects non-string codes without coercion', () => {
   }
 });
 
+test('normalization preserves Unicode case mapping and internal whitespace', () => {
+  assert.equal(normalizeCouponCode(' promoção '), 'PROMOÇÃO');
+  assert.equal(normalizeCouponCode(' ß '), 'SS');
+  assert.equal(normalizeCouponCode(' ı '), 'I');
+  assert.equal(normalizeCouponCode(' save  \t10\nnow '), 'SAVE  \t10\nNOW');
+});
+
 const coupon = { code: 'SAVE10', minOrderBrl: 100, percentOff: 10, maxUses: 3, usedCount: 0 };
+
+test('callers normalize code comparisons separately without validation changing the code', () => {
+  const input = Object.freeze({ ...coupon, code: ' \tSaVe10\n ' });
+  const before = { ...input };
+  assert.equal(validateCoupon(input, 100), true);
+  assert.equal(normalizeCouponCode(input.code), normalizeCouponCode(coupon.code));
+  assert.deepEqual(input, before);
+});
 
 test('checks orders above, at, and below the minimum', () => {
   assert.equal(validateCoupon(coupon, 150), true);

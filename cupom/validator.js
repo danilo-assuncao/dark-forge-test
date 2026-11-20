@@ -1,6 +1,14 @@
 'use strict';
 
-/** Normalize string codes without coercing other input types. */
+/**
+ * Trim and uppercase strings without coercing other input types.
+ * This formatting helper does not validate codes or bound their length/charset.
+ * Unicode case mapping can merge distinct inputs (for example, ß and SS).
+ * Lookup callers must enforce their code policy, including input length and
+ * allowed characters, before normalization; a post-normalization ASCII check
+ * alone cannot reject Unicode inputs that uppercase to ASCII.
+ * Storage and lookup must use the same normalization and uniqueness policy.
+ */
 function normalizeCouponCode(raw) {
   if (typeof raw !== 'string') {
     throw new TypeError('code must be a string.');
@@ -20,6 +28,8 @@ function assertFiniteNumber(value, label) {
  * Usage counts must be nonnegative safe integers; fractional percentages are valid.
  * Returns false for orders below the minimum or exhausted coupons (including maxUses 0).
  * This check never mutates the coupon or consumes a use.
+ * It neither normalizes codes nor performs a code lookup; callers compare codes
+ * separately using normalizeCouponCode under their storage/lookup code policy.
  * Eligibility is advisory only: concurrent redemptions can observe the same counts.
  * Server-side callers must load coupons (including usage counts and limits) from
  * trusted storage, never from request input, and atomically enforce the usage limit
