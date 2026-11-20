@@ -18,7 +18,8 @@ test('sessions reference existing movies and valid room types', () => {
   const ids = new Set(MOVIES.map((m) => m.id));
   for (const s of SESSIONS) {
     assert.ok(ids.has(s.movieId));
-    assert.ok(['2D', 'VIP', 'IMAX'].includes(s.roomType));
+    assert.ok(Object.keys(BASE_TICKET_PRICES).includes(s.roomType));
+    assert.equal(typeof getBaseTicketPrice(s.roomType), 'number');
     assert.match(s.time, /^([01]\d|2[0-3]):[0-5]\d$/);
   }
   assert.equal(new Set(SESSIONS.map((s) => s.id)).size, SESSIONS.length);
@@ -45,6 +46,12 @@ test('listMovies filters by genre (case-insensitive) and maxRating', () => {
   assert.equal(listMovies({ maxRating: '16' }).length, MOVIES.length);
   assert.deepEqual(listMovies({ maxRating: '12' }).map((m) => m.rating), ['L', '12']);
   assert.equal(listMovies({ genre: '  terror ' }).length, 1);
+  assert.deepEqual(listMovies({ genre: 'terror', maxRating: '16' }).map((m) => m.id), ['mov-sombras-na-estrada']);
+  assert.equal(listMovies({ genre: 'ANIMAÇÃO' }).length, 1);
+  assert.equal(listMovies({ genre: 'Ficção Científica' }).length, 1);
+  assert.equal(listMovies({ genre: undefined, maxRating: undefined }).length, MOVIES.length);
+  assert.notEqual(listMovies(), MOVIES);
+  assert.notEqual(listMovies({ maxRating: '16' }), MOVIES);
   assert.deepEqual(listMovies({ genre: 'terror', maxRating: '12' }), []);
   assert.deepEqual(listMovies({ genre: 'inexistente' }), []);
 });
@@ -55,6 +62,10 @@ test('listMovies validates inputs', () => {
   assert.throws(() => listMovies({ maxRating: 12 }), TypeError);
   assert.throws(() => listMovies({ maxRating: '18' }), RangeError);
   assert.throws(() => listMovies(null), TypeError);
+  assert.throws(() => listMovies([]), TypeError);
+  assert.throws(() => listMovies({ genre: null }), TypeError);
+  assert.throws(() => listMovies({ maxRating: null }), TypeError);
+  assert.throws(() => listMovies({ maxRating: 'l' }), RangeError);
   assert.throws(() => listMovies('terror'), TypeError);
 });
 
@@ -65,6 +76,7 @@ test('getSessionById finds sessions and returns null for unknown ids', () => {
   assert.throws(() => getSessionById(undefined), TypeError);
   assert.throws(() => getSessionById(' '), RangeError);
   assert.throws(() => getSessionById(''), RangeError);
+  assert.equal(getSessionById(' ses-001'), null);
 });
 
 test('getBaseTicketPrice returns room prices and validates input', () => {
@@ -76,4 +88,7 @@ test('getBaseTicketPrice returns room prices and validates input', () => {
   assert.throws(() => getBaseTicketPrice('3D'), RangeError);
   assert.throws(() => getBaseTicketPrice(''), RangeError);
   assert.throws(() => getBaseTicketPrice('toString'), RangeError);
+  assert.throws(() => getBaseTicketPrice('constructor'), RangeError);
+  assert.throws(() => getBaseTicketPrice('__proto__'), RangeError);
+  assert.throws(() => getBaseTicketPrice('hasOwnProperty'), RangeError);
 });

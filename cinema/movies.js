@@ -24,7 +24,7 @@ const SESSIONS = Object.freeze([
 ]);
 
 function listMovies(options = {}) {
-  if (options === null || typeof options !== 'object') {
+  if (options === null || typeof options !== 'object' || Array.isArray(options)) {
     throw new TypeError('options must be an object');
   }
   const { genre, maxRating } = options;
