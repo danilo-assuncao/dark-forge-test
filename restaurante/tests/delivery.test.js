@@ -63,3 +63,41 @@ test('combined coupon, tip and free delivery', () => {
     totalBrl: 198,
   });
 });
+
+test('rejects invalid itemsSubtotalBrl and missing arguments', () => {
+  for (const bad of [-1, NaN, Infinity, '50', null, undefined, 1000000.01]) {
+    assert.throws(() => calc({ itemsSubtotalBrl: bad, distanceKm: 1 }), /Invalid itemsSubtotalBrl/);
+  }
+  assert.throws(() => calc(), /Invalid itemsSubtotalBrl/);
+  assert.throws(() => calc({ itemsSubtotalBrl: 50 }), /Invalid distanceKm/);
+  assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: Infinity }), /Invalid distanceKm/);
+  assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 16 }), /radius/);
+});
+
+test('rejects sub-cent subtotals instead of rounding past the minimum', () => {
+  assert.throws(() => calc({ itemsSubtotalBrl: 34.996, distanceKm: 1 }), /two decimal places/);
+  assert.equal(calc({ itemsSubtotalBrl: 35.05, distanceKm: 1 }).itemsSubtotalBrl, 35.05);
+});
+
+test('non-string coupon is rejected; whitespace is trimmed', () => {
+  for (const bad of [0, false, 5, {}, []]) {
+    assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 1, couponCode: bad }), /Invalid couponCode/);
+  }
+  assert.equal(calc({ itemsSubtotalBrl: 50, distanceKm: 1, couponCode: null }).discountBrl, 0);
+  assert.equal(calc({ itemsSubtotalBrl: 50, distanceKm: 1, couponCode: ' danchef10 ' }).discountBrl, 5);
+  assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 1, couponCode: 'X\nY' }), (e) => e.message === 'Unknown coupon');
+});
+
+test('rounding of discount and tip on odd cents', () => {
+  // 35.05 * 10% = 3.505 -> 3.51 (half up on 350.5 cents)
+  const r = calc({ itemsSubtotalBrl: 35.05, distanceKm: 1, couponCode: 'DANCHEF10', tipPct: 12 });
+  assert.equal(r.discountBrl, 3.51);
+  assert.equal(r.netSubtotalBrl, 31.54);
+  // 31.54 * 12% = 3.7848 -> 3.78
+  assert.equal(r.tipBrl, 3.78);
+  assert.equal(r.totalBrl, 42.32);
+});
+
+test('tip must be a number from the allowed set', () => {
+  assert.throws(() => calc({ itemsSubtotalBrl: 50, distanceKm: 1, tipPct: '10' }), /Invalid tipPct/);
+});
