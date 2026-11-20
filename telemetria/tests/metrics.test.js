@@ -47,3 +47,20 @@ test('counters are independent', () => {
   a.increment(5);
   assert.equal(b.value(), 0);
 });
+
+test('throws RangeError when the total would overflow, leaving state unchanged', () => {
+  const c = createCounter('big');
+  c.increment(Number.MAX_VALUE);
+  assert.throws(() => c.increment(Number.MAX_VALUE), RangeError);
+  assert.equal(c.value(), Number.MAX_VALUE);
+  assert.deepEqual(c.snapshot(), { name: 'big', value: Number.MAX_VALUE });
+});
+
+test('snapshot keeps the name exactly as given, without trimming', () => {
+  assert.equal(createCounter(' hits ').snapshot().name, ' hits ');
+});
+
+test('increment(undefined) falls back to the default of 1', () => {
+  const c = createCounter('hits');
+  assert.equal(c.increment(undefined), 1);
+});

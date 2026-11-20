@@ -16,7 +16,11 @@ function createCounter(name) {
   return {
     increment(n = 1) {
       assertValidAmount(n);
-      total += n;
+      const next = total + n;
+      if (!Number.isFinite(next)) {
+        throw new RangeError('counter total would exceed the finite number range');
+      }
+      total = next;
       return total;
     },
     value() {
