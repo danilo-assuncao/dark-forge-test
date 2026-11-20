@@ -22,15 +22,27 @@ test('returns a frozen entry that cannot be changed or extended', () => {
   assert.deepEqual(entry, { actor: 'Ana', action: 'Read' });
 });
 
+test('preserves embedded control characters for structured JSON serialization', () => {
+  const entry = formatAuditEntry('Ana\r\nBob', 'Read\u0000\tWrite');
+  assert.deepEqual(entry, { actor: 'Ana\r\nBob', action: 'Read\u0000\tWrite' });
+  const serialized = JSON.stringify(entry);
+  assert.doesNotMatch(serialized, /[\u0000-\u001f]/);
+  assert.deepEqual(JSON.parse(serialized), entry);
+});
+
 test('rejects empty, whitespace-only, missing, and non-string values for either field', () => {
   const invalidValues = [
     '', ' ', '\t\r\n', '\u00a0', undefined, null, 0, NaN, true,
     {}, [], ['Ana'], new String('Ana'), Symbol('Ana'), 1n, () => 'Ana'
   ];
   for (const value of invalidValues) {
-    assert.throws(() => formatAuditEntry(value, 'Read'), TypeError);
-    assert.throws(() => formatAuditEntry('Ana', value), TypeError);
+    assert.throws(() => formatAuditEntry(value, 'Read'), {
+      name: 'TypeError', message: /actor/
+    });
+    assert.throws(() => formatAuditEntry('Ana', value), {
+      name: 'TypeError', message: /action/
+    });
   }
-  assert.throws(() => formatAuditEntry(), TypeError);
-  assert.throws(() => formatAuditEntry('Ana'), TypeError);
+  assert.throws(() => formatAuditEntry(), { name: 'TypeError', message: /actor/ });
+  assert.throws(() => formatAuditEntry('Ana'), { name: 'TypeError', message: /action/ });
 });
