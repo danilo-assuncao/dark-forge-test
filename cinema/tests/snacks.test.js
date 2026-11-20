@@ -38,18 +38,52 @@ test('10% discount at exactly 4 items across lines', () => {
   assert.equal(r.total, 64.8);
 });
 
-test('rounds to 2 decimals', () => {
+test('bulk discount on mixed lines', () => {
   const r = s.calculateSnacksTotal([{ snackId: 'refri-500', qty: 3 }, { snackId: 'combo-casal', qty: 1 }]);
   assert.equal(r.subtotal, 100);
   assert.equal(r.total, 90);
-  const r2 = s.calculateSnacksTotal([{ snackId: 'refri-500', qty: 5 }]);
-  assert.equal(r2.total, 63);
+  assert.equal(s.calculateSnacksTotal([{ snackId: 'refri-500', qty: 5 }]).total, 63);
+});
+
+test('single line with qty 4 triggers the discount, qty 3 does not', () => {
+  assert.equal(s.calculateSnacksTotal([{ snackId: 'chocolate', qty: 3 }]).discount, 0);
+  const r = s.calculateSnacksTotal([{ snackId: 'chocolate', qty: 4 }]);
+  assert.equal(r.discount, 4.8);
+  assert.equal(r.total, 43.2);
+});
+
+test('qty bounds 1 and 10 are accepted', () => {
+  assert.equal(s.calculateSnacksTotal([{ snackId: 'pipoca-m', qty: 1 }]).total, 24);
+  const r = s.calculateSnacksTotal([{ snackId: 'pipoca-m', qty: 10 }]);
+  assert.equal(r.subtotal, 240);
+  assert.equal(r.total, 216);
+});
+
+test('returns per-line details', () => {
+  const r = s.calculateSnacksTotal([{ snackId: 'pipoca-g', qty: 2 }]);
+  assert.deepEqual(r.items, [{ snackId: 'pipoca-g', qty: 2, unitPrice: 32, subtotal: 64 }]);
+});
+
+test('repeated snackId lines count together toward the discount', () => {
+  const r = s.calculateSnacksTotal([{ snackId: 'pipoca-m', qty: 2 }, { snackId: 'pipoca-m', qty: 2 }]);
+  assert.equal(r.items.length, 2);
+  assert.equal(r.totalQty, 4);
+  assert.equal(r.total, 86.4);
+});
+
+test('catalog exposes names', () => {
+  s.listSnacks().forEach((x) => assert.ok(typeof x.name === 'string' && x.name.length > 0));
 });
 
 test('rejects invalid input', () => {
-  assert.throws(() => s.calculateSnacksTotal(null), TypeError);
+  [null, undefined, {}, 'x'].forEach((v) => assert.throws(() => s.calculateSnacksTotal(v), TypeError));
+  [null, 5, 'x'].forEach((v) => {
+    assert.throws(() => s.calculateSnacksTotal([v]), { name: 'TypeError', message: 'each item must be an object' });
+  });
   assert.throws(() => s.calculateSnacksTotal([{ snackId: 'x', qty: 1 }]), RangeError);
+  assert.throws(() => s.calculateSnacksTotal([{ qty: 1 }]), RangeError);
+  assert.throws(() => s.calculateSnacksTotal([{ snackId: 'pipoca-m' }]), RangeError);
   [0, 11, 1.5, '2', NaN, undefined].forEach((qty) => {
-    assert.throws(() => s.calculateSnacksTotal([{ snackId: 'pipoca-m', qty }]), RangeError);
+    assert.throws(() => s.calculateSnacksTotal([{ snackId: 'pipoca-m', qty }]), /qty per line/);
   });
 });

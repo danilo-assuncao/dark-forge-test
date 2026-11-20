@@ -5,6 +5,8 @@
 
 const BULK_MIN_QTY = 4;
 const BULK_DISCOUNT_PCT = 10;
+// Per-line limit: each { snackId, qty } line must have qty in 1..MAX_QTY.
+// Repeated snackIds on several lines are valid and all count toward the bulk threshold.
 const MAX_QTY = 10;
 
 const SNACKS = Object.freeze([
@@ -34,7 +36,7 @@ function calculateSnacksTotal(items) {
     if (!snack) throw new RangeError('unknown snackId: ' + String(item.snackId));
     const qty = item.qty;
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
-      throw new RangeError('qty must be an integer between 1 and ' + MAX_QTY);
+      throw new RangeError('qty per line must be an integer between 1 and ' + MAX_QTY);
     }
     const lineCents = toCents(snack.price) * qty;
     totalQty += qty;
