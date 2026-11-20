@@ -76,7 +76,13 @@
     return data[cursoId] ? (data[cursoId].certificado || null) : null;
   }
 
+  function validarCertificado(cursoId, codigo) {
+    if (typeof codigo !== 'string' || !/^CERT-[A-Z0-9]{4}$/.test(codigo)) return false;
+    return getCertificado(cursoId) === codigo;
+  }
+
   var api = {
+    validarCertificado: validarCertificado,
     markAulaAssistida: markAulaAssistida,
     getAulasAssistidas: getAulasAssistidas,
     gerarCertificado: gerarCertificado,

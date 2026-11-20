@@ -75,3 +75,13 @@ test('localStorage persistence', () => {
     global.localStorage = origLocal;
   }
 });
+
+test('validarCertificado accepts only the issued code for the course', () => {
+  Progress._clear();
+  Progress.markAulaAssistida('v1', 'a1');
+  const code = Progress.gerarCertificado('v1', 1);
+  assert.equal(Progress.validarCertificado('v1', code), true);
+  assert.equal(Progress.validarCertificado('v1', 'CERT-ZZZZ' === code ? 'CERT-YYYY' : 'CERT-ZZZZ'), false);
+  assert.equal(Progress.validarCertificado('v1', 'bad'), false);
+  assert.equal(Progress.validarCertificado('other', code), false);
+});
