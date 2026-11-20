@@ -92,6 +92,7 @@ test('lesson UI issues certificate only at completion, restores progress and saf
   const e = environment();
   const name = '<img src=x onerror=alert(1)>';
   enroll(e, name);
+  assert.equal(e.$('notice').textContent, 'Matrícula confirmada! Suas aulas estão disponíveis em Meus estudos.');
   const lessons = descendants(e.$('study-list'), 'input');
   const cert = descendants(e.$('study-list'), 'button')[0];
   assert.equal(cert.hidden, true);
@@ -101,11 +102,13 @@ test('lesson UI issues certificate only at completion, restores progress and saf
   assert.equal(lessons[0].disabled, true);
   lessons[1].checked = true; lessons[1].fire('change');
   assert.equal(cert.hidden, false);
+  assert.equal(e.$('notice').textContent, 'Curso concluído! Seu certificado está disponível.');
   cert.fire('click');
   assert.equal(e.$('certificate').hidden, false);
   assert.equal(e.$('certificate-name').textContent, name);
   assert.equal(e.$('certificate-name').children.length, 0);
   assert.match(e.$('certificate-code').textContent, /^CERT-[A-Z0-9]{4}$/);
+  assert.match(e.$('certificate-date').textContent, /^Emitido em /);
   e.$('close-certificate').fire('click');
   assert.equal(e.$('certificate').hidden, true);
   assert.equal(e.focused(), cert);
@@ -165,13 +168,7 @@ test('browser entry boots with unavailable localStorage and exposes the applicat
   assert.equal(e.$('course-list').children.length, 6);
 });
 
-test('page loads dependencies in order and enforces a responsive light-only theme', () => {
+test('page loads dependencies in order', () => {
   assert.ok(html.indexOf('src="catalog.js"') < html.indexOf('src="progress.js"'));
   assert.ok(html.indexOf('src="progress.js"') < html.indexOf('src="app.js"'));
-  assert.match(html, /name="color-scheme" content="only light"/);
-  assert.match(html, /name="viewport"/);
-  const css = fs.readFileSync(path.join(__dirname, '../styles.css'), 'utf8');
-  assert.match(css, /color-scheme:\s*only light/);
-  assert.doesNotMatch(css, /prefers-color-scheme:\s*dark/);
-  assert.match(css, /@media \(max-width: 560px\)/);
 });

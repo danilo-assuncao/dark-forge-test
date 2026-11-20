@@ -113,11 +113,13 @@
       $('certificate-name').textContent = model.student(course.id);
       $('certificate-course').textContent = course.title + ' · ' + course.durationHours + ' horas';
       $('certificate-code').textContent = cert.code;
-      $('certificate-date').textContent = cert.issuedAt ? 'Emitido em ' + new Date(cert.issuedAt).toLocaleDateString('pt-BR') : '';
+      const issued = cert.issuedAt ? new Date(cert.issuedAt) : null;
+      $('certificate-date').textContent = issued && !isNaN(issued) ? 'Emitido em ' + issued.toLocaleDateString('pt-BR') : '';
       $('certificate').hidden = false;
       $('certificate-title').focus();
     }
     function renderStudies() {
+      $('certificate').hidden = true;
       $('study-list').replaceChildren();
       $('studies-empty').hidden = model.courses().length > 0;
       model.courses().forEach(course => {
@@ -199,7 +201,10 @@
     });
     $('close-certificate').addEventListener('click', () => {
       $('certificate').hidden = true;
-      if (returnFocus) returnFocus.focus();
+      if (returnFocus) {
+        if (returnFocus.isConnected !== false) returnFocus.focus();
+        else $('studies-title').focus();
+      }
     });
     renderCatalog(); renderStudies();
     return model;
