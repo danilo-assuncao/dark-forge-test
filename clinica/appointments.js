@@ -61,7 +61,10 @@ function normalizeSlot(datetime) {
     }
     const time = new Date(dt).getTime();
     if (Number.isNaN(time)) return null;
-    return new Date(Math.floor(time / 60000) * 60000).toISOString();
+    const date = new Date(Math.floor(time / 60000) * 60000);
+    const year = date.getUTCFullYear();
+    if (year < 0 || year > 9999) return null;
+    return date.toISOString();
 }
 
 function protocolNumber(protocol) {
@@ -123,7 +126,7 @@ class AppointmentBook {
         try {
             this.storage.setItem(this.storageKey, JSON.stringify(state));
         } catch (e) {
-            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+            if (e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
                 throw new Error('Storage quota exceeded. Cannot save appointment.');
             }
             throw new Error('Storage operation failed.', { cause: e });
@@ -202,6 +205,10 @@ class AppointmentBook {
         state.appointments.splice(index, 1);
         this._save(state); // counter is kept so protocols are never reused
         return true;
+    }
+
+    reset() {
+        this.storage.removeItem(this.storageKey);
     }
 }
 

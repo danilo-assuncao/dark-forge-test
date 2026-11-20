@@ -71,18 +71,22 @@ test('uses global localStorage when available', () => {
 test('falls back to shared in-memory storage without localStorage or when it throws', () => {
     const noStorage = { get: () => undefined };
     const throwing = { get: () => { throw new Error('denied'); } };
-    for (const [i, descriptor] of [noStorage, throwing].entries()) {
-        withLocalStorage(descriptor, () => {
-            AppointmentBook.sharedMemoryStorage.clear();
-            const t = `2027-0${i + 1}-01T10:00:00Z`;
-            const first = new AppointmentBook().book({ doctorId: 'dm', datetime: t, patientName: 'Ana' });
-            assert.equal(first.protocol, 'MED-0001');
-            const second = new AppointmentBook();
-            assert.equal(second.isAvailable('dm', t), false);
-            assert.throws(() => second.book({ doctorId: 'dm', datetime: t, patientName: 'Bia' }), /already booked/);
-            const secondBooking = second.book({ doctorId: 'dm', datetime: `2027-0${i + 1}-02T10:00:00Z`, patientName: 'Bia' });
-            assert.equal(secondBooking.protocol, 'MED-0002');
-        });
+    try {
+        for (const [i, descriptor] of [noStorage, throwing].entries()) {
+            withLocalStorage(descriptor, () => {
+                AppointmentBook.sharedMemoryStorage.clear();
+                const t = `2027-0${i + 1}-01T10:00:00Z`;
+                const first = new AppointmentBook().book({ doctorId: 'dm', datetime: t, patientName: 'Ana' });
+                assert.equal(first.protocol, 'MED-0001');
+                const second = new AppointmentBook();
+                assert.equal(second.isAvailable('dm', t), false);
+                assert.throws(() => second.book({ doctorId: 'dm', datetime: t, patientName: 'Bia' }), /already booked/);
+                const secondBooking = second.book({ doctorId: 'dm', datetime: `2027-0${i + 1}-02T10:00:00Z`, patientName: 'Bia' });
+                assert.equal(secondBooking.protocol, 'MED-0002');
+            });
+        }
+    } finally {
+        AppointmentBook.sharedMemoryStorage.clear();
     }
 });
 
@@ -123,13 +127,16 @@ test('validates input and leaves storage unchanged on failure', () => {
     assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: '  ' }), /Patient/);
     assert.throws(() => book.book({ doctorId: 'd1', datetime: slot, patientName: 'x'.repeat(101) }), /at most/);
     assert.throws(() => book.book({ doctorId: 'x'.repeat(65), datetime: slot, patientName: 'Ana' }), /at most/);
-    for (const bad of ['nope', '1', '2026-12-01', '2026-12-01T10:00', '2026-13-45T10:00:00Z', '2026-02-30T10:00:00Z', '2026-02-31T10:00:00Z', '2026-12-01T24:00:00Z', '2026-02-29T10:00:00Z', '2100-02-29T10:00:00Z', '2026-04-31T10:00:00Z', '2026-00-10T10:00:00Z', '2026-01-00T10:00:00Z', '2026-12-01T10:60:00Z', null, 123, new Date(slot)]) {
+    for (const bad of ['nope', '1', '2026-12-01', '2026-12-01T10:00', '2026-13-45T10:00:00Z', '2026-02-30T10:00:00Z', '2026-02-31T10:00:00Z', '2026-12-01T24:00:00Z', '2026-02-29T10:00:00Z', '2100-02-29T10:00:00Z', '2026-04-31T10:00:00Z', '2026-00-10T10:00:00Z', '2026-01-00T10:00:00Z', '2026-12-01T10:60:00Z', '2026-12-01T10:00:00+25:00', '2026-12-01t10:00:00z', '2026-12-01 10:00:00Z', '9999-12-31T23:30:00-03:00', '0000-01-01T00:00:00+01:00', null, 123, new Date(slot)]) {
         assert.throws(() => book.book({ doctorId: 'd1', datetime: bad, patientName: 'Ana' }), /ISO-8601/);
         assert.equal(book.isAvailable('d1', bad), false);
     }
     assert.equal(book.isAvailable('', slot), false);
     assert.equal(book.isAvailable(undefined, slot), false);
     assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), null);
+    
+    // accepts whitespace around valid slot
+    assert.doesNotThrow(() => book.book({ doctorId: 'd1', datetime: `  ${slot}  `, patientName: 'Ana' }));
 });
 
 test('handles correct calendar edge cases (leap years)', () => {
@@ -176,7 +183,12 @@ test('refuses to overwrite corrupted or wrongly shaped storage', () => {
         JSON.stringify({ counter: 2, appointments: [good, { ...good, protocol: 'MED-0002' }] }),
         JSON.stringify({ counter: 1, appointments: [{ ...good, protocol: 'MED-99999999999999999999' }] }),
         JSON.stringify({ counter: 1, appointments: [{ ...good, doctorId: 123 }] }),
-        JSON.stringify({ counter: 1, appointments: [{ ...good, patientName: null }] })
+        JSON.stringify({ counter: 1, appointments: [{ ...good, patientName: null }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, doctorId: ' d1 ' }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, doctorId: '' }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, patientName: 'x'.repeat(101) }] }),
+        JSON.stringify({ counter: 1, appointments: [{ ...good, datetime: '2026-12-01T10:00:00Z' }] }),
+        JSON.stringify({ counter: Number.MAX_SAFE_INTEGER + 1, appointments: [] })
     ];
     for (const payload of payloads) {
         const storage = fakeStorage();
@@ -203,6 +215,12 @@ test('counter never falls below the highest stored protocol and supports >9999',
     const p = book.book({ doctorId: 'd2', datetime: '2026-12-02T10:00:00Z', patientName: 'Bia' }).protocol;
     assert.equal(p, 'MED-10000');
     assert.match(p, AppointmentBook.PROTOCOL_PATTERN);
+
+    // Max safe integer counter branch
+    seed(Number.MAX_SAFE_INTEGER, 'MED-99999');
+    const stateBefore = storage.getItem(AppointmentBook.STORAGE_KEY);
+    assert.throws(() => book.book({ doctorId: 'd3', datetime: '2026-12-03T10:00:00Z', patientName: 'Carla' }), /Maximum counter reached/);
+    assert.equal(storage.getItem(AppointmentBook.STORAGE_KEY), stateBefore);
 });
 
 test('returns defensive copies and null for unknown protocols', () => {
