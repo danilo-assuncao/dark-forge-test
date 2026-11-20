@@ -12,7 +12,8 @@ function calcIcms(amountBrl, ratePct) {
   }
 
   const tax = amountBrl * ratePct / 100;
-  const rounded = Math.round((tax + Number.EPSILON) * 100) / 100;
+  // Remove floating-point noise at the cent scale before half-up rounding.
+  const rounded = Math.round(Number((tax * 100).toPrecision(15))) / 100;
   if (!Number.isFinite(rounded)) {
     throw new RangeError('ICMS result is too large to represent.');
   }

@@ -15,6 +15,11 @@ test('rounds fractional cents including half-cent boundaries', () => {
   assert.equal(calcIcms(10.05, 5), 0.5);
   assert.equal(calcIcms(1.01, 50), 0.51);
   assert.equal(calcIcms(1.005, 100), 1.01);
+  assert.equal(calcIcms(1000.5, 1), 10.01);
+  assert.equal(calcIcms(10000.5, 1), 100.01);
+  assert.equal(calcIcms(100000.5, 1), 1000.01);
+  assert.equal(calcIcms(1000.4999, 1), 10);
+  assert.equal(calcIcms(1000.5001, 1), 10.01);
 });
 
 test('zero amounts and rates yield positive zero', () => {
@@ -48,4 +53,12 @@ test('rejects calculation overflow', () => {
   assert.throws(() => calcIcms(Number.MAX_VALUE, 200), {
     name: 'RangeError', message: /too large/,
   });
+});
+
+test('rejects intermediate multiplication overflow even when the tax would be finite', () => {
+  for (const amount of [1e307, Number.MAX_VALUE]) {
+    assert.throws(() => calcIcms(amount, 100), {
+      name: 'RangeError', message: /too large/,
+    });
+  }
 });
