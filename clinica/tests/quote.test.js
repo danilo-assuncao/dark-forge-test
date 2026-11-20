@@ -77,3 +77,79 @@ test('throws error for invalid copay percentage', () => {
     assert.throws(() => quote.setInsuranceCopay(150), /Copay percentage must be a number between 0 and 100/);
     assert.throws(() => quote.setInsuranceCopay('30'), /Copay percentage must be a number between 0 and 100/);
 });
+
+test('rejects duplicate exams', () => {
+    const quote = new Quote();
+    quote.addExam('hemograma');
+    assert.throws(() => quote.addExam('hemograma'), /Exam already added: hemograma/);
+});
+
+test('exams included in a selected checkup are not charged, in any order', () => {
+    const a = new Quote();
+    a.addExam('checkup_basico');
+    a.addExam('hemograma');
+    const b = new Quote();
+    b.addExam('hemograma');
+    b.addExam('checkup_basico');
+    assert.equal(a.calculate().subtotal, 120);
+    assert.equal(b.calculate().subtotal, 120);
+    assert.equal(a.calculate().fastingHours, b.calculate().fastingHours);
+});
+
+test('setInsuranceCopay rejects NaN and Infinity', () => {
+    const quote = new Quote();
+    assert.throws(() => quote.setInsuranceCopay(NaN), /Copay percentage/);
+    assert.throws(() => quote.setInsuranceCopay(Infinity), /Copay percentage/);
+});
+
+test('copay boundaries 0 and 100', () => {
+    const q0 = new Quote();
+    q0.addExam('checkup_completo');
+    q0.setInsuranceCopay(0);
+    assert.deepEqual([q0.calculate().discount, q0.calculate().total], [200, 0]);
+    const q100 = new Quote();
+    q100.addExam('checkup_completo');
+    q100.setInsuranceCopay(100);
+    assert.deepEqual([q100.calculate().discount, q100.calculate().total], [0, 200]);
+    assert.equal(q100.calculate().discountType, 'convenio');
+});
+
+test('empty quote returns zeros', () => {
+    assert.deepEqual(new Quote().calculate(), {
+        subtotal: 0, discount: 0, total: 0, fastingHours: 0, turnaroundDays: 0, discountType: null
+    });
+});
+
+test('rounds monetary values to cents', () => {
+    const quote = new Quote();
+    quote.addExam('hemograma'); // 25
+    quote.addExam('glicemia'); // 15
+    quote.setInsuranceCopay(33.3);
+    const r = quote.calculate();
+    assert.equal(r.subtotal, 40);
+    assert.equal(r.total, 13.32);
+    assert.equal(r.discount, 26.68);
+});
+
+test('coupon is normalized, validated and cleared', () => {
+    const quote = new Quote();
+    quote.addExam('hemograma');
+    assert.equal(quote.applyCoupon(' dansaude10 '), true);
+    assert.equal(quote.calculate().discountType, 'cupom_dansaude10');
+    assert.equal(quote.applyCoupon(''), false);
+    assert.equal(quote.calculate().discountType, null);
+    quote.applyCoupon('DANSAUDE10');
+    assert.equal(quote.applyCoupon(null), false);
+    assert.equal(quote.calculate().discountType, null);
+    assert.throws(() => quote.applyCoupon(10), /Coupon code must be a string/);
+});
+
+test('insurance wins over coupon regardless of order', () => {
+    const quote = new Quote();
+    quote.addExam('checkup_completo');
+    quote.applyCoupon('DANSAUDE10');
+    quote.setInsuranceCopay(30);
+    const r = quote.calculate();
+    assert.equal(r.discountType, 'convenio');
+    assert.equal(r.total, 60);
+});
