@@ -64,6 +64,82 @@ test('rejects invalid items', () => {
     c.addItem('a', 'A', 100, 99);
     assert.throws(() => c.addItem('a', 'A', 100, 1), /Invalid cart item/);
     assert.throws(() => c.addItem('a', 'A', 200, 1), /Price mismatch/);
+    assert.throws(() => c.addItem('b', 'B', 100000001, 1), /Invalid cart item/);
+    assert.strictEqual(c.items.length, 1);
+    assert.strictEqual(c.items[0].qty, 99);
+    assert.strictEqual(c.subtotalCents(), 9900);
+});
+
+test('failed addItem does not persist anything', () => {
+    const s = memStorage();
+    const c = new Cart(s);
+    assert.throws(() => c.addItem('a', 'A', -1, 1));
+    assert.strictEqual(s.raw.size, 0);
+});
+
+test('floor rounding for coupon and PIX', () => {
+    const c = new Cart(null);
+    c.addItem('a', 'A', 10005, 1);
+    let t = c.totals();
+    assert.strictEqual(t.pixDiscountCents, 1000);
+    assert.strictEqual(t.pixTotalCents, 9005);
+    c.applyCoupon('DANTECH10');
+    t = c.totals();
+    assert.strictEqual(t.couponDiscountCents, 1000);
+    assert.strictEqual(t.totalCents, 9005);
+    assert.strictEqual(t.pixDiscountCents, 900);
+    assert.strictEqual(t.pixTotalCents, 8105);
+});
+
+test('installments with coupon and on empty cart', () => {
+    const c = filled(memStorage());
+    c.applyCoupon('DANTECH10');
+    const i = c.installments(12);
+    assert.strictEqual(i.amounts.reduce((a, b) => a + b, 0), c.totals().totalCents);
+    assert.deepStrictEqual(new Cart(null).installments(3).amounts, [0, 0, 0]);
+});
+
+test('storage failures keep the cart working in memory', () => {
+    const bad = { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } };
+    const c = new Cart(bad);
+    c.addItem('a', 'A', 100, 1);
+    assert.strictEqual(c.subtotalCents(), 100);
+    assert.doesNotThrow(() => new Cart());
+});
+
+test('remove, removeCoupon and clear persist', () => {
+    const s = memStorage();
+    const c = filled(s);
+    c.applyCoupon('DANTECH10');
+    c.removeCoupon();
+    assert.strictEqual(new Cart(s).couponCode, null);
+    c.removeItem('gpu');
+    assert.strictEqual(new Cart(s).items.length, 1);
+    c.applyCoupon('DANTECH10');
+    c.clear();
+    const r = new Cart(s);
+    assert.strictEqual(r.items.length, 0);
+    assert.strictEqual(r.couponCode, null);
+});
+
+test('load filters bad stored data, merges duplicates, rejects non-canonical coupon', () => {
+    const s = memStorage();
+    s.setItem(STORAGE_KEY, JSON.stringify({
+        items: [
+            { id: 'a', priceCents: 100, qty: 100 },
+            { id: 'b', priceCents: 1.5, qty: 1 },
+            { id: 'c', priceCents: 1e21, qty: 1 },
+            { id: 'd', priceCents: 100, qty: 2 },
+            { id: 'd', priceCents: 100, qty: 3 },
+            { id: 'd', priceCents: 200, qty: 1 },
+            { id: 'e', priceCents: 100, qty: 60 },
+            { id: 'e', priceCents: 100, qty: 60 }
+        ],
+        coupon: 'dantech10'
+    }));
+    const c = new Cart(s);
+    assert.deepStrictEqual(c.items.map((i) => [i.id, i.qty]), [['d', 5], ['e', 60]]);
+    assert.strictEqual(c.couponCode, null);
 });
 
 test('PIX gives 10% off', () => {

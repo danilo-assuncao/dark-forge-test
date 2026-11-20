@@ -1,4 +1,9 @@
+// NOTE: display-only. Prices and the coupon live in client-side code/localStorage and can be
+// tampered with, so these totals are NON-authoritative and must never be the charged amount.
+// At checkout, re-price from a server-side catalog (send only ids + quantities) and re-validate the coupon.
 const STORAGE_KEY = 'dan-tech-cart';
+const MAX_PRICE_CENTS = 100000000;
+const MAX_NAME = 120;
 const PIX_DISCOUNT_RATE = 0.10;
 const MAX_INSTALLMENTS = 12;
 const MAX_QTY = 99;
@@ -20,9 +25,13 @@ function isNonEmptyString(v) {
     return typeof v === 'string' && v.trim() !== '';
 }
 
+function cleanName(name, fallback) {
+    return typeof name === 'string' && name.trim() !== '' ? name.slice(0, MAX_NAME) : fallback;
+}
+
 function isValidItem(it) {
     return it && isNonEmptyString(it.id) &&
-        Number.isInteger(it.priceCents) && it.priceCents >= 0 &&
+        Number.isInteger(it.priceCents) && it.priceCents >= 0 && it.priceCents <= MAX_PRICE_CENTS &&
         Number.isInteger(it.qty) && it.qty >= 1 && it.qty <= MAX_QTY;
 }
 
@@ -45,10 +54,17 @@ class Cart {
             if (!raw) return;
             const data = JSON.parse(raw);
             if (data && Array.isArray(data.items)) {
-                this.items = data.items.filter(isValidItem).map((i) => ({
-                    id: i.id, name: typeof i.name === 'string' ? i.name : i.id,
-                    priceCents: i.priceCents, qty: i.qty
-                }));
+                // Merge duplicate ids; drop lines whose price differs or whose combined qty exceeds MAX_QTY.
+                const byId = new Map();
+                for (const i of data.items.filter(isValidItem)) {
+                    const prev = byId.get(i.id);
+                    if (!prev) {
+                        byId.set(i.id, { id: i.id, name: cleanName(i.name, i.id), priceCents: i.priceCents, qty: i.qty });
+                    } else if (prev.priceCents === i.priceCents && prev.qty + i.qty <= MAX_QTY) {
+                        prev.qty += i.qty;
+                    }
+                }
+                this.items = [...byId.values()];
             }
             if (data && typeof data.coupon === 'string' && COUPONS.has(data.coupon)) {
                 this.couponCode = data.coupon;
@@ -83,7 +99,7 @@ class Cart {
             }
             existing.qty += qty;
         } else {
-            this.items.push({ id, name: typeof name === 'string' ? name : id, priceCents, qty });
+            this.items.push({ id, name: cleanName(name, id), priceCents, qty });
         }
         this._save();
     }
