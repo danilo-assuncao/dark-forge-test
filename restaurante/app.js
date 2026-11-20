@@ -1,9 +1,9 @@
 'use strict';
 
 if (typeof window !== 'undefined') {
-  const { filterMenu, MENU } = window.require('./menu.js');
-  const { EXTRAS, DONENESS_OPTIONS, customizeDish } = window.require('./customizer.js');
-  const { submitRestaurantOrder } = window.require('./order.js');
+  const { filterMenu, MENU } = require('./menu.js');
+  const { EXTRAS, DONENESS_OPTIONS, customizeDish } = require('./customizer.js');
+  const { submitRestaurantOrder } = require('./order.js');
 
   const vitrineItemsContainer = document.getElementById('vitrine-items');
   const applyFiltersBtn = document.getElementById('apply-filters');

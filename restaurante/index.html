@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
   <title>Dan Gourmet</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -87,36 +88,38 @@
     </section>
   </main>
 
-  <!-- Node module shim for browser -->
   <script>
-    const modules = {
-      'node:crypto': { randomInt: (min, max) => Math.floor(Math.random() * (max - min) + min) }
-    };
-    window.module = { exports: {} };
-    window.exports = window.module.exports;
-    window.require = (id) => {
-      if (id === './menu.js') return modules['./menu.js'];
-      if (id === './customizer.js') return modules['./customizer.js'];
-      if (id === './delivery.js') return modules['./delivery.js'];
-      if (id === './order.js') return modules['./order.js'];
-      if (id === 'node:crypto') return modules['node:crypto'];
-      throw new Error(`Cannot require ${id}`);
-    };
-    function saveModule(id) {
-      modules[id] = window.module.exports;
-      window.module = { exports: {} };
-      window.exports = window.module.exports;
-    }
+    (async function loadApp() {
+      const modules = {
+        'node:crypto': { randomInt: (min, max) => min + (crypto.getRandomValues(new Uint32Array(1))[0] % (max - min)) }
+      };
+      
+      const files = ['./menu.js', './customizer.js', './delivery.js', './order.js', './app.js'];
+      
+      for (const file of files) {
+        try {
+          const response = await fetch(file);
+          if (!response.ok) throw new Error(`Failed to load ${file}`);
+          const src = await response.text();
+          
+          const module = { exports: {} };
+          const req = (id) => {
+            if (id === './menu.js' || id === './customizer.js' || id === './delivery.js' || id === './order.js') {
+              return modules[id];
+            }
+            if (id === 'node:crypto') return modules['node:crypto'];
+            throw new Error(`Cannot require ${id}`);
+          };
+          
+          const fn = new Function('require', 'module', 'exports', src);
+          fn(req, module, module.exports);
+          
+          modules[file] = module.exports;
+        } catch (err) {
+          console.error(`Error loading ${file}:`, err);
+        }
+      }
+    })();
   </script>
-  <script src="menu.js"></script>
-  <script>saveModule('./menu.js');</script>
-  <script src="customizer.js"></script>
-  <script>saveModule('./customizer.js');</script>
-  <script src="delivery.js"></script>
-  <script>saveModule('./delivery.js');</script>
-  <script src="order.js"></script>
-  <script>saveModule('./order.js');</script>
-  
-  <script src="app.js"></script>
 </body>
 </html>
