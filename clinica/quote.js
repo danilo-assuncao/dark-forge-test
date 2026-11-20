@@ -1,4 +1,7 @@
-const ClinicaExams = require('./exams.js');
+(function (global) {
+'use strict';
+const isNode = typeof module !== 'undefined' && module.exports;
+const ClinicaExams = isNode ? require('./exams.js') : global.ClinicaExams;
 
 const COUPON_DANSAUDE10 = 'DANSAUDE10';
 
@@ -83,4 +86,6 @@ class Quote {
     }
 }
 
-module.exports = Quote;
+if (isNode) { module.exports = Quote; } else { global.ClinicaQuote = Quote; }
+})(typeof window !== 'undefined' ? window : this);
+

@@ -1,4 +1,7 @@
-const crypto = require('crypto');
+(function (global) {
+'use strict';
+const isNode = typeof module !== 'undefined' && module.exports;
+const cryptoApi = isNode ? require('crypto') : global.crypto;
 
 const specialties = {
     CARDIOLOGY: 'Cardiologia',
@@ -60,7 +63,7 @@ class DoctorCatalog {
         }
 
         const newDoctor = {
-            id: crypto.randomUUID(),
+            id: cryptoApi.randomUUID(),
             name: doctor.name.trim(),
             crm: normalizedCrm,
             specialty: doctor.specialty,
@@ -96,9 +99,6 @@ class DoctorCatalog {
     }
 }
 
-module.exports = {
-    specialties,
-    modalities,
-    insurances,
-    DoctorCatalog
-};
+const api = { specialties, modalities, insurances, DoctorCatalog };
+if (isNode) { module.exports = api; } else { global.ClinicaDoctors = api; }
+})(typeof window !== 'undefined' ? window : this);

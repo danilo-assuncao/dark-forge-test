@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Dan Saúde – Consultas e Check-up</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">DAN <span>SAÚDE</span></h1>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button type="button" role="tab" id="tab-consultas" aria-controls="panel-consultas" aria-selected="true">Consultas</button>
+      <button type="button" role="tab" id="tab-exames" aria-controls="panel-exames" aria-selected="false" tabindex="-1">Exames e check-up <span class="badge" id="exam-count">0</span></button>
+      <button type="button" role="tab" id="tab-resumo" aria-controls="panel-resumo" aria-selected="false" tabindex="-1">Resumo e agenda <span class="badge" id="appt-count">0</span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="panel-consultas" role="tabpanel" aria-labelledby="tab-consultas">
+      <h2>Agende sua consulta</h2>
+      <div class="filters">
+        <div><label for="f-specialty">Especialidade</label><select id="f-specialty"></select></div>
+        <div><label for="f-modality">Modalidade</label><select id="f-modality"></select></div>
+        <div><label for="f-insurance">Convênio</label><select id="f-insurance"></select></div>
+      </div>
+      <p id="doctor-count" class="hint" role="status" aria-live="polite"></p>
+      <ul id="doctor-list" class="cards"></ul>
+      <h3>Data e horário</h3>
+      <div id="booking" class="booking"></div>
+    </section>
+
+    <section id="panel-exames" role="tabpanel" aria-labelledby="tab-exames" hidden>
+      <h2>Exames laboratoriais</h2>
+      <ul id="lab-list" class="cards"></ul>
+      <h2>Check-ups</h2>
+      <ul id="checkup-list" class="cards"></ul>
+    </section>
+
+    <section id="panel-resumo" role="tabpanel" aria-labelledby="tab-resumo" hidden>
+      <h2>Resumo do atendimento</h2>
+      <dl id="summary" class="quote"></dl>
+      <ul id="summary-notes" class="notes"></ul>
+      <label for="insurance">Convênio do paciente</label>
+      <select id="insurance"></select>
+      <label for="coupon">Cupom</label>
+      <input id="coupon" type="text" autocomplete="off" placeholder="DANSAUDE10">
+      <p id="coupon-msg" class="msg" role="status" aria-live="polite"></p>
+      <button type="button" id="confirm" class="primary">Confirmar agendamento</button>
+      <p id="confirm-msg" class="msg" role="status" aria-live="polite"></p>
+      <h3>Minha agenda</h3>
+      <ul id="appointments" class="cards compact"></ul>
+    </section>
+  </main>
+
+  <footer><p>Dan Saúde – simulação, nenhum agendamento ou pagamento real é processado.</p></footer>
+
+  <script src="exams.js"></script>
+  <script src="quote.js"></script>
+  <script src="doctors.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
