@@ -11,12 +11,17 @@ const TICKET_MULTIPLIERS = Object.freeze({ full: 1, half: 0.5 });
 
 const SEAT_PATTERN = /^[A-F][1-8]$/;
 
+function describe(value) {
+  const text = JSON.stringify(value) ?? String(value);
+  return text.length > 40 ? `${text.slice(0, 40)}...` : text;
+}
+
 function assertSeatCode(code) {
   if (typeof code !== 'string') {
     throw new TypeError('seat code must be a string');
   }
   if (!SEAT_PATTERN.test(code)) {
-    throw new RangeError(`invalid seat code: ${code} (expected A1..F8)`);
+    throw new RangeError(`invalid seat code: ${describe(code)} (expected A1..F8)`);
   }
 }
 
@@ -27,7 +32,7 @@ function toCents(value) {
 function createSeatMap(sessionId, occupiedSeats = []) {
   const session = getSessionById(sessionId);
   if (session === null) {
-    throw new RangeError(`unknown session: ${sessionId}`);
+    throw new RangeError(`unknown session: ${describe(sessionId)}`);
   }
   if (!Array.isArray(occupiedSeats)) {
     throw new TypeError('occupiedSeats must be an array');

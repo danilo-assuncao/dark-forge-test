@@ -71,6 +71,14 @@ test('confirmBooking totals, marks seats occupied and clears selection', () => {
   const booking = map.confirmBooking();
   assert.equal(booking.sessionId, 'ses-004');
   assert.equal(booking.total, 96);
+  assert.deepEqual(booking.seats, [
+    { code: 'D4', ticketKind: 'full', price: 64 },
+    { code: 'D5', ticketKind: 'half', price: 32 },
+  ]);
+  assert.equal(map.releaseSeat('D4'), false);
+  assert.throws(() => map.selectSeat('D4', 'full'), /occupied/);
+  map.selectSeat('E1', 'half');
+  assert.equal(map.confirmBooking().total, 32);
   assert.equal(booking.seats.length, 2);
   assert.deepEqual(map.getSelectedSeats(), []);
   assert.throws(() => map.selectSeat('D4', 'full'), /occupied/);
@@ -82,4 +90,46 @@ test('occupied list is copied, not shared', () => {
   const map = createSeatMap('ses-001', occ);
   occ.length = 0;
   assert.throws(() => map.selectSeat('F8', 'full'), /occupied/);
+});
+
+test('validation: non-string inputs and branch-specific messages', () => {
+  assert.throws(() => createSeatMap('ses-001', [1]), TypeError);
+  const dup = createSeatMap('ses-001', ['A1', 'A1']);
+  assert.equal(dup.selectSeat('B1', 'full').code, 'B1');
+  const map = createSeatMap('ses-001');
+  assert.throws(() => map.selectSeat(undefined, 'full'), TypeError);
+  assert.throws(() => map.selectSeat(5, 'full'), TypeError);
+  assert.throws(() => map.releaseSeat(123), TypeError);
+  assert.throws(() => map.selectSeat('A1'), { name: 'TypeError', message: /ticketKind/ });
+  assert.throws(() => map.selectSeat('A1', 'kid'), { name: 'RangeError', message: /ticketKind/ });
+  assert.throws(() => map.selectSeat('Z1', 'full'), { name: 'RangeError', message: /invalid seat code/ });
+});
+
+test('error messages quote and truncate user input', () => {
+  assert.throws(() => createSeatMap('x\nfake log'), (e) => !e.message.includes('\n'));
+  assert.throws(() => createSeatMap('ses-001').selectSeat('A'.repeat(500), 'full'), (e) => e.message.length < 120);
+});
+
+test('cents rounding with odd base price (stubbed movies.js)', () => {
+  const moviesPath = require.resolve('../movies.js');
+  const seatsPath = require.resolve('../seats.js');
+  const realMovies = require.cache[moviesPath];
+  const realSeats = require.cache[seatsPath];
+  require.cache[moviesPath] = {
+    id: moviesPath, filename: moviesPath, loaded: true,
+    exports: { getSessionById: (id) => ({ id, roomType: 'X' }), getBaseTicketPrice: () => 35.99 },
+  };
+  delete require.cache[seatsPath];
+  try {
+    const stubbed = require('../seats.js');
+    const map = stubbed.createSeatMap('s');
+    assert.equal(map.selectSeat('A1', 'full').price, 35.99);
+    assert.equal(map.selectSeat('A2', 'half').price, 18);
+    map.selectSeat('A3', 'half');
+    assert.equal(map.confirmBooking().total, 71.99);
+  } finally {
+    require.cache[moviesPath] = realMovies;
+    if (realSeats) require.cache[seatsPath] = realSeats;
+    else delete require.cache[seatsPath];
+  }
 });
