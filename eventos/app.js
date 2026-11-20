@@ -364,16 +364,22 @@
   function revalidateCartItems(stateItems, events, cart) {
     var revalidated = [];
     var changed = false;
+    var notices = [];
     stateItems.forEach(function (i) {
       var ev = events.filter(function (x) { return x.id === i.eventId; })[0];
-      if (!ev) { changed = true; return; }
+      if (!ev) { changed = true; notices.push('"' + i.eventName + '" foi removido (evento não encontrado).'); return; }
       var sel = resolveSelection(ev, { setor: i.sectorId, lote: i.lotId });
-      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.id !== i.lotId || sel.lot.status === 'soldout') { changed = true; return; }
+      if (!sel.sector || sel.sector.id !== i.sectorId || !sel.lot || sel.lot.id !== i.lotId || sel.lot.status === 'soldout') { 
+        changed = true; 
+        notices.push('"' + i.eventName + ' - ' + i.sectorName + '" foi removido (lote esgotado ou indisponível).'); 
+        return; 
+      }
       
       var validQty = Math.max(1, Math.min(i.qty || 1, cart.MAX_QTY, sel.lot.remaining));
       if (i.qty !== validQty) {
         i.qty = validQty;
         changed = true;
+        notices.push('Quantidade de "' + i.eventName + '" ajustada para ' + validQty + ' (limite de estoque).');
       }
       
       if (i.unitCents !== sel.lot.priceCents || i.sectorName !== sel.sector.name || i.lotName !== sel.lot.name || i.eventName !== ev.name) { 
@@ -382,10 +388,11 @@
         i.lotName = sel.lot.name;
         i.eventName = ev.name;
         changed = true; 
+        notices.push('Detalhes ou preço de "' + ev.name + '" foram atualizados.');
       }
       revalidated.push(i);
     });
-    return { items: revalidated, changed: changed };
+    return { items: revalidated, changed: changed, notices: notices };
   }
 
   function renderCart(app) {
@@ -406,6 +413,10 @@
 
     var saveMessage = el('p', 'coupon-msg');
     saveMessage.setAttribute('role', 'status');
+    if (rev.changed && rev.notices && rev.notices.length) {
+      saveMessage.textContent = 'Atenção: ' + rev.notices.join(' ');
+      saveMessage.className = 'coupon-msg coupon-msg--error';
+    }
     app.appendChild(saveMessage);
     function commit(next) {
       if (!cart.save(next)) {
@@ -492,11 +503,18 @@
 
     if (!state.items.length) {
       app.appendChild(el('p', 'empty', 'Sua sacola está vazia.'));
-      if (errorMessage) app.appendChild(el('p', 'coupon-msg coupon-msg--error', errorMessage));
+      if (errorMessage) {
+        app.appendChild(el('p', 'coupon-msg coupon-msg--error', errorMessage));
+      } else if (rev.notices && rev.notices.length) {
+        app.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Atenção: ' + rev.notices.join(' ')));
+      }
       return;
     }
 
     var form = el('form', 'checkout-form');
+    if (rev.notices && rev.notices.length) {
+      form.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Atenção: ' + rev.notices.join(' ')));
+    }
     var inputs = [];
     state.items.forEach(function (i, idx) {
       for (var q = 0; q < i.qty; q++) {
@@ -529,6 +547,7 @@
       if (form.getAttribute('data-obsolete') === 'true') return;
       errContainer.textContent = '';
       var hasError = false;
+      var firstInvalidInput = null;
       var holders = [];
       
       inputs.forEach(function(entry) {
@@ -536,10 +555,12 @@
         var c = entry.cpfInput.value.trim();
         if (!n || !c) {
           hasError = true;
-          var msgEmpty = el('p', 'coupon-msg coupon-msg--error', 'Preencha todos os campos do ingresso: ' + entry.item.eventName);
+          if (!firstInvalidInput) firstInvalidInput = !n ? entry.nameInput : entry.cpfInput;
+          var msgEmpty = el('p', 'coupon-msg coupon-msg--error', 'Preencha nome e CPF do ingresso: ' + entry.item.eventName);
           errContainer.appendChild(msgEmpty);
         } else if (!isValidCPF(c)) {
           hasError = true;
+          if (!firstInvalidInput) firstInvalidInput = entry.cpfInput;
           var msg = el('p', 'coupon-msg coupon-msg--error', 'CPF inválido: ' + c);
           errContainer.appendChild(msg);
         }
@@ -550,24 +571,28 @@
         holders.push({ eventName: entry.item.eventName, sectorName: entry.item.sectorName, type: entry.item.type, name: n, cpf: maskedCPF });
       });
 
-      if (hasError) return;
+      if (hasError) {
+        if (firstInvalidInput) firstInvalidInput.focus();
+        return;
+      }
       
       var currentState = cart.load();
       var preSubmitRev = revalidateCartItems(currentState.items, events, cart);
       if (preSubmitRev.changed) {
         cart.save({ items: preSubmitRev.items, coupon: currentState.coupon });
         form.setAttribute('data-obsolete', 'true');
-        renderCheckout(app, events, 'Alguns itens da sua sacola mudaram (preço ou disponibilidade). Verifique e tente novamente.');
+        var noticeStr = (preSubmitRev.notices && preSubmitRev.notices.length) ? preSubmitRev.notices.join(' ') : 'Alguns itens da sua sacola mudaram (preço ou disponibilidade). Verifique e tente novamente.';
+        renderCheckout(app, events, noticeStr);
         return;
       }
 
       var orderId = 'TKT-';
       if (root.crypto && root.crypto.getRandomValues) {
-        var arr = new Uint16Array(2);
+        var arr = new Uint32Array(2);
         root.crypto.getRandomValues(arr);
-        orderId += arr[0].toString(16).padStart(4, '0').toUpperCase() + '-' + arr[1].toString(16).padStart(4, '0').toUpperCase();
+        orderId += arr[0].toString(16).padStart(8, '0').toUpperCase() + '-' + arr[1].toString(16).padStart(8, '0').toUpperCase();
       } else {
-        orderId += Math.floor(Math.random() * 10000).toString().padStart(4, '0') + '-' + Date.now().toString().slice(-4);
+        orderId += Date.now().toString(16).toUpperCase() + '-' + Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0').toUpperCase();
       }
       
       var order = { orderId: orderId, holders: holders };
@@ -576,6 +601,7 @@
         if (cart.save(cart.emptyState())) {
           root.location.hash = '#/voucher';
         } else {
+          root.sessionStorage.removeItem('dan-tickets-order');
           errContainer.appendChild(el('p', 'coupon-msg coupon-msg--error', 'Não foi possível limpar a sacola. Verifique o armazenamento.'));
         }
       } catch (e) {

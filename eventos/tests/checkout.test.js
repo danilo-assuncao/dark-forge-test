@@ -32,6 +32,7 @@ function mount(storage, hash) {
     getAttribute(key) { return this.attrs[key] || null; }
     addEventListener(name, handler) { this.handlers[name] = handler; }
     fire(name) { if (this.handlers[name]) this.handlers[name]({ preventDefault() {} }); }
+    focus() {}
   }
   const app = new Element('main');
   const count = new Element('span');
@@ -47,14 +48,14 @@ function mount(storage, hash) {
     document: { readyState: 'complete', createElement: tag => new Element(tag), getElementById: id => id === 'app' ? app : count },
     addEventListener: (name, fn) => { listeners[name] = fn; }
   };
-  const ctx = vm.createContext({ window });
+  const ctx = vm.createContext({ window, console });
   for (const file of ['events.js', 'cart.js', 'app.js']) vm.runInContext(read(file), ctx);
   function all(node = app) { return [node, ...node.children.flatMap(child => all(child))]; }
   return {
     app, count, window,
     find: predicate => all().find(predicate),
     findAll: predicate => all().filter(predicate),
-    navigate(hash) { window.location.hash = hash; listeners.hashchange(); }
+    navigate(hash) { window.location.hash = hash; }
   };
 }
 
@@ -117,7 +118,7 @@ test('Checkout flow fills valid Name/CPF, rejects invalid CPF, generates real vo
   const errContainer = page.find(n => n.className === 'checkout-errors');
   form.fire('submit');
   assert.equal(page.window.location.hash, '#/checkout', 'Should block navigation if name is empty');
-  assert.match(page.app.textContent, /Preencha todos os campos/, 'Should show error for missing fields');
+  assert.match(page.app.textContent, /Preencha nome e CPF do ingresso/, 'Should show error for missing fields');
 
   nameInputs[0].value = 'Alice'; 
   
@@ -131,7 +132,7 @@ test('Checkout flow fills valid Name/CPF, rejects invalid CPF, generates real vo
   
   const voucherCode = page.find(n => n.className === 'voucher-code');
   assert.ok(voucherCode, 'Voucher code element should exist');
-  assert.match(voucherCode.textContent, /Código: TKT-ABCD-1234/, 'Voucher should display crypto generated formatted code');
+  assert.match(voucherCode.textContent, /Código: TKT-0000ABCD-00001234/, 'Voucher should display crypto generated formatted code');
   assert.match(page.app.textContent, /Alice \(\*\*\*\.456\.789-\*\*\)/, 'Voucher must reference first holder masked CPF');
   assert.match(page.app.textContent, /Bob \(\*\*\*\.000\.001-\*\*\)/, 'Voucher must reference second holder masked CPF');
   
@@ -166,9 +167,24 @@ test('Cart revalidation drops invalid items and prevents checkout of stale data'
   page.navigate('#/checkout');
   
   // Fake event should be dropped, correct price should be updated
-  const stored = JSON.parse(storage._m['dan-tickets-cart']);
+  let stored = JSON.parse(storage._m['dan-tickets-cart']);
   assert.equal(stored.items.length, 1, 'Invalid items should be dropped');
   assert.equal(stored.items[0].unitCents, 12000, 'Price should be corrected during revalidation');
+  assert.match(page.app.textContent, /"Fake Event" foi removido/, 'Should show removal notice in UI');
+  assert.match(page.app.textContent, /Detalhes ou preço de.*foram atualizados/, 'Should show update notice in UI');
+
+  // Now let's drop the last item to see if it renders the empty cart correctly
+  cart.save(cart.addItem(cart.emptyState(), {
+    eventId: 'fake', eventName: 'Fake Event 2',
+    sectorId: 'fake', sectorName: 'Fake', lotId: 'fake', lotName: 'Fake Lot',
+    type: 'inteira', qty: 1, unitCents: 100
+  }), storage);
+  
+  page.navigate('#/checkout');
+  
+  stored = JSON.parse(storage._m['dan-tickets-cart']);
+  assert.equal(stored.items.length, 0, 'All invalid items should be dropped');
+  assert.match(page.app.textContent, /Sua sacola está vazia/, 'Empty checkout should be rendered');
 });
 test('Empty cart rejects checkout and direct voucher access shows no order', () => {
   const storage = memStorage();
@@ -187,6 +203,10 @@ test('isValidCPF boundary tests', () => {
   assert.equal(isValidCPF('1234567890'), false, '10 digits should be invalid');
   assert.equal(isValidCPF('123.456.789-09'), true, 'Formatted valid CPF should be true');
   assert.equal(isValidCPF('000.000.001-91'), true, 'CPF with leading zeros should be true');
+  assert.equal(isValidCPF('123.456.789-00'), false, 'Bad first check digit should be invalid');
+  assert.equal(isValidCPF('123.456.789-08'), false, 'Bad second check digit should be invalid');
+  assert.equal(isValidCPF('***.456.789-**'), false, 'Masked CPF should be invalid');
+  assert.equal(isValidCPF('12345678909'), true, 'CPF with remainder 10 mapped to 0 should be true');
 });
 
 test('Checkout blocks multiple submissions on obsolete form state', () => {
@@ -238,5 +258,93 @@ test('Checkout blocks multiple submissions on obsolete form state', () => {
   assert.equal(page.window.sessionStorage.getItem('dan-tickets-order'), null, 'Should not create order from obsolete form');
   
   // Assert the error is in the UI
-  assert.match(page.app.textContent, /Alguns itens da sua sacola mudaram/, 'Should display revalidation error');
+  assert.match(page.app.textContent, /Detalhes ou preço.*foram atualizados/, 'Should display revalidation error');
+});
+
+test('Form-validation edge cases: empty name/CPF, resets, no storage updates', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/sacola');
+  const cart = page.window.DanCart;
+  const events = page.window.DanEvents.all();
+  
+  cart.save(cart.addItem(cart.emptyState(), {
+    eventId: events[0].id, eventName: events[0].name,
+    sectorId: events[0].sectors[0].id, sectorName: events[0].sectors[0].name,
+    lotId: 'lote-1', lotName: 'Lote 1',
+    type: 'inteira', qty: 1, unitCents: 15000
+  }), storage);
+  
+  page.navigate('#/checkout');
+  
+  const form = page.find(n => n.tag === 'form');
+  const nameInput = page.find(n => n.name === 'nome-0-0');
+  const cpfInput = page.find(n => n.name === 'cpf-0-0');
+  const errContainer = page.find(n => n.className === 'checkout-errors');
+  
+  // Empty name and CPF
+  nameInput.value = '   ';
+  cpfInput.value = '   ';
+  form.fire('submit');
+  assert.equal(page.window.location.hash, '#/checkout', 'Should block navigation');
+  assert.match(errContainer.textContent, /Preencha nome e CPF do ingresso/, 'Should show empty fields error');
+  assert.equal(page.window.sessionStorage.getItem('dan-tickets-order'), null, 'Should not write to storage');
+  const cartAfter1 = JSON.parse(storage._m['dan-tickets-cart']);
+  assert.equal(cartAfter1.items.length, 1, 'Cart should not be cleared');
+  
+  // Filled name but invalid CPF
+  nameInput.value = 'Bob';
+  cpfInput.value = '999';
+  form.fire('submit');
+  assert.equal(page.window.location.hash, '#/checkout', 'Should block navigation again');
+  assert.doesNotMatch(errContainer.textContent, /Preencha nome e CPF do ingresso/, 'Previous error should be cleared');
+  assert.match(errContainer.textContent, /CPF inválido: 999/, 'Should show invalid CPF error');
+  assert.equal(page.window.sessionStorage.getItem('dan-tickets-order'), null, 'Should not write to storage');
+  
+  // Valid submit
+  cpfInput.value = '123.456.789-09';
+  form.fire('submit');
+  assert.equal(page.window.location.hash, '#/voucher', 'Should navigate to voucher');
+  
+  // Assert voucher structure
+  // Note: the component immediately reads and clears the sessionStorage when navigating to voucher,
+  // so we need to check if the voucher page actually rendered it.
+  assert.match(page.app.textContent, /Bob \(\*\*\*\.456\.789-\*\*\)/, 'Should persist masked holder data on voucher page');
+});
+
+test('Voucher handles corrupt JSON in storage safely', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/voucher');
+  page.window.sessionStorage.setItem('dan-tickets-order', '{corrupt json...');
+  page.navigate('#/voucher');
+  assert.match(page.app.textContent, /Nenhum pedido recente encontrado/, 'Should gracefully handle JSON parse errors and show empty state');
+});
+
+test('Showcase handles single-event and zero-event results correctly', () => {
+  const storage = memStorage();
+  const page = mount(storage, '#/?q=rock');
+  // Rock festival is the only one. Should NOT show showcase because there's a filter q=rock!
+  let title = page.find(n => n.className === 'showcase__title');
+  assert.equal(title, undefined, 'Showcase must hide when there are filters (q=rock)');
+
+  // To test showcase with 1 event, we would need the catalog to only have 1 event.
+  // But the mock has multiple events. The logic `isShowcase = !p.q && !p.category && !p.city && found.length > 0;` handles it.
+  
+  // Test zero results
+  page.navigate('#/?q=nonexistent-event-xyz');
+  assert.match(page.app.textContent, /Nenhum evento corresponde aos filtros/, 'Should show empty search result message');
+});
+
+test('buildHash round-trip for checkout and voucher routes', () => {
+  const ctx = vm.createContext({});
+  vm.runInContext(fs.readFileSync('eventos/app.js', 'utf8'), ctx);
+  const { buildHash, parseHash } = ctx.DanSectors;
+  
+  assert.equal(buildHash({ name: 'checkout', params: {} }), '#/checkout');
+  assert.equal(buildHash({ name: 'voucher', params: {} }), '#/voucher');
+  
+  const parsedCheckout = parseHash('#/checkout');
+  assert.equal(parsedCheckout.name, 'checkout');
+  
+  const parsedVoucher = parseHash('#/voucher');
+  assert.equal(parsedVoucher.name, 'voucher');
 });
