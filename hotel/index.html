@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dan Grand Hotel · Sua próxima estadia</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="rooms.js" defer></script>
+  <script src="pricing.js" defer></script>
+  <script src="addons.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header><a href="#reserva" class="brand">DAN <span>GRAND HOTEL</span></a><span>Uma pausa extraordinária.</span></header>
+  <main id="reserva">
+    <section class="intro" aria-labelledby="title"><p class="eyebrow">HOSPITALIDADE EM CADA DETALHE</p><h1 id="title">Seu tempo.<br>Sua melhor estadia.</h1><p>Encontre sua suíte, explore as tarifas e deixe os detalhes com nosso concierge.</p></section>
+    <form id="booking-form">
+      <div class="steps">
+        <section class="panel" aria-labelledby="dates-title">
+          <h2 id="dates-title">01 · Planeje sua chegada</h2>
+          <div class="dates">
+            <label>Check-in<input id="check-in" type="date" required></label>
+            <label>Check-out<input id="check-out" type="date" required></label>
+            <label>Hóspedes<input id="guests" type="number" min="1" step="1" value="2" required></label>
+          </div>
+          <p class="hint">Estadias de 1 a 30 noites. Janeiro, julho e dezembro: tarifa de alta temporada (+25%). A partir de 5 noites, 8% de desconto na hospedagem.</p>
+        </section>
+        <fieldset class="panel"><legend>02 · Escolha sua suíte</legend><div id="rooms" class="choices"></div><p id="room-status" role="status"></p></fieldset>
+        <fieldset class="panel"><legend>03 · Concierge</legend><div id="addons" class="choices"></div><p class="hint">Extras cobrados à parte, sem desconto do cupom.</p></fieldset>
+      </div>
+      <aside class="panel summary" aria-labelledby="summary-title">
+        <p class="eyebrow">SUA EXPERIÊNCIA</p><h2 id="summary-title">Resumo da estadia</h2>
+        <label>Cupom<input id="coupon" type="text" placeholder="DANSTAY10" aria-describedby="coupon-status"></label>
+        <p id="coupon-status" class="hint" role="status">Use DANSTAY10 para 10% de desconto na hospedagem.</p>
+        <div id="quote" aria-live="polite"></div>
+        <p id="error" role="alert"></p>
+        <button id="confirm" type="submit" disabled>Confirmar reserva</button>
+        <p class="hint">Simulação local: não efetua cobrança nem garante disponibilidade no hotel.</p>
+      </aside>
+    </form>
+    <section id="confirmation" class="panel confirmation" role="status" tabindex="-1" hidden></section>
+    <noscript>Ative o JavaScript para simular sua estadia e emitir a confirmação.</noscript>
+  </main>
+  <footer>Dan Grand Hotel · O cuidado começa antes da chegada.</footer>
+</body>
+</html>
