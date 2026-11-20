@@ -9,7 +9,7 @@ function assertPositiveFinite(value, name) {
   }
 }
 
-// rate is the number of BRL per USD; returns USD rounded to two decimals.
+// rate is BRL per USD; round the quotient's decimal representation half up.
 function convertBrlToUsd(brl, rate) {
   assertPositiveFinite(brl, 'brl');
   assertPositiveFinite(rate, 'rate');
@@ -18,9 +18,13 @@ function convertBrlToUsd(brl, rate) {
   if (!Number.isFinite(usd)) {
     throw new RangeError('Converted amount is out of range');
   }
-  // Large doubles already have no fractional cents; avoid scaling overflow.
+  // Beyond safe cent precision, preserve the double and avoid scaling overflow.
   if (usd >= Number.MAX_SAFE_INTEGER / 100) return usd;
-  return Math.round((usd + Number.EPSILON) * 100) / 100;
+  // Shift decimal exponents instead of multiplying binary fractions by 100.
+  // Splitting also handles very small quotients written in scientific notation.
+  const [coefficient, exponent = '0'] = String(usd).split('e');
+  const cents = Math.round(Number(`${coefficient}e${Number(exponent) + 2}`));
+  return Number(`${cents}e-2`);
 }
 
 module.exports = { convertBrlToUsd };
