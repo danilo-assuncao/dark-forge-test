@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Dan Fit Club – Aulas e Matrícula</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">DAN <span>FIT CLUB</span></h1>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button type="button" role="tab" id="tab-grade" aria-controls="panel-grade" aria-selected="true" data-tab="grade">Grade de aulas</button>
+      <button type="button" role="tab" id="tab-planos" aria-controls="panel-planos" aria-selected="false" data-tab="planos" tabindex="-1">Planos e matrícula</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="panel-grade" role="tabpanel" aria-labelledby="tab-grade">
+      <h2>Grade semanal</h2>
+      <div id="day-picker" class="days" role="group" aria-label="Dia da semana"></div>
+      <p id="schedule-msg" class="msg" role="status" aria-live="polite"></p>
+      <ul id="slot-list" class="cards"></ul>
+      <h3>Minhas aulas</h3>
+      <ul id="my-bookings" class="cards compact"></ul>
+    </section>
+
+    <section id="panel-planos" role="tabpanel" aria-labelledby="tab-planos" hidden>
+      <h2>Escolha seu plano</h2>
+      <div id="cycle-picker" class="days" role="group" aria-label="Ciclo de cobrança"></div>
+      <ul id="plan-list" class="cards plans"></ul>
+
+      <form id="enroll-form" class="enroll" novalidate>
+        <h3>Matrícula</h3>
+        <p id="enroll-summary" class="summary"></p>
+        <label for="coupon">Cupom</label>
+        <input id="coupon" name="coupon" type="text" autocomplete="off" placeholder="DANFIT10">
+        <p id="coupon-msg" class="msg" role="status" aria-live="polite"></p>
+        <dl id="quote" class="quote"></dl>
+        <button type="submit" class="primary">Confirmar matrícula</button>
+      </form>
+      <p id="enroll-msg" class="msg ok" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer><p>Dan Fit Club – simulação, nenhum pagamento real é processado.</p></footer>
+
+  <script src="classes.js"></script>
+  <script src="plans.js"></script>
+  <script src="billing.js"></script>
+  <script src="schedule.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
