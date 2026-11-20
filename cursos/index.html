@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>Dan Academy | Seu próximo passo</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="catalog.js" defer></script>
+  <script src="progress.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#catalogo">Pular para os cursos</a>
+  <header class="site-header"><a class="brand" href="./">DAN <span>ACADEMY</span></a><nav aria-label="Principal"><a href="#catalogo">Explorar cursos</a><a href="#estudos">Meus estudos</a></nav></header>
+  <main>
+    <section class="hero" aria-labelledby="hero-title"><p class="eyebrow">CONHECIMENTO QUE MOVE VOCÊ</p><h1 id="hero-title">Seu próximo passo<br>começa aqui.</h1><p>Explore novas habilidades, acompanhe sua evolução e celebre cada conquista.</p><a class="button" href="#catalogo">Encontrar meu curso →</a></section>
+    <section id="catalogo" aria-labelledby="catalog-title">
+      <p class="eyebrow">APRENDA NO SEU RITMO</p><h2 id="catalog-title">Explore os cursos</h2>
+      <form id="filters" class="filters" role="search">
+        <label>Buscar curso<input id="query" type="search" placeholder="Título ou trilha…"></label>
+        <label>Trilha<select id="track"><option value="">Todas as trilhas</option></select></label>
+        <label>Nível<select id="level"><option value="">Todos os níveis</option></select></label>
+        <button type="reset" class="secondary">Limpar filtros</button>
+      </form>
+      <p id="result-count" role="status"></p><ul id="course-list" class="grid"></ul>
+      <p id="empty" hidden>Nenhum curso encontrado. Experimente outra trilha ou limpe os filtros.</p>
+    </section>
+    <section id="enrollment" class="panel" hidden aria-labelledby="enrollment-title">
+      <h2 id="enrollment-title" tabindex="-1">Confirme sua matrícula</h2><p id="enrollment-course"></p>
+      <p>Esta matrícula é uma demonstração local, sem cobrança ou envio de dados.</p>
+      <form id="enrollment-form">
+        <label>Nome para o certificado<input id="student-name" aria-describedby="enrollment-error" required maxlength="100" autocomplete="name"></label>
+        <p id="enrollment-error" role="alert"></p>
+        <div class="actions"><button type="submit">Confirmar matrícula</button><button id="cancel-enrollment" type="button" class="secondary">Cancelar</button></div>
+      </form>
+    </section>
+    <section id="estudos" aria-labelledby="studies-title"><h2 id="studies-title" tabindex="-1">Meus estudos</h2><p id="studies-empty">Matricule-se em um curso para começar sua jornada.</p><div id="study-list" class="grid"></div></section>
+    <p id="notice" role="status" class="notice"></p>
+    <section id="certificate" class="certificate" hidden aria-labelledby="certificate-title"><p class="eyebrow">DAN ACADEMY</p><h2 id="certificate-title" tabindex="-1">Certificado de conclusão</h2><p>Reconhecemos a dedicação de</p><p id="certificate-name" class="recipient"></p><p id="certificate-course"></p><p id="certificate-code"></p><p id="certificate-date"></p><p>Certificado demonstrativo, emitido neste navegador e sem validação externa.</p><button id="close-certificate" class="secondary" type="button">Fechar certificado</button></section>
+    <noscript>Ative o JavaScript para buscar cursos, realizar matrículas e acompanhar suas aulas.</noscript>
+  </main>
+  <footer>DAN ACADEMY · Um novo aprendizado, novas possibilidades.</footer>
+</body>
+</html>
