@@ -19,13 +19,27 @@ test('preserves sequences with four or more digits', () => {
 
 test('rejects zero, negative, fractional, and non-finite numbers with RangeError', () => {
   for (const seq of [0, -0, -1, 1.5, NaN, Infinity, -Infinity]) {
-    assert.throws(() => formatTrackingCode(seq), RangeError);
+    assert.throws(() => formatTrackingCode(seq), {
+      name: 'RangeError', message: 'sequence must be a positive integer',
+    });
+  }
+});
+
+test('rejects unsafe integers including values that stringify in exponent notation', () => {
+  for (const seq of [Number.MAX_SAFE_INTEGER + 1, 2 ** 60, 1e21]) {
+    assert.throws(() => formatTrackingCode(seq), {
+      name: 'RangeError', message: 'sequence must be a positive integer',
+    });
   }
 });
 
 test('rejects missing and non-number sequences without coercion', () => {
-  for (const seq of [undefined, null, '1', '', true, false, {}, [], [1], 1n, Symbol('seq')]) {
-    assert.throws(() => formatTrackingCode(seq), RangeError);
+  for (const seq of [undefined, null, '1', '', true, false, {}, [], [1], new Number(5), 1n, Symbol('seq')]) {
+    assert.throws(() => formatTrackingCode(seq), {
+      name: 'RangeError', message: 'sequence must be a positive integer',
+    });
   }
-  assert.throws(() => formatTrackingCode(), RangeError);
+  assert.throws(() => formatTrackingCode(), {
+    name: 'RangeError', message: 'sequence must be a positive integer',
+  });
 });

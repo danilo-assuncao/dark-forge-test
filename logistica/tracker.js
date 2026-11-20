@@ -1,7 +1,7 @@
 'use strict';
 
 function formatTrackingCode(seq) {
-  if (!Number.isInteger(seq) || seq <= 0) {
+  if (!Number.isSafeInteger(seq) || seq <= 0) {
     throw new RangeError('sequence must be a positive integer');
   }
 
