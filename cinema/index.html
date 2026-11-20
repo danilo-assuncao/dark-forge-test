@@ -13,11 +13,9 @@
     const moduleMap = {};
     window.module = { exports: {} };
     window.require = function(name) {
-      if (name.includes('movies.js')) return moduleMap['movies.js'];
-      if (name.includes('seats.js')) return moduleMap['seats.js'];
-      if (name.includes('snacks.js')) return moduleMap['snacks.js'];
-      if (name.includes('checkout.js')) return moduleMap['checkout.js'];
-      return {};
+      const match = ['movies.js', 'seats.js', 'snacks.js', 'checkout.js'].find(n => name.includes(n));
+      if (!match || !moduleMap[match]) throw new Error('Module not found: ' + name);
+      return moduleMap[match];
     };
   </script>
   <script type="module" src="movies.js"></script>

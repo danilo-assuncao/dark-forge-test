@@ -7,6 +7,12 @@ const { buildCinemaOrder } = require('./checkout.js');
 
 const globalOccupiedSeats = {};
 
+function resetOccupiedSeats() {
+  for (const k of Object.keys(globalOccupiedSeats)) {
+    delete globalOccupiedSeats[k];
+  }
+}
+
 function el(tag, textOrProps = {}, children = []) {
   const element = document.createElement(tag);
   if (typeof textOrProps === 'string') {
@@ -15,14 +21,20 @@ function el(tag, textOrProps = {}, children = []) {
     for (const [key, value] of Object.entries(textOrProps)) {
       if (key === 'className') {
         element.className = value;
-      } else if (key.startsWith('on') && typeof value === 'function') {
-        element.addEventListener(key.slice(2).toLowerCase(), value);
+      } else if (key.startsWith('on')) {
+        if (typeof value === 'function') {
+          element.addEventListener(key.slice(2).toLowerCase(), value);
+        } else {
+          throw new TypeError(`Event handler for ${key} must be a function`);
+        }
       } else if (key === 'textContent') {
         element.textContent = value;
       } else if (key === 'checked') {
         if (value) element.checked = true;
       } else if (key === 'selected') {
         if (value) element.selected = true;
+      } else if (['href', 'src', 'style', 'srcdoc', 'innerHTML'].includes(key)) {
+        throw new Error(`Attribute ${key} is not allowed for security reasons`);
       } else {
         element.setAttribute(key, value);
       }
@@ -88,7 +100,7 @@ function initApp(rootElement) {
   }
 
   function renderFilters() {
-    const genreInput = el('input', { type: 'text', placeholder: 'Gênero', value: state.genreFilter, onInput: (e) => {
+    const genreInput = el('input', { type: 'text', placeholder: 'Gênero', value: state.genreFilter, onChange: (e) => {
       state.genreFilter = e.target.value;
       state.selectedMovieId = null;
       state.selectedSessionId = null;
@@ -136,9 +148,10 @@ function initApp(rootElement) {
     const list = el('ul', { className: 'session-list' });
     sessions.forEach(s => {
       const li = el('li', { className: state.selectedSessionId === s.id ? 'session-item selected' : 'session-item', onClick: () => {
-        state.selectedSessionId = s.id;
         try {
-          state.seatMapObj = createSeatMap(s.id, globalOccupiedSeats[s.id] || []);
+          const newMap = createSeatMap(s.id, globalOccupiedSeats[s.id] || []);
+          state.seatMapObj = newMap;
+          state.selectedSessionId = s.id;
           state.seats = [];
           state.error = null;
         } catch (e) {
@@ -178,6 +191,7 @@ function initApp(rootElement) {
           if (isSelected) {
             state.seatMapObj.releaseSeat(code);
             state.seats = state.seats.filter(s => s.code !== code);
+            state.error = null;
           } else {
             try {
               state.seatMapObj.selectSeat(code, state.ticketKindSelector);
@@ -236,6 +250,12 @@ function initApp(rootElement) {
     const couponInput = el('input', { type: 'text', placeholder: 'Cupom', value: state.couponCode, onInput: (e) => state.couponCode = e.target.value });
     const btn = el('button', { textContent: 'Finalizar Compra', onClick: () => {
       try {
+        const occupied = globalOccupiedSeats[state.selectedSessionId] || [];
+        for (const s of state.seats) {
+          if (occupied.includes(s.code)) {
+            throw new Error(`Poltrona já ocupada: ${s.code}`);
+          }
+        }
         const order = buildCinemaOrder({
           sessionId: state.selectedSessionId,
           seats: state.seats,
@@ -264,7 +284,18 @@ function initApp(rootElement) {
     ]);
   }
 
+  function renderVoucher() {
+    const v = state.voucher;
+    return el('div', { className: 'voucher' }, [
+      el('h2', 'Voucher de Compra'),
+      el('p', `Protocolo: ${v.protocol}`),
+      el('p', `Comprador: ${v.buyerName}`),
+      el('p', `Sessão: ${v.sessionId}`),
+      el('p', `Total: R$ ${v.total.toFixed(2)}`)
+    ]);
+  }
+
   update();
 }
 
-module.exports = { initApp, el };
+module.exports = { initApp, el, resetOccupiedSeats, globalOccupiedSeats };
