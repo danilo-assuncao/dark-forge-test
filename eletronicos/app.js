@@ -139,7 +139,11 @@ if (typeof document !== 'undefined') {
         for (const a of alerts) box.append(el('li', a.message, `alert alert-${a.level}`));
         if (!alerts.length) box.append(el('li', 'Tudo compatível!', 'alert alert-ok'));
         $('build-total').textContent = `Total da montagem: ${formatBRL(buildTotalCents(build))} · Consumo recomendado: ${requiredWatts}W`;
-        $('build-add').disabled = !BUILD_SLOTS.every((s) => build[s]) || alerts.some((a) => a.level === 'error');
+        
+        const canBuild = BUILD_SLOTS.every((s) => build[s]) && !alerts.some((a) => a.level === 'error');
+        $('build-add').disabled = !canBuild;
+        $('build-specsheet').disabled = !canBuild;
+        $('specsheet-output').style.display = 'none';
     }
 
     function renderCart() {
@@ -184,6 +188,17 @@ if (typeof document !== 'undefined') {
         }
         $('build-add').addEventListener('click', () => {
             for (const k of BUILD_SLOTS) addToCart(build[k]);
+        });
+        $('build-specsheet').addEventListener('click', () => {
+            const { requiredWatts } = checkCompatibility(build);
+            const warrantyMonths = parseInt($('build-warranty').value, 10) || 12;
+            
+            const generateText = window.DanTechCart && window.DanTechCart.generateSpecsheetText;
+            if (generateText) {
+                const text = generateText(build, requiredWatts, warrantyMonths);
+                $('specsheet-output').innerHTML = text.replace(/\n/g, '<br>');
+                $('specsheet-output').style.display = 'block';
+            }
         });
         $('installments').addEventListener('change', renderCart);
         $('coupon-apply').addEventListener('click', () => {

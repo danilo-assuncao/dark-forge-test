@@ -37,9 +37,21 @@
                 <label>Placa de vídeo <select id="slot-gpu"></select></label>
                 <label>Fonte <select id="slot-psu"></select></label>
             </div>
+            <div class="filters" style="margin-top: 1rem;">
+                <label>Garantia
+                    <select id="build-warranty">
+                        <option value="12">12 meses</option>
+                        <option value="24">24 meses</option>
+                    </select>
+                </label>
+            </div>
             <ul id="alerts" class="alerts" aria-live="polite"></ul>
             <p id="build-total"></p>
-            <button id="build-add" class="btn" type="button" disabled>Adicionar montagem ao carrinho</button>
+            <div style="display: flex; gap: 1rem;">
+                <button id="build-add" class="btn" type="button" disabled>Adicionar montagem ao carrinho</button>
+                <button id="build-specsheet" class="btn" type="button" disabled>Gerar Resumo Técnico</button>
+            </div>
+            <div id="specsheet-output" class="specsheet-box" aria-live="polite" style="display: none;"></div>
         </section>
 
         <section id="carrinho" aria-labelledby="t-carrinho">
@@ -67,6 +79,7 @@
         window.module = { exports: {} };
     </script>
     <script src="cart.js"></script>
+    <script src="specsheet.js"></script>
     <script>
         window.DanTechCart = window.module.exports;
     </script>
