@@ -88,6 +88,51 @@ const catalogData = [
     isGeneric: true,
     priceBrl: 35.00,
     requiresPrescription: true
+  },
+  {
+    id: "p10",
+    name: "Mixed Rx Generic",
+    activeIngredient: "Isotretinoína, Paracetamol",
+    stripe: "vermelha",
+    isGeneric: true,
+    priceBrl: 5.00, // Cheap, but requires prescription
+    requiresPrescription: true
+  },
+  {
+    id: "p11",
+    name: "Mixed OTC Product",
+    activeIngredient: "Isotretinoína, Paracetamol",
+    stripe: "isento",
+    isGeneric: false,
+    priceBrl: 50.00,
+    requiresPrescription: false
+  },
+  {
+    id: "p12",
+    name: "Equal Price Generic 1",
+    activeIngredient: "Amoxicilina",
+    stripe: "vermelha",
+    isGeneric: true,
+    priceBrl: 35.00,
+    requiresPrescription: true
+  },
+  {
+    id: "p13",
+    name: "No Generic OTC",
+    activeIngredient: "Unique OTC Ingredient",
+    stripe: "isento",
+    isGeneric: false,
+    priceBrl: 10.00,
+    requiresPrescription: false
+  },
+  {
+    id: "p14",
+    name: "No Generic Rx",
+    activeIngredient: "Unique Rx Ingredient",
+    stripe: "vermelha",
+    isGeneric: false,
+    priceBrl: 100.00,
+    requiresPrescription: true
   }
 ];
 
@@ -105,23 +150,29 @@ function deepFreeze(obj) {
 
 const products = deepFreeze(catalogData.map(p => ({...p})));
 
-function searchCatalog({ query, stripe } = {}) {
+function removeAccents(str) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function searchCatalog(opts = {}) {
+  if (!opts) opts = {};
+  const { query, stripe } = opts;
   let result = products;
   
-  if (query !== undefined) {
+  if (query !== undefined && query !== null) {
     if (typeof query !== 'string') {
       return [];
     }
-    const q = query.toLowerCase().trim();
+    const q = removeAccents(query.toLowerCase()).trim();
     if (q.length > 0) {
       result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        p.activeIngredient.toLowerCase().includes(q)
+        removeAccents(p.name.toLowerCase()).includes(q) || 
+        removeAccents(p.activeIngredient.toLowerCase()).includes(q)
       );
     }
   }
   
-  if (stripe !== undefined) {
+  if (stripe !== undefined && stripe !== null) {
     if (!VALID_STRIPES.includes(stripe)) {
       return [];
     }
@@ -132,12 +183,17 @@ function searchCatalog({ query, stripe } = {}) {
 }
 
 function getProductById(id) {
+  if (typeof id !== 'string') return null;
   const p = products.find(p => p.id === id);
   return p ? { ...p } : null;
 }
 
 function normalizeIngredients(ingredientString) {
-  return ingredientString.split(',').map(s => s.trim().toLowerCase()).sort().join(', ');
+  return removeAccents(ingredientString.toLowerCase())
+    .split(',')
+    .map(s => s.trim())
+    .sort()
+    .join(', ');
 }
 
 function findGenericAlternatives(productId) {
@@ -148,10 +204,10 @@ function findGenericAlternatives(productId) {
 
   return products
     .filter(p => p.isGeneric)
-    .filter(p => normalizeIngredients(p.activeIngredient) === productIngredients)
     .filter(p => p.id !== product.id)
+    .filter(p => normalizeIngredients(p.activeIngredient) === productIngredients)
     .filter(p => p.priceBrl < product.priceBrl)
-    .filter(p => p.requiresPrescription === product.requiresPrescription || p.requiresPrescription)
+    .filter(p => p.requiresPrescription === product.requiresPrescription) // Must match prescription status exactly
     .sort((a, b) => a.priceBrl - b.priceBrl)
     .map(p => ({...p}));
 }
