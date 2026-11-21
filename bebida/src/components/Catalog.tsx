@@ -4,17 +4,24 @@ import { mockDrinks } from '../data'
 
 const categories = ['Todos', 'Cerveja', 'Vinho', 'Destilado', 'Sem Álcool']
 
-export function Catalog() {
+export function Catalog({ onAddToCart }: { onAddToCart?: () => void }) {
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredDrinks = useMemo(() => {
+    const normalizeString = (str: string) =>
+      str
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+
     return mockDrinks.filter((drink) => {
       const matchCategory =
         selectedCategory === 'Todos' || drink.category === selectedCategory
-      const matchSearch = drink.name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase())
+      const matchSearch = normalizeString(drink.name).includes(
+        normalizeString(searchQuery),
+      )
       return matchCategory && matchSearch
     })
   }, [selectedCategory, searchQuery])
@@ -56,7 +63,7 @@ export function Catalog() {
       {filteredDrinks.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredDrinks.map((drink) => (
-            <DrinkCard key={drink.id} drink={drink} />
+            <DrinkCard key={drink.id} drink={drink} onAddToCart={onAddToCart} />
           ))}
         </div>
       ) : (

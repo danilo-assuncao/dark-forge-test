@@ -2,15 +2,17 @@ import type { Drink } from '../types'
 
 interface DrinkCardProps {
   drink: Drink
+  onAddToCart?: () => void
 }
 
-export function DrinkCard({ drink }: DrinkCardProps) {
+export function DrinkCard({ drink, onAddToCart }: DrinkCardProps) {
   return (
     <div className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <img
         src={drink.imageUrl}
         alt={drink.name}
         className="w-full h-48 object-cover"
+        referrerPolicy="no-referrer"
       />
       <div className="p-5">
         <div className="flex justify-between items-start mb-2">
@@ -26,7 +28,10 @@ export function DrinkCard({ drink }: DrinkCardProps) {
           <span className="text-xl font-bold text-gray-900">
             R$ {drink.price.toFixed(2).replace('.', ',')}
           </span>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          <button
+            onClick={onAddToCart}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
             Adicionar
           </button>
         </div>
