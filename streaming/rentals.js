@@ -32,10 +32,22 @@ function listRentalMovies() {
  * @param {string} params.planId
  * @param {Array<{movieId: string, quality: string}>} params.items
  */
-function quoteRentals({ planId, items = [] }) {
-    let subtotal = 0;
+function quoteRentals({ planId, items }) {
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new Error('Items must be a non-empty array');
+    }
+
+    const plan = getPlanById(planId);
+    if (!plan) {
+        throw new Error(`Plan not found: ${planId}`);
+    }
+
+    let subtotalCents = 0;
 
     for (const item of items) {
+        if (!item || typeof item !== 'object') {
+            throw new Error('Invalid item');
+        }
         const movie = RENTAL_MOVIES.find(m => m.id === item.movieId);
         if (!movie) {
             throw new Error(`Movie not found: ${item.movieId}`);
@@ -43,25 +55,21 @@ function quoteRentals({ planId, items = [] }) {
         if (!movie.availableQualities.includes(item.quality)) {
             throw new Error(`Quality ${item.quality} not available for movie ${item.movieId}`);
         }
-        if (typeof RENTAL_PRICES[item.quality] === 'undefined') {
-             throw new Error(`Invalid quality: ${item.quality}`);
-        }
-        subtotal += RENTAL_PRICES[item.quality];
+        
+        subtotalCents += Math.round(RENTAL_PRICES[item.quality] * 100);
     }
 
-    const plan = getPlanById(planId);
-    let discount = 0;
-
-    if (plan && plan.id === 'ultra-4k') {
-        discount = subtotal * 0.20;
+    let discountCents = 0;
+    if (plan.id === 'ultra-4k') {
+        discountCents = Math.round(subtotalCents * 0.20);
     }
 
-    const total = subtotal - discount;
+    const totalCents = subtotalCents - discountCents;
 
     return {
-        subtotal: Number(subtotal.toFixed(2)),
-        discount: Number(discount.toFixed(2)),
-        total: Number(total.toFixed(2)),
+        subtotal: subtotalCents / 100,
+        discount: discountCents / 100,
+        total: totalCents / 100,
         validityHours: VALIDITY_HOURS
     };
 }
