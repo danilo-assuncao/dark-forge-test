@@ -19,7 +19,8 @@ const plans = [
         resolution: '4K HDR',
         dolbyAtmos: true
     }
-];
+].map(p => Object.freeze(p));
+Object.freeze(plans);
 
 const extraChannels = [
     {
@@ -34,7 +35,8 @@ const extraChannels = [
         id: 'kids-plus',
         price: 12.90
     }
-];
+].map(c => Object.freeze(c));
+Object.freeze(extraChannels);
 
 function listPlans() {
     return plans;

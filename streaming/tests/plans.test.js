@@ -60,7 +60,53 @@ test('getPlanById should return the correct plan', () => {
     assert.strictEqual(plan.screens, 2);
 });
 
-test('getPlanById should return undefined for an unknown plan id', () => {
-    const plan = getPlanById('unknown-plan');
-    assert.strictEqual(plan, undefined);
+test('listPlans, listExtraChannels and getPlanById should return immutable data', () => {
+    const plans = listPlans();
+    
+    // In strict mode, modifying frozen objects throws a TypeError.
+    // We enforce strict mode behavior locally to ensure exceptions are thrown.
+    assert.throws(() => {
+        'use strict';
+        plans.push({});
+    }, TypeError);
+
+    const plan = getPlanById('full-hd');
+    assert.throws(() => {
+        'use strict';
+        plan.price = 0;
+    }, TypeError);
+
+    const channels = listExtraChannels();
+    assert.throws(() => {
+        'use strict';
+        channels.push({});
+    }, TypeError);
 });
+
+test('getPlanById should handle boundary inputs', () => {
+    const boundaryInputs = [undefined, null, '', 'FULL-HD', 123];
+    boundaryInputs.forEach(input => {
+        assert.strictEqual(getPlanById(input), undefined);
+    });
+});
+
+test('Catalog data should maintain structural invariants', () => {
+    const plans = listPlans();
+    const channels = listExtraChannels();
+
+    const planIds = new Set();
+    plans.forEach(plan => {
+        assert.ok(!planIds.has(plan.id), `Duplicate plan id: ${plan.id}`);
+        planIds.add(plan.id);
+        assert.ok(typeof plan.price === 'number' && plan.price > 0 && isFinite(plan.price), `Invalid price for plan ${plan.id}`);
+        assert.deepStrictEqual(getPlanById(plan.id), plan);
+    });
+
+    const channelIds = new Set();
+    channels.forEach(channel => {
+        assert.ok(!channelIds.has(channel.id), `Duplicate channel id: ${channel.id}`);
+        channelIds.add(channel.id);
+        assert.ok(typeof channel.price === 'number' && channel.price > 0 && isFinite(channel.price), `Invalid price for channel ${channel.id}`);
+    });
+});
+
