@@ -13,13 +13,15 @@ interface PlayerProps {
 
 export function Player({ currentSong, album, isPlaying, onTogglePlay, onNext, onPrev }: PlayerProps) {
   const [elapsed, setElapsed] = useState(0);
+  const [prevSongId, setPrevSongId] = useState(currentSong.id);
+
+  if (currentSong.id !== prevSongId) {
+    setPrevSongId(currentSong.id);
+    setElapsed(0);
+  }
 
   const durationParts = currentSong.duration.split(':');
   const durationSeconds = parseInt(durationParts[0], 10) * 60 + parseInt(durationParts[1], 10);
-
-  useEffect(() => {
-    setElapsed(0);
-  }, [currentSong.id]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;

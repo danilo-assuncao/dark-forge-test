@@ -140,4 +140,28 @@ describe('App', () => {
     // Elapsed should reset to 0:00
     expect(screen.getByText('0:00')).toBeInTheDocument();
   });
+
+  it('does not double advance when switching to a shorter song', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    // Play "Nebula Dreams" (4:12 = 252s)
+    fireEvent.click(screen.getByLabelText('Play Nebula Dreams'));
+    
+    // Advance timers by 250 seconds (near the end)
+    act(() => {
+      vi.advanceTimersByTime(250000);
+    });
+    
+    expect(screen.getByText('4:10')).toBeInTheDocument();
+
+    // Click next to go to "Solar Wind" (3:28 = 208s)
+    fireEvent.click(screen.getByLabelText('Next song'));
+    
+    // If bug was present, it would instantly advance to Lunar Rise because 250s > 208s.
+    // It should be on Solar Wind and time should be 0:00.
+    expect(screen.getByTitle('Solar Wind')).toBeInTheDocument();
+    expect(screen.getByText('0:00')).toBeInTheDocument();
+    expect(screen.queryByTitle('Lunar Rise')).not.toBeInTheDocument();
+  });
 });
