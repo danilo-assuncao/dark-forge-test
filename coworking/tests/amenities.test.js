@@ -33,8 +33,8 @@ test('calculateWorkspaceOrder with coffee-break and 2 attendees', () => {
   });
 });
 
-test('calculateWorkspaceOrder with mixed amenities', () => {
-  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: ['coffee-break', 'kit-video-4k', 'invalid-amenity'], attendees: 3 });
+test('calculateWorkspaceOrder with mixed amenities, unknown are ignored', () => {
+  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: ['coffee-break', 'kit-video-4k', 'invalid-amenity', 'constructor'], attendees: 3 });
   assert.deepEqual(result, {
     slotSubtotalBrl: 100,
     amenitiesSubtotal: 159, // (28 * 3) + 75
@@ -44,12 +44,8 @@ test('calculateWorkspaceOrder with mixed amenities', () => {
   });
 });
 
-test('calculateWorkspaceOrder with coupon DANHUB15', () => {
-  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: ['locker-diario'], attendees: 1, couponCode: 'DANHUB15' });
-  // amenitiesSubtotal = 15
-  // subtotal = 115
-  // discount = 115 * 0.15 = 17.25
-  // total = 97.75
+test('calculateWorkspaceOrder with coupon DANHUB15 (case/whitespace insensitive)', () => {
+  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: ['locker-diario'], attendees: 1, couponCode: '  danHub15  ' });
   assert.deepEqual(result, {
     slotSubtotalBrl: 100,
     amenitiesSubtotal: 15,
@@ -57,6 +53,55 @@ test('calculateWorkspaceOrder with coupon DANHUB15', () => {
     discount: 17.25,
     total: 97.75
   });
+});
+
+test('calculateWorkspaceOrder with invalid coupon', () => {
+  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: [], attendees: 1, couponCode: 'INVALID' });
+  assert.deepEqual(result, {
+    slotSubtotalBrl: 100,
+    amenitiesSubtotal: 0,
+    subtotal: 100,
+    discount: 0,
+    total: 100
+  });
+});
+
+test('calculateWorkspaceOrder deducts exact cents for fractional rounding', () => {
+  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 33.33, amenityIds: [], attendees: 1, couponCode: 'DANHUB15' });
+  // 33.33 * 0.15 = 4.9995 -> rounds to 5.00
+  // total = 33.33 - 5.00 = 28.33
+  assert.deepEqual(result, {
+    slotSubtotalBrl: 33.33,
+    amenitiesSubtotal: 0,
+    subtotal: 33.33,
+    discount: 5.00,
+    total: 28.33
+  });
+});
+
+test('calculateWorkspaceOrder deduplicates amenity IDs', () => {
+  const result = calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: ['kit-video-4k', 'kit-video-4k'], attendees: 1 });
+  assert.deepEqual(result, {
+    slotSubtotalBrl: 100,
+    amenitiesSubtotal: 75,
+    subtotal: 175,
+    discount: 0,
+    total: 175
+  });
+});
+
+test('calculateWorkspaceOrder throws on invalid inputs', () => {
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: -1 }), TypeError);
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: NaN }), TypeError);
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: '100' }), TypeError);
+
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: 100, attendees: 0 }), TypeError);
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: 100, attendees: -5 }), TypeError);
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: 100, attendees: 1.5 }), TypeError);
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: 100, attendees: '2' }), TypeError);
+
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: 'coffee-break' }), TypeError);
+  assert.throws(() => calculateWorkspaceOrder({ slotSubtotalBrl: 100, amenityIds: null }), TypeError);
 });
 
 test('calculateWorkspaceOrder with zero subtotal and DANHUB15', () => {
