@@ -1,29 +1,29 @@
-const FLEET = {
-  economico: {
+const FLEET = Object.freeze(Object.assign(Object.create(null), {
+  economico: Object.freeze({
     id: 'economico',
     dailyRateBrl: 119.00,
     depositBrl: 800.00,
     minAge: 21
-  },
-  suv: {
+  }),
+  suv: Object.freeze({
     id: 'suv',
     dailyRateBrl: 229.00,
     depositBrl: 1500.00,
     minAge: 21
-  },
-  executivo: {
+  }),
+  executivo: Object.freeze({
     id: 'executivo',
     dailyRateBrl: 349.00,
     depositBrl: 2500.00,
     minAge: 25
-  },
-  eletrico: {
+  }),
+  eletrico: Object.freeze({
     id: 'eletrico',
     dailyRateBrl: 289.00,
     depositBrl: 1800.00,
     minAge: 23
-  }
-};
+  })
+}));
 
 function listFleet({ category, maxDailyBrl } = {}) {
   let results = Object.values(FLEET);
@@ -32,7 +32,7 @@ function listFleet({ category, maxDailyBrl } = {}) {
     results = results.filter(item => item.id === category);
   }
   
-  if (typeof maxDailyBrl === 'number') {
+  if (typeof maxDailyBrl === 'number' && !Number.isNaN(maxDailyBrl)) {
     results = results.filter(item => item.dailyRateBrl <= maxDailyBrl);
   }
 
@@ -40,11 +40,10 @@ function listFleet({ category, maxDailyBrl } = {}) {
 }
 
 function getVehicleGroup(groupId) {
-  const group = FLEET[groupId];
-  if (!group) {
+  if (typeof groupId !== 'string' || !Object.prototype.hasOwnProperty.call(FLEET, groupId)) {
     return null;
   }
-  return group;
+  return FLEET[groupId];
 }
 
 function validateDriverEligibility(groupId, driverAge, licenseYears) {
@@ -53,15 +52,15 @@ function validateDriverEligibility(groupId, driverAge, licenseYears) {
     throw new Error('Vehicle group not found');
   }
 
-  if (licenseYears < 2) {
+  if (typeof driverAge !== 'number' || typeof licenseYears !== 'number' || !Number.isFinite(driverAge) || !Number.isFinite(licenseYears)) {
     return false;
   }
 
-  if (driverAge < group.minAge) {
+  if (licenseYears < 0 || driverAge < 0) {
     return false;
   }
 
-  return true;
+  return licenseYears >= 2 && driverAge >= group.minAge;
 }
 
 module.exports = {
