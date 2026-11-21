@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Game } from '../data/games';
+import type { Game } from '../data/games';
 import { GameCard } from './GameCard';
 
 interface GameListProps {

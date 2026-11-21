@@ -8,6 +8,11 @@ export interface Game {
   releaseDate: string;
 }
 
+const generatePlaceholder = (text: string) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="#cbd5e1"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#475569">${text}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
 export const simulatedGames: Game[] = [
   {
     id: '1',
@@ -15,7 +20,7 @@ export const simulatedGames: Game[] = [
     genre: 'Sci-Fi RPG',
     price: 49.99,
     rating: 4.8,
-    imageUrl: 'https://via.placeholder.com/300x200?text=Galactic+Horizon',
+    imageUrl: generatePlaceholder('Galactic Horizon'),
     releaseDate: '2023-11-15'
   },
   {
@@ -24,7 +29,7 @@ export const simulatedGames: Game[] = [
     genre: 'Adventure',
     price: 29.99,
     rating: 4.5,
-    imageUrl: 'https://via.placeholder.com/300x200?text=Medieval+Quest',
+    imageUrl: generatePlaceholder('Medieval Quest'),
     releaseDate: '2022-05-10'
   },
   {
@@ -33,7 +38,7 @@ export const simulatedGames: Game[] = [
     genre: 'Racing',
     price: 19.99,
     rating: 4.2,
-    imageUrl: 'https://via.placeholder.com/300x200?text=Speed+Racer+X',
+    imageUrl: generatePlaceholder('Speed Racer X'),
     releaseDate: '2024-01-20'
   },
   {
@@ -42,7 +47,7 @@ export const simulatedGames: Game[] = [
     genre: 'Horror',
     price: 39.99,
     rating: 4.6,
-    imageUrl: 'https://via.placeholder.com/300x200?text=Zombie+Survival',
+    imageUrl: generatePlaceholder('Zombie Survival'),
     releaseDate: '2023-08-01'
   },
   {
@@ -51,7 +56,7 @@ export const simulatedGames: Game[] = [
     genre: 'Simulation',
     price: 34.99,
     rating: 4.4,
-    imageUrl: 'https://via.placeholder.com/300x200?text=City+Builder+Pro',
+    imageUrl: generatePlaceholder('City Builder Pro'),
     releaseDate: '2021-12-05'
   },
   {
@@ -60,7 +65,7 @@ export const simulatedGames: Game[] = [
     genre: 'Puzzle',
     price: 9.99,
     rating: 4.9,
-    imageUrl: 'https://via.placeholder.com/300x200?text=Puzzle+Master',
+    imageUrl: generatePlaceholder('Puzzle Master'),
     releaseDate: '2020-03-12'
   }
 ];

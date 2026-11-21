@@ -1,5 +1,5 @@
 import React from 'react';
-import { Game } from '../data/games';
+import type { Game } from '../data/games';
 
 interface GameCardProps {
   game: Game;

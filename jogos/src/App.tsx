@@ -1,4 +1,3 @@
-import React from 'react';
 import { simulatedGames } from './data/games';
 import { GameList } from './components/GameList';
 
