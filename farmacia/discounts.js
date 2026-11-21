@@ -5,48 +5,63 @@ function calculatePharmacyPricing({ items, purchaseMode = 'avulsa', couponCode =
     throw new Error('Items must be an array');
   }
 
-  let originalTotal = 0;
-  let subtotalAfterLines = 0;
-  let lineDiscountsTotal = 0;
+  if (purchaseMode !== 'avulsa' && purchaseMode !== 'assinatura') {
+    throw new Error('Invalid purchaseMode');
+  }
+
+  const normalizedCoupon = typeof couponCode === 'string' ? couponCode.trim().toUpperCase() : '';
+
+  let originalTotalCents = 0;
+  let lineDiscountsTotalCents = 0;
+  let subtotalAfterLinesCents = 0;
 
   for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      throw new Error('Invalid item');
+    }
+
     const product = getProductById(item.id);
-    if (!product) continue;
+    if (!product) {
+      throw new Error(`Product not found: ${item.id}`);
+    }
 
-    const qty = item.qty || 1;
-    if (qty <= 0) continue;
+    const qty = item.qty !== undefined ? item.qty : 1;
+    if (typeof qty !== 'number' || !Number.isInteger(qty) || qty <= 0 || qty > 99) {
+      throw new Error(`Invalid quantity for product ${item.id}`);
+    }
 
-    const lineTotal = product.priceBrl * qty;
-    let lineDiscount = 0;
+    const priceCents = Math.round(product.priceBrl * 100);
+    const lineTotalCents = priceCents * qty;
+    let lineDiscountCents = 0;
 
     // Desconto laboratório por item: qty >= 3 do mesmo item recebe 15% de desconto naquela linha
     if (qty >= 3) {
-      lineDiscount = lineTotal * 0.15;
+      lineDiscountCents = Math.round(lineTotalCents * 0.15);
     }
 
-    originalTotal += lineTotal;
-    lineDiscountsTotal += lineDiscount;
-    subtotalAfterLines += (lineTotal - lineDiscount);
+    originalTotalCents += lineTotalCents;
+    lineDiscountsTotalCents += lineDiscountCents;
+    subtotalAfterLinesCents += (lineTotalCents - lineDiscountCents);
   }
 
-  let globalDiscount = 0;
+  let globalDiscountCents = 0;
 
   // Modalidade 'assinatura' concede 12% sobre o subtotal após desconto de linha
   // cupom 'DANFARMA10' concede 10% apenas na modalidade 'avulsa' (não cumulativo com 'assinatura')
   if (purchaseMode === 'assinatura') {
-    globalDiscount = subtotalAfterLines * 0.12;
-  } else if (purchaseMode === 'avulsa' && couponCode === 'DANFARMA10') {
-    globalDiscount = subtotalAfterLines * 0.10;
+    globalDiscountCents = Math.round(subtotalAfterLinesCents * 0.12);
+  } else if (purchaseMode === 'avulsa' && normalizedCoupon === 'DANFARMA10') {
+    globalDiscountCents = Math.round(subtotalAfterLinesCents * 0.10);
   }
 
-  const finalPrice = subtotalAfterLines - globalDiscount;
+  const finalPriceCents = subtotalAfterLinesCents - globalDiscountCents;
 
   return {
-    originalTotal: Number(originalTotal.toFixed(2)),
-    lineDiscountsTotal: Number(lineDiscountsTotal.toFixed(2)),
-    subtotalAfterLines: Number(subtotalAfterLines.toFixed(2)),
-    globalDiscount: Number(globalDiscount.toFixed(2)),
-    finalPrice: Number(finalPrice.toFixed(2))
+    originalTotal: originalTotalCents / 100,
+    lineDiscountsTotal: lineDiscountsTotalCents / 100,
+    subtotalAfterLines: subtotalAfterLinesCents / 100,
+    globalDiscount: globalDiscountCents / 100,
+    finalPrice: finalPriceCents / 100
   };
 }
 
