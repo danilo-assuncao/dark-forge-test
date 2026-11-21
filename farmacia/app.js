@@ -159,9 +159,7 @@ function addToCart(med) {
     }
     
     // Re-evaluate coupon if already applied
-    if (dom.couponInput.value.trim().toUpperCase() === 'DANFARMA10') {
-        appliedCoupon = true;
-    }
+    appliedCoupon = (dom.couponInput.value.trim().toUpperCase() === 'DANFARMA10');
     
     updateTotal();
 }
@@ -192,6 +190,11 @@ function generateReceiptId() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return 'FAR-' + crypto.randomUUID().split('-')[0].toUpperCase();
     }
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const arr = new Uint32Array(1);
+        crypto.getRandomValues(arr);
+        return 'FAR-' + arr[0].toString(16).toUpperCase();
+    }
     return 'FAR-' + Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
@@ -211,6 +214,8 @@ function checkout() {
     }
     
     // Process order
+    // SECURITY NOTE: In a real system, the CRM must be verified against a registry,
+    // and total price + coupon must be re-validated and computed on the server side.
     const receiptId = generateReceiptId();
     
     dom.cartSection.classList.add('hidden');
@@ -242,11 +247,16 @@ function resetApp() {
     dom.crmInput.value = '';
     dom.couponInput.value = '';
     dom.couponMessage.textContent = '';
+    dom.couponMessage.className = '';
     dom.errorMessage.textContent = '';
+    dom.totalPrice.textContent = '0,00';
     if (dom.purchaseTypeRadios.length > 0) {
         dom.purchaseTypeRadios[0].checked = true;
     }
     
+    dom.cartSection.classList.add('hidden');
+    dom.genericSuggestionSection.classList.add('hidden');
+    dom.prescriptionSection.classList.add('hidden');
     dom.receiptSection.classList.add('hidden');
     dom.searchSection.classList.remove('hidden');
 }
@@ -279,6 +289,12 @@ if (typeof window !== 'undefined' && dom.searchBtn) {
     });
 
     dom.applyCouponBtn.addEventListener('click', applyCoupon);
+    dom.couponInput.addEventListener('input', () => {
+        appliedCoupon = false;
+        dom.couponMessage.textContent = '';
+        dom.couponMessage.className = '';
+        updateTotal();
+    });
     dom.checkoutBtn.addEventListener('click', checkout);
     dom.newOrderBtn.addEventListener('click', resetApp);
 }
@@ -288,6 +304,8 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         inventory,
         searchMedicines,
+        selectMedicine,
+        showGenericSuggestion,
         getGenericAlternative,
         calculateTotal,
         addToCart,
