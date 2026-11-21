@@ -24,31 +24,44 @@ test('calculateSolarPayment - price method without coupon (48 months)', () => {
     assert.equal(result.principal, 10000);
     assert.equal(result.months, 48);
     
-    // r = 0.0129, n = 48
-    const r = 0.0129;
-    const n = 48;
-    const expectedPmt = (10000 * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    // PMT = (10000 * 0.0129 * (1.0129^48)) / ((1.0129^48) - 1) 
+    //     = 280.75 (rounded)
+    // 280.75 * 48 = 13476.00
+    // 13476.00 - 10000 = 3476.00
     
-    assert.ok(Math.abs(result.monthlyInstallment - expectedPmt) < 0.0001);
-    assert.ok(Math.abs(result.total - expectedPmt * 48) < 0.0001);
+    assert.equal(result.monthlyInstallment, 280.75);
+    assert.equal(result.total, 13476);
+    assert.equal(result.interestTotal, 3476);
 });
 
 test('calculateSolarPayment - price method with DANSOLAR5 coupon (24 months)', () => {
-    const result = calculateSolarPayment({ systemCostBrl: 10000, method: 'price', months: 24, couponCode: 'DANSOLAR5' });
+    // 10000 * 0.95 = 9500
+    // PMT = (9500 * 0.0129 * (1.0129^24)) / ((1.0129^24) - 1)
+    //     = 462.79 (rounded)
+    // 462.79 * 24 = 11106.96
+    // 11106.96 - 9500 = 1606.96
+    const result = calculateSolarPayment({ systemCostBrl: 10000, method: 'price', months: 24, couponCode: 'dansolar5 ' });
     assert.equal(result.method, 'price');
     assert.equal(result.principal, 9500);
     assert.equal(result.months, 24);
     
-    const r = 0.0129;
-    const n = 24;
-    const expectedPmt = (9500 * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-    
-    assert.ok(Math.abs(result.monthlyInstallment - expectedPmt) < 0.0001);
+    assert.equal(result.monthlyInstallment, 462.79);
+    assert.equal(result.total, 11106.96);
+    assert.equal(result.interestTotal, 1606.96);
 });
 
-test('calculateSolarPayment - invalid systemCostBrl', () => {
+test('calculateSolarPayment - invalid systemCostBrl types and boundaries', () => {
     assert.throws(() => {
         calculateSolarPayment({ systemCostBrl: -5000 });
+    }, /Invalid systemCostBrl/);
+    assert.throws(() => {
+        calculateSolarPayment({ systemCostBrl: NaN });
+    }, /Invalid systemCostBrl/);
+    assert.throws(() => {
+        calculateSolarPayment({ systemCostBrl: Infinity });
+    }, /Invalid systemCostBrl/);
+    assert.throws(() => {
+        calculateSolarPayment({ systemCostBrl: '10000' });
     }, /Invalid systemCostBrl/);
 });
 
