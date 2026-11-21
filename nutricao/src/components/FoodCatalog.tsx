@@ -11,8 +11,12 @@ export const FoodCatalog: React.FC<Props> = ({ foods }) => {
 
   const categories = Array.from(new Set(foods.map(f => f.category)));
 
+  const normalizeText = (text: string) => text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
   const filteredFoods = foods.filter(food => {
-    const matchesSearch = food.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const normalizedFoodName = normalizeText(food.name);
+    const normalizedSearch = normalizeText(searchTerm.trim());
+    const matchesSearch = normalizedFoodName.includes(normalizedSearch);
     const matchesCategory = categoryFilter ? food.category === categoryFilter : true;
     return matchesSearch && matchesCategory;
   });

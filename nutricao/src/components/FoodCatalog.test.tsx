@@ -17,17 +17,17 @@ describe('FoodCatalog', () => {
     expect(screen.getByText('Frango')).toBeInTheDocument();
   });
 
-  it('filters by search term', () => {
+  it('filters by search term with accent support and trim', () => {
     render(<FoodCatalog foods={mockFoods} />);
     const searchInput = screen.getByPlaceholderText('Buscar alimento...');
     
-    fireEvent.change(searchInput, { target: { value: 'maç' } });
+    fireEvent.change(searchInput, { target: { value: ' maca ' } });
     
     expect(screen.getByText('Maçã')).toBeInTheDocument();
     expect(screen.queryByText('Frango')).not.toBeInTheDocument();
   });
 
-  it('filters by category', () => {
+  it('filters by category and can reset', () => {
     render(<FoodCatalog foods={mockFoods} />);
     const select = screen.getByRole('combobox');
     
@@ -35,5 +35,37 @@ describe('FoodCatalog', () => {
     
     expect(screen.queryByText('Maçã')).not.toBeInTheDocument();
     expect(screen.getByText('Frango')).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: '' } });
+    expect(screen.getByText('Maçã')).toBeInTheDocument();
+    expect(screen.getByText('Frango')).toBeInTheDocument();
+  });
+
+  it('filters by combined search and category', () => {
+    render(<FoodCatalog foods={mockFoods} />);
+    const searchInput = screen.getByPlaceholderText('Buscar alimento...');
+    const select = screen.getByRole('combobox');
+    
+    fireEvent.change(searchInput, { target: { value: 'fr' } });
+    fireEvent.change(select, { target: { value: 'Carnes' } });
+    
+    expect(screen.queryByText('Maçã')).not.toBeInTheDocument();
+    expect(screen.getByText('Frango')).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: 'Frutas' } });
+    expect(screen.queryByText('Maçã')).not.toBeInTheDocument();
+    expect(screen.queryByText('Frango')).not.toBeInTheDocument();
+    expect(screen.getByText('Nenhum alimento encontrado.')).toBeInTheDocument();
+  });
+
+  it('shows empty message for no match or empty foods', () => {
+    const { rerender } = render(<FoodCatalog foods={mockFoods} />);
+    const searchInput = screen.getByPlaceholderText('Buscar alimento...');
+    
+    fireEvent.change(searchInput, { target: { value: 'zzz' } });
+    expect(screen.getByText('Nenhum alimento encontrado.')).toBeInTheDocument();
+
+    rerender(<FoodCatalog foods={[]} />);
+    expect(screen.getByText('Nenhum alimento encontrado.')).toBeInTheDocument();
   });
 });

@@ -27,5 +27,35 @@ describe('DietCatalog', () => {
     expect(screen.getByText('Descrição de teste')).toBeInTheDocument();
     expect(screen.getByText('Maçã')).toBeInTheDocument();
     expect(screen.queryByText('Frango')).not.toBeInTheDocument();
+    expect(screen.getByText('Teste')).toBeInTheDocument();
+  });
+
+  it('shows empty message when diets array is empty', () => {
+    render(<DietCatalog diets={[]} foods={mockFoods} />);
+    expect(screen.getByText('Nenhuma dieta encontrada.')).toBeInTheDocument();
+  });
+
+  it('handles diet with unknown foods or empty recommendedFoods', () => {
+    const edgeDiets: Diet[] = [
+      {
+        id: '1',
+        name: 'Dieta Vazia',
+        description: 'Sem alimentos',
+        goal: 'Vazio',
+        recommendedFoods: []
+      },
+      {
+        id: '2',
+        name: 'Dieta Quebrada',
+        description: 'Alimentos inexistentes',
+        goal: 'Quebrado',
+        recommendedFoods: ['999']
+      }
+    ];
+
+    render(<DietCatalog diets={edgeDiets} foods={mockFoods} />);
+    
+    const fallbackMessages = screen.getAllByText('Nenhum alimento resolvido para esta dieta.');
+    expect(fallbackMessages).toHaveLength(2);
   });
 });
