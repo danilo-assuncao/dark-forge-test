@@ -1,16 +1,21 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { mockFurniture, categories } from './data/furniture';
 import { ShoppingCart, Search, Menu } from 'lucide-react';
 
 function App() {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [cartCount, setCartCount] = useState<number>(0);
 
   const filteredFurniture = mockFurniture.filter((item) => {
     const matchesCategory = selectedCategory === 'Todos' || item.category === selectedCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  const handleAddToCart = () => {
+    setCartCount(prev => prev + 1);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
@@ -29,6 +34,7 @@ function App() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              aria-label="Buscar móveis (Desktop)"
             />
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
@@ -37,7 +43,7 @@ function App() {
             <button className="p-2 hover:bg-gray-100 rounded-full relative">
               <ShoppingCart className="h-6 w-6 text-gray-600" />
               <span className="absolute top-0 right-0 bg-amber-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center transform translate-x-1 -translate-y-1">
-                0
+                {cartCount}
               </span>
             </button>
           </div>
@@ -51,6 +57,7 @@ function App() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              aria-label="Buscar móveis (Mobile)"
             />
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
           </div>
@@ -115,6 +122,7 @@ function App() {
                       R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                     <button
+                      onClick={handleAddToCart}
                       disabled={!item.inStock}
                       className={`p-2 rounded-full transition-colors ${
                         item.inStock 
