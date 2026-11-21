@@ -6,7 +6,7 @@ function calculateRentalBase({
   mileagePlan = 'km-livre',
   estimatedKm = 0,
   differentDropoffCity = false
-}) {
+} = {}) {
   const group = getVehicleGroup(groupId);
   if (!group) {
     throw new Error('Invalid or missing vehicle group');
@@ -14,6 +14,10 @@ function calculateRentalBase({
 
   if (!Number.isInteger(days) || days < 1) {
     throw new Error('Days must be a positive integer');
+  }
+
+  if (typeof estimatedKm !== 'number' || !Number.isFinite(estimatedKm) || estimatedKm < 0) {
+    throw new Error('estimatedKm must be a non-negative number');
   }
 
   let adjustedDailyRate = group.dailyRateBrl;
@@ -36,16 +40,21 @@ function calculateRentalBase({
     totalDailyCost *= 0.88;
   }
 
-  const dropoffFee = differentDropoffCity ? 180.00 : 0;
+  const dropoffFee = differentDropoffCity === true ? 180.00 : 0;
 
-  const total = totalDailyCost + extraKmCost + dropoffFee;
+  // Round components to cents before summing, to avoid total vs breakdown mismatch
+  const roundedDailyCost = Number(totalDailyCost.toFixed(2));
+  const roundedExtraKm = Number(extraKmCost.toFixed(2));
+  const roundedDropoff = Number(dropoffFee.toFixed(2));
+
+  const total = roundedDailyCost + roundedExtraKm + roundedDropoff;
 
   return {
     total: Number(total.toFixed(2)),
     breakdown: {
-      totalDailyCost: Number(totalDailyCost.toFixed(2)),
-      extraKmCost: Number(extraKmCost.toFixed(2)),
-      dropoffFee: Number(dropoffFee.toFixed(2))
+      totalDailyCost: roundedDailyCost,
+      extraKmCost: roundedExtraKm,
+      dropoffFee: roundedDropoff
     }
   };
 }
