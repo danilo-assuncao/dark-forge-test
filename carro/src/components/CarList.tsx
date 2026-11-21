@@ -3,11 +3,12 @@ import { CarCard } from './CarCard'
 
 interface CarListProps {
   cars: Car[]
+  emptyMessage?: string
 }
 
-export function CarList({ cars }: CarListProps) {
+export function CarList({ cars, emptyMessage = 'No cars available.' }: CarListProps) {
   if (cars.length === 0) {
-    return <p className="no-cars-message">No cars available.</p>
+    return <p className="no-cars-message">{emptyMessage}</p>
   }
 
   return (

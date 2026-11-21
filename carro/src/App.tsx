@@ -8,12 +8,11 @@ const currentYear = new Date().getFullYear()
 export default function App() {
   const [searchTerm, setSearchTerm] = useState('')
 
+  const trimmedSearch = searchTerm.trim().toLowerCase()
+
   const filteredCars = initialCars.filter((car) => {
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      car.make.toLowerCase().includes(searchLower) ||
-      car.model.toLowerCase().includes(searchLower)
-    )
+    const fullName = `${car.make} ${car.model}`.toLowerCase()
+    return fullName.includes(trimmedSearch)
   })
 
   return (
@@ -33,7 +32,10 @@ export default function App() {
         </div>
       </header>
       <main className="app-main">
-        <CarList cars={filteredCars} />
+        <CarList 
+          cars={filteredCars} 
+          emptyMessage={searchTerm.trim() ? "No cars match your search." : "No cars available."} 
+        />
       </main>
       <footer className="app-footer">
         <p>&copy; {currentYear} Auto Sales. All rights reserved.</p>
