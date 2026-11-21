@@ -4,7 +4,7 @@ const { simulateBillSavings } = require('./savings');
 const { calculateSolarPayment } = require('./financing');
 
 function generateProtocol() {
-  const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
+  const randomPart = crypto.randomBytes(8).toString('hex').toUpperCase();
   return `SOL-${randomPart}`;
 }
 
@@ -23,6 +23,16 @@ function buildSolarProposal(input = {}) {
     couponCode
   } = input;
 
+  if (typeof phaseType !== 'string') {
+    throw new TypeError('phaseType must be a string');
+  }
+  if (typeof tariffBrlPerKwh !== 'number' || !Number.isFinite(tariffBrlPerKwh) || tariffBrlPerKwh < 0) {
+    throw new TypeError('tariffBrlPerKwh must be a positive number');
+  }
+  if (couponCode !== undefined && typeof couponCode !== 'string') {
+    throw new TypeError('couponCode must be a string if provided');
+  }
+
   const sizing = calculateSolarSizing({ monthlyConsumptionKwh, region });
 
   const financing = calculateSolarPayment({
@@ -32,20 +42,18 @@ function buildSolarProposal(input = {}) {
     couponCode
   });
 
-  const generatedKwh = sizing.requiredKwp > 0 
-    ? monthlyConsumptionKwh * (sizing.installedKwp / sizing.requiredKwp) 
-    : 0;
+  const generatedKwh = monthlyConsumptionKwh * (sizing.installedKwp / sizing.requiredKwp);
 
   const savings = simulateBillSavings({
     monthlyConsumptionKwh,
     generatedKwh,
     phaseType,
     tariffBrlPerKwh,
-    systemCostBrl: financing.method === 'pix' ? financing.total : financing.principal
+    systemCostBrl: financing.total
   });
 
-  const installmentBrl = financing.monthlyInstallment || 0;
-  const cashflowPositive = method === 'pix' ? null : installmentBrl <= savings.monthlySavingsBrl;
+  const installmentBrl = financing.monthlyInstallment;
+  const cashflowPositive = financing.method === 'pix' ? null : installmentBrl <= savings.monthlySavingsBrl;
 
   return {
     protocol: generateProtocol(),
