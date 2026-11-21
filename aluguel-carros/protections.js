@@ -1,14 +1,14 @@
-const PROTECTION_PLANS = {
+const PROTECTION_PLANS = Object.freeze(Object.assign(Object.create(null), {
   'nenhuma': 0,
   'basica': 29,
   'completa': 54
-};
+}));
 
-const ADDONS = {
+const ADDONS = Object.freeze(Object.assign(Object.create(null), {
   'cadeirinha-bebe': { price: 18, type: 'per_day' },
   'condutor-adicional': { price: 22, type: 'per_day' },
   'tag-pedagio': { price: 25, type: 'flat' }
-};
+}));
 
 export function listAddons() {
   return Object.keys(ADDONS).map(id => ({
@@ -22,14 +22,20 @@ export function calculateProtectionAndAddons({ protectionPlan = 'basica', addonI
     throw new Error('days must be an integer between 1 and 60');
   }
 
-  if (!(protectionPlan in PROTECTION_PLANS)) {
+  if (!Object.hasOwn(PROTECTION_PLANS, protectionPlan)) {
     throw new Error('invalid protection plan');
   }
 
+  if (!Array.isArray(addonIds)) {
+    throw new TypeError('addonIds must be an array');
+  }
+
+  const uniqueAddonIds = new Set(addonIds);
+
   let total = PROTECTION_PLANS[protectionPlan] * days;
 
-  for (const addonId of addonIds) {
-    if (!(addonId in ADDONS)) {
+  for (const addonId of uniqueAddonIds) {
+    if (!Object.hasOwn(ADDONS, addonId)) {
       throw new Error(`invalid addon: ${addonId}`);
     }
     const addon = ADDONS[addonId];

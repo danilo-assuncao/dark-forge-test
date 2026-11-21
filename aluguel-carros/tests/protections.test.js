@@ -60,12 +60,48 @@ test('calculateProtectionAndAddons throws on invalid days', () => {
   assert.throws(() => calculateProtectionAndAddons({ days: 0 }), /days must be an integer between 1 and 60/);
   assert.throws(() => calculateProtectionAndAddons({ days: 61 }), /days must be an integer between 1 and 60/);
   assert.throws(() => calculateProtectionAndAddons({ days: 2.5 }), /days must be an integer between 1 and 60/);
+  assert.throws(() => calculateProtectionAndAddons({ days: NaN }), /days must be an integer between 1 and 60/);
+  assert.throws(() => calculateProtectionAndAddons({ days: '3' }), /days must be an integer between 1 and 60/);
+  assert.throws(() => calculateProtectionAndAddons({ days: -1 }), /days must be an integer between 1 and 60/);
+  assert.throws(() => calculateProtectionAndAddons({}), /days must be an integer between 1 and 60/);
+});
+
+test('calculateProtectionAndAddons works for valid boundaries', () => {
+  assert.strictEqual(calculateProtectionAndAddons({ days: 1 }), 29);
+  assert.strictEqual(calculateProtectionAndAddons({ days: 60 }), 29 * 60);
 });
 
 test('calculateProtectionAndAddons throws on invalid protection plan', () => {
   assert.throws(() => calculateProtectionAndAddons({ protectionPlan: 'premium', days: 2 }), /invalid protection plan/);
+  assert.throws(() => calculateProtectionAndAddons({ protectionPlan: 'constructor', days: 2 }), /invalid protection plan/);
+  assert.throws(() => calculateProtectionAndAddons({ protectionPlan: '__proto__', days: 2 }), /invalid protection plan/);
 });
 
 test('calculateProtectionAndAddons throws on invalid addon', () => {
-  assert.throws(() => calculateProtectionAndAddons({ addonIds: ['fake-addon'], days: 2 }), /invalid addon/);
+  assert.throws(() => calculateProtectionAndAddons({ addonIds: ['fake-addon'], days: 2 }), /invalid addon: fake-addon/);
+  assert.throws(() => calculateProtectionAndAddons({ addonIds: ['toString'], days: 2 }), /invalid addon: toString/);
+});
+
+test('calculateProtectionAndAddons handles non-array addonIds', () => {
+  assert.throws(() => calculateProtectionAndAddons({ addonIds: 'tag-pedagio', days: 2 }), /addonIds must be an array/);
+  assert.throws(() => calculateProtectionAndAddons({ addonIds: null, days: 2 }), /addonIds must be an array/);
+});
+
+test('calculateProtectionAndAddons dedupes addons', () => {
+  const total = calculateProtectionAndAddons({ addonIds: ['tag-pedagio', 'tag-pedagio', 'cadeirinha-bebe', 'cadeirinha-bebe'], days: 3 });
+  assert.strictEqual(total, 29 * 3 + 25 + 18 * 3);
+});
+
+test('calculateProtectionAndAddons works with empty addonIds', () => {
+  const total = calculateProtectionAndAddons({ addonIds: [], days: 3 });
+  assert.strictEqual(total, 29 * 3);
+});
+
+test('calculateProtectionAndAddons calculates all valid addons with non-default plan', () => {
+  const total = calculateProtectionAndAddons({
+    protectionPlan: 'completa',
+    addonIds: ['cadeirinha-bebe', 'condutor-adicional', 'tag-pedagio'],
+    days: 4
+  });
+  assert.strictEqual(total, (54 * 4) + (18 * 4) + (22 * 4) + 25);
 });
