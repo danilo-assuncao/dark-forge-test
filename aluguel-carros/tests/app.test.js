@@ -47,6 +47,8 @@ test('validateDriver requires 11 digit CNH', () => {
     assert.strictEqual(validateDriver(20, '123456789012').valid, false);
     assert.strictEqual(validateDriver(20, '12345678901').valid, true);
     assert.strictEqual(validateDriver(20, '1234567890a').valid, false);
+    assert.strictEqual(validateDriver(20, 12345678901).valid, false);
+    assert.strictEqual(validateDriver(20, ['12345678901']).valid, false);
 });
 
 test('processRental generates voucher for valid data and unlimited KM', () => {
@@ -98,6 +100,33 @@ test('processRental fails for invalid days boundaries', () => {
     assert.strictEqual(processRental({ ...baseData, days: NaN }).success, false);
     assert.strictEqual(processRental({ ...baseData, days: 366 }).success, false);
     assert.strictEqual(processRental({ ...baseData, days: 1.5 }).success, false);
+    assert.strictEqual(processRental({ ...baseData, days: 1 }).success, true);
+    assert.strictEqual(processRental({ ...baseData, days: 365 }).success, true);
+});
+
+test('processRental fails for invalid kmModality', () => {
+    const baseData = { vehicleGroup: 'A', days: 2, extrasDaily: 0, age: 20, cnh: '12345678901', coupon: '' };
+    
+    const resultInvalid = processRental({ ...baseData, kmModality: 'other' });
+    assert.strictEqual(resultInvalid.success, false);
+    assert.strictEqual(resultInvalid.message, 'Por favor, preencha todos os campos obrigatórios corretamente.');
+
+    assert.strictEqual(processRental({ ...baseData, kmModality: undefined }).success, false);
+});
+
+test('processRental fails for invalid extrasDaily', () => {
+    const baseData = { vehicleGroup: 'A', days: 2, kmModality: 'limited', age: 20, cnh: '12345678901', coupon: '' };
+    
+    const resultNegative = processRental({ ...baseData, extrasDaily: -1 });
+    assert.strictEqual(resultNegative.success, false);
+    assert.strictEqual(resultNegative.message, 'Adicionais inválidos.');
+
+    assert.strictEqual(processRental({ ...baseData, extrasDaily: NaN }).success, false);
+    assert.strictEqual(processRental({ ...baseData, extrasDaily: Infinity }).success, false);
+    assert.strictEqual(processRental({ ...baseData, extrasDaily: undefined }).success, false);
+    assert.strictEqual(processRental({ ...baseData, extrasDaily: '10' }).success, false);
+
+    assert.strictEqual(processRental({ ...baseData, extrasDaily: 0 }).success, true);
 });
 
 test('processRental fails for empty or unknown vehicleGroup', () => {

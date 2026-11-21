@@ -30,7 +30,7 @@ function validateDriver(age, cnh) {
     if (!Number.isInteger(age) || age < 18) {
         return { valid: false, message: 'Idade mínima para aluguel é 18 anos.' };
     }
-    if (!/^\d{11}$/.test(cnh)) {
+    if (typeof cnh !== 'string' || !/^\d{11}$/.test(cnh)) {
         return { valid: false, message: 'CNH inválida. Deve conter 11 dígitos numéricos.' };
     }
     return { valid: true };
@@ -44,7 +44,8 @@ function processRental(data) {
         !Object.prototype.hasOwnProperty.call(vehiclePrices, vehicleGroup) ||
         !Number.isInteger(days) || 
         days < 1 ||
-        days > 365
+        days > 365 ||
+        (kmModality !== 'limited' && kmModality !== 'unlimited')
     ) {
         return { success: false, message: 'Por favor, preencha todos os campos obrigatórios corretamente.' };
     }
