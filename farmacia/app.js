@@ -8,11 +8,13 @@ const inventory = [
 ];
 
 let currentCart = null;
+let pendingOriginal = null;
 let currentGenericSuggestion = null;
 let isSubscription = false;
 let appliedCoupon = false;
 
 const dom = {
+    searchSection: document.getElementById('search-section'),
     searchInput: document.getElementById('search-input'),
     searchBtn: document.getElementById('search-btn'),
     resultsList: document.getElementById('results-list'),
@@ -45,9 +47,32 @@ function formatPrice(price) {
     return price.toFixed(2).replace('.', ',');
 }
 
+// Pure function to calculate total in integer cents
+function calculateTotal(price, isSub, hasCoupon) {
+    let cents = Math.round(price * 100);
+    if (isSub) {
+        cents = Math.round(cents * 0.9);
+    }
+    if (hasCoupon) {
+        cents = Math.round(cents * 0.9);
+    }
+    return cents / 100;
+}
+
+// Pure function to get a cheaper generic alternative
+function getGenericAlternative(med) {
+    if (!med.isGeneric && med.genericId) {
+        const generic = inventory.find(m => m.id === med.genericId);
+        if (generic && generic.price < med.price) {
+            return generic;
+        }
+    }
+    return null;
+}
+
 function searchMedicines() {
     const query = dom.searchInput.value.trim().toLowerCase();
-    dom.resultsList.innerHTML = ''; // safe, we're clearing
+    dom.resultsList.innerHTML = '';
     if (!query) return;
 
     const results = inventory.filter(m => 
@@ -90,16 +115,14 @@ function searchMedicines() {
 
 function selectMedicine(med) {
     dom.resultsList.innerHTML = '';
+    dom.cartSection.classList.add('hidden');
     
-    // Check for generic alternative
-    if (!med.isGeneric && med.genericId) {
-        const generic = inventory.find(m => m.id === med.genericId);
-        if (generic && generic.price < med.price) {
-            currentGenericSuggestion = generic;
-            currentCart = med;
-            showGenericSuggestion(med, generic);
-            return;
-        }
+    const generic = getGenericAlternative(med);
+    if (generic) {
+        pendingOriginal = med;
+        currentGenericSuggestion = generic;
+        showGenericSuggestion(med, generic);
+        return;
     }
     
     addToCart(med);
@@ -117,7 +140,14 @@ function showGenericSuggestion(original, generic) {
 
 function addToCart(med) {
     currentCart = med;
+    pendingOriginal = null;
+    currentGenericSuggestion = null;
+    
+    // Clear prior state
+    if (dom.crmInput) dom.crmInput.value = '';
+    
     dom.genericSuggestionSection.classList.add('hidden');
+    dom.searchSection.classList.add('hidden'); // Hide search section as soon as an item enters the cart
     dom.cartSection.classList.remove('hidden');
     
     dom.cartItem.textContent = `${med.name} - R$ ${formatPrice(med.price)}`;
@@ -128,26 +158,22 @@ function addToCart(med) {
         dom.prescriptionSection.classList.add('hidden');
     }
     
+    // Re-evaluate coupon if already applied
+    if (dom.couponInput.value.trim().toUpperCase() === 'DANFARMA10') {
+        appliedCoupon = true;
+    }
+    
     updateTotal();
 }
 
 function updateTotal() {
     if (!currentCart) return;
-    
-    let total = currentCart.price;
-    
-    if (isSubscription) {
-        total *= 0.9; // 10% discount
-    }
-    
-    if (appliedCoupon) {
-        total *= 0.9; // 10% discount
-    }
-    
+    const total = calculateTotal(currentCart.price, isSubscription, appliedCoupon);
     dom.totalPrice.textContent = formatPrice(total);
 }
 
 function applyCoupon() {
+    // Note: in a real app with backend, coupon validation must be done server-side.
     const code = dom.couponInput.value.trim().toUpperCase();
     if (code === 'DANFARMA10') {
         appliedCoupon = true;
@@ -163,7 +189,10 @@ function applyCoupon() {
 }
 
 function generateReceiptId() {
-    return 'FAR-' + Math.floor(1000 + Math.random() * 9000);
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return 'FAR-' + crypto.randomUUID().split('-')[0].toUpperCase();
+    }
+    return 'FAR-' + Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
 function checkout() {
@@ -172,9 +201,11 @@ function checkout() {
     if (!currentCart) return;
     
     if (currentCart.stripe === 'red') {
+        // Note: Real prescription control and verification must be done server-side.
         const crm = dom.crmInput.value.trim();
-        if (!crm) {
-            dom.errorMessage.textContent = 'Por favor, informe o CRM do médico para medicamentos de tarja vermelha.';
+        const crmRegex = /^\d{4,7}-?[A-Z]{2}$/i;
+        if (!crm || !crmRegex.test(crm)) {
+            dom.errorMessage.textContent = 'Por favor, informe um CRM válido (Ex: 123456-SP) para medicamentos de tarja vermelha.';
             return;
         }
     }
@@ -183,7 +214,7 @@ function checkout() {
     const receiptId = generateReceiptId();
     
     dom.cartSection.classList.add('hidden');
-    dom.searchSection = document.getElementById('search-section').classList.add('hidden');
+    dom.searchSection.classList.add('hidden');
     dom.resultsList.innerHTML = '';
     
     dom.receiptSection.classList.remove('hidden');
@@ -202,6 +233,7 @@ function checkout() {
 
 function resetApp() {
     currentCart = null;
+    pendingOriginal = null;
     currentGenericSuggestion = null;
     isSubscription = false;
     appliedCoupon = false;
@@ -211,10 +243,12 @@ function resetApp() {
     dom.couponInput.value = '';
     dom.couponMessage.textContent = '';
     dom.errorMessage.textContent = '';
-    dom.purchaseTypeRadios[0].checked = true;
+    if (dom.purchaseTypeRadios.length > 0) {
+        dom.purchaseTypeRadios[0].checked = true;
+    }
     
     dom.receiptSection.classList.add('hidden');
-    document.getElementById('search-section').classList.remove('hidden');
+    dom.searchSection.classList.remove('hidden');
 }
 
 // Event Listeners
@@ -232,8 +266,8 @@ if (typeof window !== 'undefined' && dom.searchBtn) {
     });
 
     dom.keepOriginalBtn.addEventListener('click', () => {
-        if (currentCart) {
-            addToCart(currentCart);
+        if (pendingOriginal) {
+            addToCart(pendingOriginal);
         }
     });
 
@@ -254,17 +288,14 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         inventory,
         searchMedicines,
-        getGenericAlternative: (med) => {
-            if (!med.isGeneric && med.genericId) {
-                return inventory.find(m => m.id === med.genericId) || null;
-            }
-            return null;
-        },
-        calculateTotal: (price, isSub, hasCoupon) => {
-            let total = price;
-            if (isSub) total *= 0.9;
-            if (hasCoupon) total *= 0.9;
-            return total;
-        }
+        getGenericAlternative,
+        calculateTotal,
+        addToCart,
+        checkout,
+        applyCoupon,
+        resetApp,
+        dom,
+        get currentCart() { return currentCart; },
+        get appliedCoupon() { return appliedCoupon; }
     };
 }
