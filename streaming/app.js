@@ -115,24 +115,30 @@ function quoteRentals({ planId, items }) {
 }
 
 // --- Logic from billing.js ---
+let getRandomInt;
+if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) {
+    getRandomInt = (max) => {
+        const arr = new Uint32Array(1);
+        const limit = 4294967296 - (4294967296 % max);
+        let val;
+        do {
+            globalThis.crypto.getRandomValues(arr);
+            val = arr[0];
+        } while (val >= limit);
+        return val % max;
+    };
+} else if (typeof module !== 'undefined' && typeof require !== 'undefined') {
+    const crypto = require('crypto');
+    getRandomInt = (max) => crypto.randomInt(0, max);
+} else {
+    getRandomInt = () => { throw new Error('No secure random number generator available.'); };
+}
+
 function generateProtocol() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
     for (let i = 0; i < 6; i++) {
-        let rand;
-        // Node testing fallback
-        if (typeof process !== 'undefined' && process.release && process.release.name === 'node') {
-            try {
-                // Using dynamic require cautiously to avoid browser errors
-                const crypto = new Function('return require("crypto")')();
-                rand = crypto.randomInt(0, chars.length);
-            } catch (e) {
-                rand = Math.floor(Math.random() * chars.length);
-            }
-        } else {
-            rand = Math.floor(Math.random() * chars.length);
-        }
-        code += chars.charAt(rand);
+        code += chars.charAt(getRandomInt(chars.length));
     }
     return `PLY-${code}`;
 }
@@ -197,6 +203,9 @@ function calculateSubscriptionCheckout({ planId, channelIds = [], cycle = 'mensa
 }
 
 // --- DOM Interaction ---
+// LIMITATION NOTICE: All validation (PIN, parental unlock, pricing, coupons) is 
+// strictly client-side for this static SPA demo. In a production environment, 
+// these MUST be re-validated on the server, as client-side logic can be easily bypassed.
 if (typeof window !== 'undefined' && window.document) {
     document.addEventListener('DOMContentLoaded', () => {
         let selectedPlanId = 'padrao-ads';
@@ -306,6 +315,7 @@ if (typeof window !== 'undefined' && window.document) {
             try {
                 profileManager = createProfileManager(pin);
                 document.getElementById('profile-manager-ui').style.display = 'block';
+                renderProfiles();
                 alert('PIN definido com sucesso!');
             } catch (e) {
                 alert(e.message);
