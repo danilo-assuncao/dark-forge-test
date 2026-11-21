@@ -100,9 +100,15 @@ function renderSpaces(doc, state) {
             endHour: state.endHour,
             attendees: state.attendees
           });
-          const pass = 'HUB-' + booking.id.substring(0, 4).toUpperCase();
           const success = doc.getElementById('success-msg');
-          success.textContent = `Reserva confirmada! Passe: ${pass}`;
+          let msg = `Reserva de ${space.name} confirmada para ${state.dateIso} (${state.startHour}h-${state.endHour}h)!`;
+          if (order.total > 0) {
+            msg += ` Total do pacote: ${formatBRL(order.total)}.`;
+          }
+          if (state.amenityIds.length > 0) {
+             msg += ` Serviços inclusos: ${state.amenityIds.join(', ')}.`;
+          }
+          success.textContent = msg;
           success.className = 'success';
           renderSpaces(doc, state); // re-render to show conflict
         } catch (e) {
@@ -159,9 +165,7 @@ function init(doc) {
     successMsg.textContent = '';
     successMsg.className = '';
     const state = getState();
-    if (state.dateIso) {
-      renderSpaces(doc, state);
-    }
+    renderSpaces(doc, state);
   }
 
   form.addEventListener('change', update);

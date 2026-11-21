@@ -98,14 +98,21 @@ test('renderSpaces displays no spaces if invalid hours', () => {
   assert.match(doc.byId['spaces-list'].textContent, /Horário inválido/);
 });
 
-test('booking a space displays pass and updates conflict', () => {
+test('booking a space displays booking confirmation and updates conflict', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-20';
+  doc.byId['date-input'].value = '2099-11-20';
   doc.byId['start-input'].value = '10';
   doc.byId['end-input'].value = '12';
   doc.byId['attendees-input'].value = '1';
+  
+  // Set amenities
+  const checkboxes = doc.querySelectorAll('.amenity-cb');
+  const coffeeBreakCb = checkboxes.find(cb => cb.value === 'coffee-break');
+  assert.ok(coffeeBreakCb);
+  coffeeBreakCb.checked = true;
+  
   doc.byId['filter-form'].dispatch('submit');
   
   let buttons = findButtons(doc, 'Reservar');
@@ -117,7 +124,9 @@ test('booking a space displays pass and updates conflict', () => {
   
   buttons[0].click(); // Book the first space
   
-  assert.match(doc.byId['success-msg'].textContent, /Passe: HUB-[0-9A-F]{4}/);
+  assert.match(doc.byId['success-msg'].textContent, /Reserva de .* confirmada/);
+  assert.match(doc.byId['success-msg'].textContent, /Total do pacote:/);
+  assert.match(doc.byId['success-msg'].textContent, /Serviços inclusos: coffee-break/);
   
   // Re-render happens. The booked space should now show conflict
   const newFirstCard = doc.byId['spaces-list'].children[0];
@@ -131,7 +140,7 @@ test('applies DANHUB15 coupon successfully', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-21';
+  doc.byId['date-input'].value = '2099-11-21';
   doc.byId['start-input'].value = '8';
   doc.byId['end-input'].value = '10'; // 2 hours
   doc.byId['attendees-input'].value = '1';
@@ -149,7 +158,7 @@ test('invalid coupon does not apply discount', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-22';
+  doc.byId['date-input'].value = '2099-11-22';
   doc.byId['start-input'].value = '8';
   doc.byId['end-input'].value = '10'; // 2 hours
   doc.byId['attendees-input'].value = '1';
@@ -164,7 +173,7 @@ test('attendees above maximum capacity shows no spaces', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-25';
+  doc.byId['date-input'].value = '2099-11-25';
   doc.byId['attendees-input'].value = '999';
   doc.byId['filter-form'].dispatch('submit');
   assert.match(doc.byId['spaces-list'].textContent, /Nenhum espaço disponível para essa capacidade/);
@@ -174,7 +183,7 @@ test('start hour equal to end hour shows invalid hours', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-25';
+  doc.byId['date-input'].value = '2099-11-25';
   doc.byId['start-input'].value = '10';
   doc.byId['end-input'].value = '10';
   doc.byId['filter-form'].dispatch('submit');
@@ -185,7 +194,7 @@ test('amenity checked reflects in total', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-26';
+  doc.byId['date-input'].value = '2099-11-26';
   doc.byId['start-input'].value = '10';
   doc.byId['end-input'].value = '11'; // 1 hour
   doc.byId['attendees-input'].value = '1'; // 1 attendee
@@ -193,7 +202,8 @@ test('amenity checked reflects in total', () => {
   // hot-desk price is 22. Coffee-break is 28/attendee
   const checkboxes = doc.querySelectorAll('.amenity-cb');
   const coffeeBreakCb = checkboxes.find(cb => cb.value === 'coffee-break');
-  if (coffeeBreakCb) coffeeBreakCb.checked = true;
+  assert.ok(coffeeBreakCb);
+  coffeeBreakCb.checked = true;
   
   doc.byId['filter-form'].dispatch('submit');
   
@@ -205,7 +215,7 @@ test('bookSlot catch path calls alert', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-27';
+  doc.byId['date-input'].value = '2099-11-27';
   doc.byId['start-input'].value = '8';
   doc.byId['end-input'].value = '10';
   doc.byId['filter-form'].dispatch('submit');
@@ -215,52 +225,67 @@ test('bookSlot catch path calls alert', () => {
   
   // force quote to succeed, but book to fail
   const originalBook = App.scheduler.bookSlot;
-  App.scheduler.bookSlot = () => { throw new Error('Simulated error'); };
-  
-  const buttons = findButtons(doc, 'Reservar');
-  buttons[0].click();
-  
-  assert.ok(alerted);
-  App.scheduler.bookSlot = originalBook;
-  delete globalThis.alert;
+  try {
+    App.scheduler.bookSlot = () => { throw new Error('Simulated error'); };
+    
+    const buttons = findButtons(doc, 'Reservar');
+    buttons[0].click();
+    
+    assert.ok(alerted);
+  } finally {
+    App.scheduler.bookSlot = originalBook;
+    delete globalThis.alert;
+  }
 });
 
 test('DOM rendering is safe against XSS', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-28';
+  doc.byId['date-input'].value = '2099-11-28';
   doc.byId['start-input'].value = '10';
   doc.byId['end-input'].value = '12';
   
+  let innerHTMLSet = false;
+  
+  // Patch FakeNode to throw if innerHTML is used
+  Object.defineProperty(doc.byId['spaces-list'], 'innerHTML', {
+    set(v) { innerHTMLSet = true; }
+  });
+  
   const originalQuote = App.scheduler.quoteSlot;
-  App.scheduler.quoteSlot = () => { throw new Error('<script>alert(1)</script>'); };
-  
-  doc.byId['filter-form'].dispatch('submit');
-  
-  // Check that the textContent preserves the script tag as plain text
-  const text = doc.byId['spaces-list'].textContent;
-  assert.match(text, /<script>alert\(1\)<\/script>/);
-  
-  App.scheduler.quoteSlot = originalQuote;
+  try {
+    App.scheduler.quoteSlot = () => { throw new Error('<script>alert(1)</script>'); };
+    
+    doc.byId['filter-form'].dispatch('submit');
+    
+    // Check that the textContent preserves the script tag as plain text
+    const text = doc.byId['spaces-list'].textContent;
+    assert.match(text, /<script>alert\(1\)<\/script>/);
+    assert.ok(!innerHTMLSet, 'innerHTML should not be set');
+  } finally {
+    App.scheduler.quoteSlot = originalQuote;
+  }
 });
 
 test('quoteSlot error branch renders error message', () => {
   App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
-  doc.byId['date-input'].value = '2026-11-29';
+  doc.byId['date-input'].value = '2099-11-29';
   doc.byId['start-input'].value = '8';
   doc.byId['end-input'].value = '10';
   doc.byId['attendees-input'].value = '1';
   
   const originalQuote = App.scheduler.quoteSlot;
-  App.scheduler.quoteSlot = () => { throw new Error('Quote error injected'); };
-  
-  doc.byId['filter-form'].dispatch('submit');
-  assert.match(doc.byId['spaces-list'].textContent, /Quote error injected/);
-  
-  App.scheduler.quoteSlot = originalQuote;
+  try {
+    App.scheduler.quoteSlot = () => { throw new Error('Quote error injected'); };
+    
+    doc.byId['filter-form'].dispatch('submit');
+    assert.match(doc.byId['spaces-list'].textContent, /Quote error injected/);
+  } finally {
+    App.scheduler.quoteSlot = originalQuote;
+  }
 });
 
 test('empty date renders nothing', () => {
@@ -272,30 +297,107 @@ test('empty date renders nothing', () => {
   assert.equal(doc.byId['spaces-list'].textContent, '');
 });
 
-test('shim provides valid exports and fallback crypto', () => {
+test('conflict checks handle boundaries correctly', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  
+  // Book 10-12
+  doc.byId['date-input'].value = '2099-12-01';
+  doc.byId['start-input'].value = '10';
+  doc.byId['end-input'].value = '12';
+  doc.byId['filter-form'].dispatch('submit');
+  
+  let buttons = findButtons(doc, 'Reservar');
+  buttons[0].click(); // Book the first space
+  
+  // Try 12-14 (adjacent) -> no conflict
+  doc.byId['start-input'].value = '12';
+  doc.byId['end-input'].value = '14';
+  doc.byId['filter-form'].dispatch('submit');
+  
+  let firstCard = doc.byId['spaces-list'].children[0];
+  assert.doesNotMatch(firstCard.className, /conflict/);
+  
+  // Try 11-13 (partial overlap) -> conflict
+  doc.byId['start-input'].value = '11';
+  doc.byId['end-input'].value = '13';
+  doc.byId['filter-form'].dispatch('submit');
+  
+  firstCard = doc.byId['spaces-list'].children[0];
+  assert.match(firstCard.className, /conflict/);
+  
+  // Try 9-13 (containment) -> conflict
+  doc.byId['start-input'].value = '9';
+  doc.byId['end-input'].value = '13';
+  doc.byId['filter-form'].dispatch('submit');
+  
+  firstCard = doc.byId['spaces-list'].children[0];
+  assert.match(firstCard.className, /conflict/);
+});
+
+test('listSpaces error branch renders error message', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2099-12-02';
+  
+  const spacesAPI = require('../spaces.js');
+  const originalListSpaces = spacesAPI.listSpaces;
+  try {
+    spacesAPI.listSpaces = () => { throw new Error('Simulated listSpaces error'); };
+    doc.byId['filter-form'].dispatch('submit');
+    assert.match(doc.byId['spaces-list'].textContent, /Erro ao buscar espaços: Simulated listSpaces error/);
+  } finally {
+    spacesAPI.listSpaces = originalListSpaces;
+  }
+});
+test('shim loads modules correctly into window context', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const vm = require('node:vm');
   
   const ctx = {
-    window: {
-      crypto: {
-        getRandomValues: (arr) => { arr.fill(42); }
-      }
-    }
+    crypto: {
+      getRandomValues: (arr) => { arr.fill(42); }
+    },
+    document: {
+      getElementById: () => null,
+      querySelectorAll: () => [],
+      createElement: () => ({ addEventListener: () => {} })
+    },
+    addEventListener: () => {}
   };
+  ctx.window = ctx; // Make window reference itself like in a browser
   vm.createContext(ctx);
   
-  const shimSrc = fs.readFileSync(path.join(__dirname, '../shim.js'), 'utf8');
-  vm.runInContext(shimSrc, ctx);
+  const scripts = [
+    '../shim.js',
+    '../spaces.js',
+    '../save-spaces.js',
+    '../bookings.js',
+    '../save-bookings.js',
+    '../amenities.js',
+    '../save-amenities.js',
+    '../cleanup.js',
+    '../app.js'
+  ];
   
-  assert.ok(ctx.window.module);
-  assert.equal(typeof ctx.window.require, 'function');
+  for (const script of scripts) {
+    const src = fs.readFileSync(path.join(__dirname, script), 'utf8');
+    vm.runInContext(src, ctx);
+  }
   
-  const cryptoMock = ctx.window.require('node:crypto');
-  const uuid = cryptoMock.randomUUID();
-  assert.match(uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  // Assert window APIs
+  assert.ok(ctx.window.spacesAPI, 'spacesAPI is defined');
+  assert.ok(ctx.window.bookingsAPI, 'bookingsAPI is defined');
+  assert.ok(ctx.window.amenitiesAPI, 'amenitiesAPI is defined');
+  assert.ok(ctx.window.CoworkingApp, 'CoworkingApp is defined');
   
-  ctx.window.spacesAPI = { isSpaces: true };
-  assert.equal(ctx.window.require('./spaces').isSpaces, true);
+  // Assert APIs are distinct
+  assert.notEqual(ctx.window.spacesAPI, ctx.window.bookingsAPI);
+  
+  // Assert globals cleaned up
+  assert.equal(typeof ctx.window.require, 'undefined', 'require cleaned up');
+  assert.equal(typeof ctx.window.module, 'undefined', 'module cleaned up');
 });

@@ -20,3 +20,8 @@ window.require = function(mod) {
   if (mod === './amenities' || mod === './amenities.js') return window.amenitiesAPI;
   throw new Error('Unknown module: ' + mod);
 };
+
+// Protect modules that declare globals
+const _tempSpacesAPI = window.spacesAPI;
+const _tempBookingsAPI = window.bookingsAPI;
+const _tempAmenitiesAPI = window.amenitiesAPI;

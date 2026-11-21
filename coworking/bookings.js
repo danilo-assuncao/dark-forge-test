@@ -1,6 +1,6 @@
 'use strict';
 
-const { getSpaceById } = require('./spaces');
+const spacesMod = require('./spaces');
 const crypto = require('node:crypto');
 
 function createBookingScheduler() {
@@ -29,7 +29,7 @@ function createBookingScheduler() {
       throw new Error('Hours must be between 8 and 20, and startHour must be less than endHour');
     }
 
-    const space = getSpaceById(spaceId);
+    const space = spacesMod.getSpaceById(spaceId);
     if (!space) {
       throw new Error('Space not found');
     }
