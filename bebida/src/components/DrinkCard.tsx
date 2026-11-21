@@ -1,4 +1,4 @@
-import { Drink } from '../types'
+import type { Drink } from '../types'
 
 interface DrinkCardProps {
   drink: Drink
