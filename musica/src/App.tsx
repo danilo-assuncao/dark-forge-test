@@ -6,17 +6,42 @@ import { Player } from './components/Player';
 
 function App() {
   const [selectedAlbum, setSelectedAlbum] = useState<Album>(albums[0]);
+  const [playingAlbum, setPlayingAlbum] = useState<Album>(albums[0]);
   const [currentSong, setCurrentSong] = useState<Song>(albums[0].songs[0]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const handlePlaySong = (song: Song, album: Album) => {
-    setSelectedAlbum(album);
+    if (song.id === currentSong.id) {
+      setIsPlaying(!isPlaying);
+      return;
+    }
+    setPlayingAlbum(album);
     setCurrentSong(song);
     setIsPlaying(true);
   };
 
   const handleTogglePlay = () => {
     setIsPlaying(!isPlaying);
+  };
+
+  const handleNext = () => {
+    const currentIndex = playingAlbum.songs.findIndex(s => s.id === currentSong.id);
+    if (currentIndex < playingAlbum.songs.length - 1) {
+      setCurrentSong(playingAlbum.songs[currentIndex + 1]);
+    } else {
+      setCurrentSong(playingAlbum.songs[0]);
+    }
+    setIsPlaying(true);
+  };
+
+  const handlePrev = () => {
+    const currentIndex = playingAlbum.songs.findIndex(s => s.id === currentSong.id);
+    if (currentIndex > 0) {
+      setCurrentSong(playingAlbum.songs[currentIndex - 1]);
+    } else {
+      setCurrentSong(playingAlbum.songs[playingAlbum.songs.length - 1]);
+    }
+    setIsPlaying(true);
   };
 
   return (
@@ -57,9 +82,11 @@ function App() {
 
       <Player 
         currentSong={currentSong}
-        album={selectedAlbum}
+        album={playingAlbum}
         isPlaying={isPlaying}
         onTogglePlay={handleTogglePlay}
+        onNext={handleNext}
+        onPrev={handlePrev}
       />
     </div>
   );

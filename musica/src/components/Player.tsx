@@ -1,14 +1,50 @@
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { type Album, type Song } from '../data';
+import { useState, useEffect } from 'react';
 
 interface PlayerProps {
   currentSong: Song;
   album: Album;
   isPlaying: boolean;
   onTogglePlay: () => void;
+  onNext: () => void;
+  onPrev: () => void;
 }
 
-export function Player({ currentSong, album, isPlaying, onTogglePlay }: PlayerProps) {
+export function Player({ currentSong, album, isPlaying, onTogglePlay, onNext, onPrev }: PlayerProps) {
+  const [elapsed, setElapsed] = useState(0);
+
+  const durationParts = currentSong.duration.split(':');
+  const durationSeconds = parseInt(durationParts[0], 10) * 60 + parseInt(durationParts[1], 10);
+
+  useEffect(() => {
+    setElapsed(0);
+  }, [currentSong]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setElapsed(prev => {
+          if (prev + 1 >= durationSeconds) {
+            onNext();
+            return 0;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, durationSeconds, onNext]);
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const progressPercent = durationSeconds > 0 ? (elapsed / durationSeconds) * 100 : 0;
+
   return (
     <div className="fixed bottom-0 left-0 right-0 h-24 bg-gray-900 border-t border-gray-800 px-4 md:px-6 flex items-center justify-between z-50">
       
@@ -20,15 +56,15 @@ export function Player({ currentSong, album, isPlaying, onTogglePlay }: PlayerPr
           className="w-14 h-14 rounded object-cover shadow-md hidden sm:block mr-4"
         />
         <div className="flex flex-col truncate">
-          <span className="text-sm font-semibold text-white truncate">{currentSong.title}</span>
-          <span className="text-xs text-gray-400 truncate">{currentSong.artist}</span>
+          <span className="text-sm font-semibold text-white truncate" title={currentSong.title}>{currentSong.title}</span>
+          <span className="text-xs text-gray-400 truncate" title={album.artist}>{album.artist}</span>
         </div>
       </div>
 
       {/* Controls */}
       <div className="flex flex-col items-center justify-center w-1/3 max-w-md">
         <div className="flex items-center space-x-6 mb-2">
-          <button className="text-gray-400 hover:text-white transition-colors" aria-label="Previous song">
+          <button onClick={onPrev} className="text-gray-400 hover:text-white transition-colors" aria-label="Previous song">
             <SkipBack size={20} className="fill-current" />
           </button>
           
@@ -44,18 +80,18 @@ export function Player({ currentSong, album, isPlaying, onTogglePlay }: PlayerPr
             )}
           </button>
           
-          <button className="text-gray-400 hover:text-white transition-colors" aria-label="Next song">
+          <button onClick={onNext} className="text-gray-400 hover:text-white transition-colors" aria-label="Next song">
             <SkipForward size={20} className="fill-current" />
           </button>
         </div>
         
-        {/* Progress Bar (Visual Only) */}
+        {/* Progress Bar */}
         <div className="w-full flex items-center space-x-2 text-xs text-gray-400">
-          <span>0:00</span>
+          <span aria-label="Elapsed time">{formatTime(elapsed)}</span>
           <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-white w-1/3 rounded-full"></div>
+            <div className="h-full bg-white rounded-full transition-all duration-1000 ease-linear" style={{ width: `${progressPercent}%` }}></div>
           </div>
-          <span>{currentSong.duration}</span>
+          <span aria-label="Duration">{currentSong.duration}</span>
         </div>
       </div>
 
