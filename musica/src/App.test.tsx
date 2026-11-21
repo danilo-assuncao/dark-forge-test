@@ -36,20 +36,21 @@ describe('App', () => {
     
     // Now playing state should change
     expect(screen.getByLabelText('Playing')).toBeInTheDocument();
-    const pauseButton = screen.getByLabelText('Pause');
-    expect(pauseButton).toBeInTheDocument();
+    expect(screen.getByLabelText('Pause')).toBeInTheDocument();
 
     // Pause the song via playlist
     fireEvent.click(screen.getByLabelText('Playing'));
+    
+    // Playlist should return to Play state
     expect(screen.queryByLabelText('Playing')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Play Cosmic Dance')).toBeInTheDocument();
     
     // The player pause button should turn to play
     expect(screen.queryByLabelText('Pause')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Play')).toBeInTheDocument();
     
     // Play again via player
-    fireEvent.click(screen.getAllByLabelText('Play')[0]); // Player's play button is the first one or we can select it specifically
-    // Use getByLabelText on Player component side, pause should appear
+    fireEvent.click(screen.getByLabelText('Play'));
     expect(screen.getByLabelText('Pause')).toBeInTheDocument();
     expect(screen.getByLabelText('Playing')).toBeInTheDocument();
   });
@@ -93,14 +94,17 @@ describe('App', () => {
     // Previous song from the first song wraps to the last song
     fireEvent.click(screen.getByLabelText('Previous song'));
     expect(screen.getByTitle('Lunar Rise')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pause')).toBeInTheDocument();
     
     // Next song from the last song wraps to the first song
     fireEvent.click(screen.getByLabelText('Next song'));
     expect(screen.getByTitle('Cosmic Dance')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pause')).toBeInTheDocument();
 
     // Next song goes to second song
     fireEvent.click(screen.getByLabelText('Next song'));
     expect(screen.getByTitle('Nebula Dreams')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pause')).toBeInTheDocument();
   });
 
   it('advances elapsed time and automatically goes to next song at the end', () => {
