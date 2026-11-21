@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self';">
+    <title>Dan Farma</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Dan Farma</h1>
+    </header>
+    
+    <main>
+        <section id="search-section">
+            <h2>Busca de Medicamentos</h2>
+            <div class="search-controls">
+                <input type="text" id="search-input" placeholder="Busca por nome/princípio ativo">
+                <button id="search-btn">Buscar</button>
+            </div>
+        </section>
+
+        <section id="results-section">
+            <ul id="results-list"></ul>
+        </section>
+
+        <section id="generic-suggestion-section" class="hidden">
+            <h3>Alternativa Genérica Mais Econômica</h3>
+            <div id="generic-details"></div>
+            <button id="add-generic-btn" class="btn-primary">Adicionar Genérico</button>
+            <button id="keep-original-btn" class="btn-secondary">Manter Original</button>
+        </section>
+
+        <section id="cart-section" class="hidden">
+            <h2>Resumo do Pedido</h2>
+            <div id="cart-item"></div>
+            
+            <div id="prescription-section" class="hidden">
+                <h3>Receita Médica Necessária (Tarja Vermelha)</h3>
+                <label for="crm-input">CRM do Médico:</label>
+                <input type="text" id="crm-input" placeholder="Ex: 123456-SP">
+            </div>
+
+            <div id="purchase-type-section">
+                <h3>Tipo de Compra</h3>
+                <label class="radio-label">
+                    <input type="radio" name="purchase-type" value="avulsa" checked> Compra Avulsa
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="purchase-type" value="assinatura"> Assinatura Contínua (10% de desconto)
+                </label>
+            </div>
+
+            <div id="coupon-section">
+                <h3>Cupom de Desconto</h3>
+                <div class="coupon-controls">
+                    <input type="text" id="coupon-input" placeholder="Ex: DANFARMA10">
+                    <button id="apply-coupon-btn">Aplicar</button>
+                </div>
+                <div id="coupon-message"></div>
+            </div>
+
+            <div id="total-section">
+                <h3>Total: R$ <span id="total-price">0.00</span></h3>
+            </div>
+
+            <button id="checkout-btn" class="btn-success">Finalizar Pedido</button>
+            <div id="error-message" class="error-text"></div>
+        </section>
+
+        <section id="receipt-section" class="hidden">
+            <h2>Recibo de Compra</h2>
+            <div class="receipt-card">
+                <p><strong>Pedido:</strong> <span id="receipt-id"></span></p>
+                <p><strong>Item:</strong> <span id="receipt-item"></span></p>
+                <p><strong>Tipo:</strong> <span id="receipt-type"></span></p>
+                <div id="receipt-crm" class="hidden">
+                    <p><strong>CRM:</strong> <span id="receipt-crm-value"></span></p>
+                </div>
+                <hr>
+                <p class="receipt-total-line"><strong>Total Pago:</strong> R$ <span id="receipt-total"></span></p>
+            </div>
+            <button id="new-order-btn" class="btn-primary">Novo Pedido</button>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
