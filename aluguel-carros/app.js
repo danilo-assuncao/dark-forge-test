@@ -1,9 +1,8 @@
-const vehiclePrices = {
-    'A': 80,
-    'B': 100,
-    'C': 150,
-    'D': 200
-};
+const vehiclePrices = Object.create(null);
+vehiclePrices['A'] = 80;
+vehiclePrices['B'] = 100;
+vehiclePrices['C'] = 150;
+vehiclePrices['D'] = 200;
 
 function generateVoucherCode() {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
@@ -19,15 +18,16 @@ function calculateTotal(vehicleGroup, days, kmModality, extrasDaily, coupon) {
 
     let total = (dailyRate + extrasDaily) * days;
 
-    if (coupon === 'DANCAR10') {
-        total = total * 0.9;
+    const normalizedCoupon = typeof coupon === 'string' ? coupon.trim().toUpperCase() : '';
+    if (normalizedCoupon === 'DANCAR10') {
+        total = Math.round(total * 90) / 100;
     }
 
     return total;
 }
 
 function validateDriver(age, cnh) {
-    if (age < 18) {
+    if (!Number.isInteger(age) || age < 18) {
         return { valid: false, message: 'Idade mínima para aluguel é 18 anos.' };
     }
     if (!/^\d{11}$/.test(cnh)) {
@@ -39,8 +39,18 @@ function validateDriver(age, cnh) {
 function processRental(data) {
     const { vehicleGroup, days, kmModality, extrasDaily, age, cnh, coupon } = data;
 
-    if (!vehicleGroup || isNaN(days) || days < 1) {
+    if (
+        !vehicleGroup || 
+        !Object.prototype.hasOwnProperty.call(vehiclePrices, vehicleGroup) ||
+        !Number.isInteger(days) || 
+        days < 1 ||
+        days > 365
+    ) {
         return { success: false, message: 'Por favor, preencha todos os campos obrigatórios corretamente.' };
+    }
+
+    if (!Number.isFinite(extrasDaily) || extrasDaily < 0) {
+        return { success: false, message: 'Adicionais inválidos.' };
     }
 
     const driverValidation = validateDriver(age, cnh);
@@ -49,6 +59,11 @@ function processRental(data) {
     }
 
     const total = calculateTotal(vehicleGroup, days, kmModality, extrasDaily, coupon);
+    
+    if (!Number.isFinite(total) || total <= 0) {
+        return { success: false, message: 'Total inválido.' };
+    }
+
     const voucherCode = generateVoucherCode();
 
     const voucherText = `Voucher: ${voucherCode}
@@ -80,14 +95,21 @@ if (typeof document !== 'undefined') {
             const kmModality = document.getElementById('km-modality').value;
             const age = parseInt(document.getElementById('age').value, 10);
             const cnh = document.getElementById('cnh').value;
-            const coupon = document.getElementById('coupon').value.trim().toUpperCase();
+            const coupon = document.getElementById('coupon').value;
+
+            const extraPrices = {
+                'protection-basic': 20,
+                'protection-premium': 50,
+                'accessory-gps': 10,
+                'accessory-babyseat': 15
+            };
 
             let extrasDaily = 0;
             const checkboxes = ['protection-basic', 'protection-premium', 'accessory-gps', 'accessory-babyseat'];
             checkboxes.forEach(id => {
                 const cb = document.getElementById(id);
                 if (cb && cb.checked) {
-                    extrasDaily += parseInt(cb.value, 10);
+                    extrasDaily += extraPrices[id];
                 }
             });
 
