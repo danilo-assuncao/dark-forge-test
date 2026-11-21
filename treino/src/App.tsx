@@ -9,7 +9,7 @@ function App() {
   const muscleGroups = ['Todos', ...new Set(exercises.map(ex => ex.muscleGroup))];
 
   const filteredExercises = exercises.filter(ex => {
-    const matchesSearch = ex.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = ex.name.toLowerCase().includes(searchTerm.trim().toLowerCase());
     const matchesGroup = selectedMuscleGroup === 'Todos' || ex.muscleGroup === selectedMuscleGroup;
     return matchesSearch && matchesGroup;
   });
