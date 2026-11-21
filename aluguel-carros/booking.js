@@ -1,8 +1,9 @@
 const { getVehicleGroup, validateDriverEligibility } = require('./fleet.js');
 const { calculateRentalBase } = require('./pricing.js');
 const { calculateProtectionAndAddons } = require('./protections.js');
+const crypto = require('crypto');
 
-function createRentalBooking(payload) {
+function createRentalBooking(payload = {}) {
   const {
     driverAge,
     licenseYears,
@@ -16,14 +17,14 @@ function createRentalBooking(payload) {
     coupon
   } = payload;
 
+  const group = getVehicleGroup(groupId);
+  if (!group) {
+    throw new Error('Vehicle group not found');
+  }
+
   const isEligible = validateDriverEligibility(groupId, driverAge, licenseYears);
   if (!isEligible) {
     throw new Error('Driver not eligible');
-  }
-
-  const group = getVehicleGroup(groupId);
-  if (!group) {
-    throw new Error('Invalid vehicle group');
   }
 
   const rentalBase = calculateRentalBase({
@@ -45,30 +46,36 @@ function createRentalBooking(payload) {
   const subtotal = totalDailyCost + extraKmCost + dropoffFee + protectionTotal;
 
   let discount = 0;
-  if (coupon === 'DANCAR10') {
-    discount = (totalDailyCost + protectionTotal) * 0.10;
+  let couponApplied = false;
+  
+  if (typeof coupon === 'string') {
+    const normalizedCoupon = coupon.trim().toUpperCase();
+    if (normalizedCoupon === 'DANCAR10') {
+      discount = Number(((totalDailyCost + protectionTotal) * 0.10).toFixed(2));
+      couponApplied = true;
+    }
   }
 
-  const netSubtotal = subtotal - discount;
-  const patioFee = netSubtotal * 0.08;
-  const finalTotal = netSubtotal + patioFee;
+  const netSubtotal = Number((subtotal - discount).toFixed(2));
+  const patioFee = Number((netSubtotal * 0.08).toFixed(2));
+  const finalTotal = Number((netSubtotal + patioFee).toFixed(2));
 
-  // Generate CAR-XXXX (4 random alphanumeric characters)
-  const randomChars = Math.floor(Math.random() * 1679616)
-    .toString(36)
-    .padStart(4, '0')
-    .toUpperCase();
+  // Generate CAR-XXXX
+  // Uses crypto for unpredictability. Note: This is a display-only identifier.
+  // Uniqueness must be enforced by the persistence layer.
+  const randomChars = crypto.randomBytes(2).toString('hex').toUpperCase();
   const contractId = `CAR-${randomChars}`;
 
   return {
     contractId,
     cautionValue: group.depositBrl,
-    total: Number(finalTotal.toFixed(2)),
+    total: finalTotal,
     breakdown: {
       subtotal: Number(subtotal.toFixed(2)),
-      discount: Number(discount.toFixed(2)),
-      netSubtotal: Number(netSubtotal.toFixed(2)),
-      patioFee: Number(patioFee.toFixed(2))
+      discount,
+      netSubtotal,
+      patioFee,
+      couponApplied
     }
   };
 }
