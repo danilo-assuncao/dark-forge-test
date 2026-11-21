@@ -1,11 +1,27 @@
 'use strict';
 
 const { getSpaceById } = require('./spaces');
+const crypto = require('node:crypto');
 
 function createBookingScheduler() {
   const bookings = [];
 
-  function validateInput({ spaceId, dateIso, startHour, endHour, attendees }) {
+  function validateInput(input) {
+    if (!input || typeof input !== 'object') {
+      throw new Error('Input must be a non-null object');
+    }
+
+    const { spaceId, dateIso, startHour, endHour, attendees = 1 } = input;
+
+    if (!dateIso || typeof dateIso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+      throw new Error('dateIso must be in YYYY-MM-DD format');
+    }
+    
+    const parsedDate = new Date(dateIso);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== dateIso) {
+      throw new Error('dateIso must be a valid calendar date');
+    }
+
     if (!Number.isInteger(startHour) || !Number.isInteger(endHour)) {
       throw new Error('startHour and endHour must be integers');
     }
@@ -18,16 +34,14 @@ function createBookingScheduler() {
       throw new Error('Space not found');
     }
 
-    if (attendees !== undefined) {
-      if (!Number.isInteger(attendees) || attendees < 1) {
-        throw new Error('attendees must be a positive integer');
-      }
-      if (attendees > space.maxCapacity) {
-        throw new Error(`Attendees (${attendees}) exceed maximum capacity of space ${spaceId} (${space.maxCapacity})`);
-      }
+    if (!Number.isInteger(attendees) || attendees < 1) {
+      throw new Error('attendees must be a positive integer');
+    }
+    if (attendees > space.maxCapacity) {
+      throw new Error(`Attendees (${attendees}) exceed maximum capacity of space ${spaceId} (${space.maxCapacity})`);
     }
 
-    return space;
+    return { space, validAttendees: attendees };
   }
 
   function checkOverlap(spaceId, dateIso, startHour, endHour) {
@@ -42,16 +56,22 @@ function createBookingScheduler() {
     }
   }
 
-  function quoteSlot({ spaceId, dateIso, startHour, endHour, attendees }) {
-    const space = validateInput({ spaceId, dateIso, startHour, endHour, attendees });
+  function quoteSlot(input) {
+    if (!input || typeof input !== 'object') {
+      throw new Error('Input must be a non-null object');
+    }
+
+    const { space, validAttendees } = validateInput(input);
+    const { spaceId, dateIso, startHour, endHour } = input;
     
     const hours = endHour - startHour;
-    let price = space.hourlyRate * hours;
+    let basePrice = space.hourlyRate * hours;
     let hasDiscount = false;
+    let finalPrice = basePrice;
     
     if (hours >= 8) {
-      price *= 0.8;
       hasDiscount = true;
+      finalPrice = Math.round(basePrice * 100 * 0.8) / 100;
     }
 
     return {
@@ -59,27 +79,27 @@ function createBookingScheduler() {
       dateIso,
       startHour,
       endHour,
-      attendees,
-      price,
+      attendees: validAttendees,
+      price: finalPrice,
       hasDiscount
     };
   }
 
-  function bookSlot({ spaceId, dateIso, startHour, endHour, attendees }) {
-    const quote = quoteSlot({ spaceId, dateIso, startHour, endHour, attendees });
+  function bookSlot(input) {
+    const quote = quoteSlot(input);
     
-    checkOverlap(spaceId, dateIso, startHour, endHour);
+    checkOverlap(quote.spaceId, quote.dateIso, quote.startHour, quote.endHour);
     
-    const booking = {
-      id: Math.random().toString(36).substring(2, 11),
-      spaceId,
-      dateIso,
-      startHour,
-      endHour,
-      attendees,
+    const booking = Object.freeze({
+      id: crypto.randomUUID(),
+      spaceId: quote.spaceId,
+      dateIso: quote.dateIso,
+      startHour: quote.startHour,
+      endHour: quote.endHour,
+      attendees: quote.attendees,
       price: quote.price,
       hasDiscount: quote.hasDiscount
-    };
+    });
     
     bookings.push(booking);
     

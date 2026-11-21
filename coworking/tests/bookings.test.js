@@ -5,37 +5,67 @@ const assert = require('node:assert');
 const { createBookingScheduler } = require('../bookings');
 
 test('coworking/bookings.js', async (t) => {
-  await t.test('quoteSlot calculates price correctly without discount', () => {
+  await t.test('quoteSlot calculates price correctly without discount (7 hours)', () => {
     const scheduler = createBookingScheduler();
     const quote = scheduler.quoteSlot({
       spaceId: 'sala-focus-4p', // 65.00/hour
       dateIso: '2026-11-20',
-      startHour: 10,
-      endHour: 12,
+      startHour: 8,
+      endHour: 15, // exactly 7 hours
       attendees: 3
     });
     
-    assert.strictEqual(quote.price, 130);
+    assert.strictEqual(quote.price, 455);
     assert.strictEqual(quote.hasDiscount, false);
     assert.strictEqual(quote.spaceId, 'sala-focus-4p');
   });
 
-  await t.test('quoteSlot applies 20% discount for >= 8 hours', () => {
+  await t.test('quoteSlot applies 20% discount for exactly 8 hours', () => {
     const scheduler = createBookingScheduler();
     const quote = scheduler.quoteSlot({
-      spaceId: 'sala-focus-4p', // 65.00/hour
+      spaceId: 'sala-focus-4p',
       dateIso: '2026-11-20',
-      startHour: 9,
-      endHour: 18, // 9 hours
+      startHour: 8,
+      endHour: 16, // exactly 8 hours
       attendees: 3
     });
     
-    // 9 * 65 = 585, with 20% discount = 468
-    assert.strictEqual(quote.price, 468);
+    assert.strictEqual(quote.price, 416); // 8 * 65 = 520, 520 * 0.8 = 416
     assert.strictEqual(quote.hasDiscount, true);
   });
 
-  await t.test('quoteSlot validates business hours', () => {
+  await t.test('quoteSlot applies 20% discount for maximum 12 hours (8 to 20)', () => {
+    const scheduler = createBookingScheduler();
+    const quote = scheduler.quoteSlot({
+      spaceId: 'sala-focus-4p',
+      dateIso: '2026-11-20',
+      startHour: 8,
+      endHour: 20, // 12 hours
+      attendees: 3
+    });
+    
+    assert.strictEqual(quote.price, 624); // 12 * 65 = 780, 780 * 0.8 = 624
+    assert.strictEqual(quote.hasDiscount, true);
+  });
+  
+  await t.test('quoteSlot handles float precision in discount', () => {
+    const scheduler = createBookingScheduler();
+    // hot-desk rate is 22.00
+    const quote = scheduler.quoteSlot({
+      spaceId: 'hot-desk',
+      dateIso: '2026-11-20',
+      startHour: 8,
+      endHour: 16, // 8 hours
+      attendees: 1
+    });
+    
+    // 8 * 22 = 176, 176 * 0.8 = 140.8
+    // With floats this can be 140.80000000000001
+    // We expect exactly 140.8
+    assert.strictEqual(quote.price, 140.8);
+  });
+
+  await t.test('quoteSlot validates business hours and fractional hours', () => {
     const scheduler = createBookingScheduler();
     
     assert.throws(() => {
@@ -61,50 +91,110 @@ test('coworking/bookings.js', async (t) => {
         spaceId: 'hot-desk',
         dateIso: '2026-11-20',
         startHour: 12,
-        endHour: 10 // Invalid range
+        endHour: 12 // Equal hours
       });
     }, /startHour must be less than endHour/);
+
+    assert.throws(() => {
+      scheduler.quoteSlot({
+        spaceId: 'hot-desk',
+        dateIso: '2026-11-20',
+        startHour: 9.5, // Fractional
+        endHour: 11
+      });
+    }, /startHour and endHour must be integers/);
+    
+    assert.throws(() => {
+      scheduler.quoteSlot({
+        spaceId: 'hot-desk',
+        dateIso: '2026-11-20',
+        startHour: '9', // string
+        endHour: 11
+      });
+    }, /startHour and endHour must be integers/);
   });
 
-  await t.test('quoteSlot validates capacity', () => {
+  await t.test('quoteSlot validates input object', () => {
+    const scheduler = createBookingScheduler();
+    
+    assert.throws(() => {
+      scheduler.quoteSlot(null);
+    }, /Input must be a non-null object/);
+    
+    assert.throws(() => {
+      scheduler.quoteSlot(undefined);
+    }, /Input must be a non-null object/);
+  });
+  
+  await t.test('quoteSlot validates space', () => {
     const scheduler = createBookingScheduler();
     
     assert.throws(() => {
       scheduler.quoteSlot({
-        spaceId: 'sala-focus-4p',
+        spaceId: 'non-existent',
         dateIso: '2026-11-20',
         startHour: 10,
-        endHour: 12,
-        attendees: 5 // Exceeds max capacity of 4
+        endHour: 12
       });
-    }, /exceed maximum capacity/);
+    }, /Space not found/);
+  });
+  
+  await t.test('quoteSlot validates dates', () => {
+    const scheduler = createBookingScheduler();
+    
+    const base = {
+      spaceId: 'hot-desk',
+      startHour: 10,
+      endHour: 12
+    };
+
+    assert.throws(() => scheduler.quoteSlot({ ...base, dateIso: '2026-1-5' }), /dateIso must be in YYYY-MM-DD/);
+    assert.throws(() => scheduler.quoteSlot({ ...base, dateIso: '2026-01-05T00:00:00Z' }), /dateIso must be in YYYY-MM-DD/);
+    assert.throws(() => scheduler.quoteSlot({ ...base, dateIso: ' 2026-01-05' }), /dateIso must be in YYYY-MM-DD/);
+    assert.throws(() => scheduler.quoteSlot({ ...base, dateIso: undefined }), /dateIso must be in YYYY-MM-DD/);
+    assert.throws(() => scheduler.quoteSlot({ ...base, dateIso: '2026-02-31' }), /dateIso must be a valid calendar date/);
   });
 
-  await t.test('bookSlot creates a booking and listBookingsForDate retrieves it', () => {
+  await t.test('quoteSlot validates attendees capacity and type', () => {
     const scheduler = createBookingScheduler();
-    const date = '2026-11-21';
+    const base = { spaceId: 'sala-focus-4p', dateIso: '2026-11-20', startHour: 10, endHour: 12 };
     
+    assert.throws(() => scheduler.quoteSlot({ ...base, attendees: 5 }), /exceed maximum capacity/);
+    assert.throws(() => scheduler.quoteSlot({ ...base, attendees: 0 }), /attendees must be a positive integer/);
+    assert.throws(() => scheduler.quoteSlot({ ...base, attendees: 1.5 }), /attendees must be a positive integer/);
+    
+    // Default to 1 if not passed
+    const quote = scheduler.quoteSlot({ ...base });
+    assert.strictEqual(quote.attendees, 1);
+  });
+
+  await t.test('bookSlot creates a frozen booking with correct ID and discount', () => {
+    const scheduler = createBookingScheduler();
     const booking = scheduler.bookSlot({
       spaceId: 'hot-desk',
-      dateIso: date,
-      startHour: 9,
-      endHour: 12,
+      dateIso: '2026-11-21',
+      startHour: 8,
+      endHour: 16,
       attendees: 1
     });
 
-    assert.ok(booking.id);
-    assert.strictEqual(booking.price, 66); // 3 * 22
-    
-    const bookings = scheduler.listBookingsForDate(date);
-    assert.strictEqual(bookings.length, 1);
-    assert.deepStrictEqual(bookings[0], booking);
-    
-    // Different date should return empty array
-    const otherDateBookings = scheduler.listBookingsForDate('2026-11-22');
-    assert.strictEqual(otherDateBookings.length, 0);
+    assert.match(booking.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    assert.strictEqual(booking.price, 140.8); 
+    assert.strictEqual(booking.hasDiscount, true);
+    assert.strictEqual(Object.isFrozen(booking), true);
   });
 
-  await t.test('bookSlot prevents overlapping bookings', () => {
+  await t.test('scheduler instances are isolated', () => {
+    const s1 = createBookingScheduler();
+    const s2 = createBookingScheduler();
+    
+    s1.bookSlot({ spaceId: 'hot-desk', dateIso: '2026-11-20', startHour: 10, endHour: 12 });
+    
+    assert.strictEqual(s1.listBookingsForDate('2026-11-20').length, 1);
+    assert.strictEqual(s2.listBookingsForDate('2026-11-20').length, 0);
+  });
+
+  await t.test('bookSlot overlapping scenarios', async (t) => {
     const scheduler = createBookingScheduler();
     const date = '2026-11-20';
     
@@ -116,79 +206,56 @@ test('coworking/bookings.js', async (t) => {
       attendees: 10
     });
 
-    // Overlaps at the end
-    assert.throws(() => {
-      scheduler.bookSlot({
-        spaceId: 'sala-board-12p',
-        dateIso: date,
-        startHour: 9,
-        endHour: 11,
-        attendees: 10
-      });
-    }, /overlaps/);
+    await t.test('rejects exact duplicate', () => {
+      assert.throws(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 10, endHour: 14, attendees: 10 });
+      }, /overlaps/);
+      assert.strictEqual(scheduler.listBookingsForDate(date).length, 1);
+    });
 
-    // Overlaps at the start
-    assert.throws(() => {
-      scheduler.bookSlot({
-        spaceId: 'sala-board-12p',
-        dateIso: date,
-        startHour: 13,
-        endHour: 15,
-        attendees: 10
-      });
-    }, /overlaps/);
+    await t.test('rejects partial overlap at start', () => {
+      assert.throws(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 9, endHour: 11, attendees: 10 });
+      }, /overlaps/);
+      assert.strictEqual(scheduler.listBookingsForDate(date).length, 1);
+    });
 
-    // Completely inside
-    assert.throws(() => {
-      scheduler.bookSlot({
-        spaceId: 'sala-board-12p',
-        dateIso: date,
-        startHour: 11,
-        endHour: 13,
-        attendees: 10
-      });
-    }, /overlaps/);
+    await t.test('rejects partial overlap at end', () => {
+      assert.throws(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 13, endHour: 15, attendees: 10 });
+      }, /overlaps/);
+    });
+    
+    await t.test('rejects inner overlap', () => {
+      assert.throws(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 11, endHour: 13, attendees: 10 });
+      }, /overlaps/);
+    });
+    
+    await t.test('rejects outer overlap', () => {
+      assert.throws(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 9, endHour: 15, attendees: 10 });
+      }, /overlaps/);
+    });
 
-    // Surrounding
-    assert.throws(() => {
-      scheduler.bookSlot({
-        spaceId: 'sala-board-12p',
-        dateIso: date,
-        startHour: 9,
-        endHour: 15,
-        attendees: 10
+    await t.test('allows back-to-back', () => {
+      assert.doesNotThrow(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 8, endHour: 10, attendees: 10 });
       });
-    }, /overlaps/);
-
-    // Back-to-back should be allowed
-    assert.doesNotThrow(() => {
-      scheduler.bookSlot({
-        spaceId: 'sala-board-12p',
-        dateIso: date,
-        startHour: 8,
-        endHour: 10,
-        attendees: 10
+      assert.doesNotThrow(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: date, startHour: 14, endHour: 16, attendees: 10 });
       });
     });
 
-    assert.doesNotThrow(() => {
-      scheduler.bookSlot({
-        spaceId: 'sala-board-12p',
-        dateIso: date,
-        startHour: 14,
-        endHour: 16,
-        attendees: 10
+    await t.test('allows exact same hours on different date', () => {
+      assert.doesNotThrow(() => {
+        scheduler.bookSlot({ spaceId: 'sala-board-12p', dateIso: '2026-11-21', startHour: 10, endHour: 14, attendees: 10 });
       });
     });
     
-    // Different space should be allowed
-    assert.doesNotThrow(() => {
-      scheduler.bookSlot({
-        spaceId: 'auditorio-40p',
-        dateIso: date,
-        startHour: 10,
-        endHour: 14,
-        attendees: 10
+    await t.test('allows exact same hours on different space', () => {
+      assert.doesNotThrow(() => {
+        scheduler.bookSlot({ spaceId: 'auditorio-40p', dateIso: date, startHour: 10, endHour: 14, attendees: 10 });
       });
     });
   });
