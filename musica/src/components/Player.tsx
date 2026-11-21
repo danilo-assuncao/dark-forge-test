@@ -19,23 +19,23 @@ export function Player({ currentSong, album, isPlaying, onTogglePlay, onNext, on
 
   useEffect(() => {
     setElapsed(0);
-  }, [currentSong]);
+  }, [currentSong.id]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (isPlaying) {
       interval = setInterval(() => {
-        setElapsed(prev => {
-          if (prev + 1 >= durationSeconds) {
-            onNext();
-            return 0;
-          }
-          return prev + 1;
-        });
+        setElapsed(prev => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isPlaying, durationSeconds, onNext]);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (isPlaying && durationSeconds > 0 && elapsed >= durationSeconds) {
+      onNext();
+    }
+  }, [elapsed, isPlaying, durationSeconds, onNext]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -89,7 +89,10 @@ export function Player({ currentSong, album, isPlaying, onTogglePlay, onNext, on
         <div className="w-full flex items-center space-x-2 text-xs text-gray-400">
           <span aria-label="Elapsed time">{formatTime(elapsed)}</span>
           <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-white rounded-full transition-all duration-1000 ease-linear" style={{ width: `${progressPercent}%` }}></div>
+            <div 
+              className={`h-full bg-white rounded-full ${elapsed > 0 ? 'transition-all duration-1000 ease-linear' : ''}`} 
+              style={{ width: `${progressPercent}%` }}
+            ></div>
           </div>
           <span aria-label="Duration">{currentSong.duration}</span>
         </div>

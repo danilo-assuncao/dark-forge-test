@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { type Album, albums, type Song } from './data';
 import { AlbumCard } from './components/AlbumCard';
 import { Playlist } from './components/Playlist';
@@ -24,7 +24,7 @@ function App() {
     setIsPlaying(!isPlaying);
   };
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     const currentIndex = playingAlbum.songs.findIndex(s => s.id === currentSong.id);
     if (currentIndex < playingAlbum.songs.length - 1) {
       setCurrentSong(playingAlbum.songs[currentIndex + 1]);
@@ -32,9 +32,9 @@ function App() {
       setCurrentSong(playingAlbum.songs[0]);
     }
     setIsPlaying(true);
-  };
+  }, [playingAlbum, currentSong.id]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     const currentIndex = playingAlbum.songs.findIndex(s => s.id === currentSong.id);
     if (currentIndex > 0) {
       setCurrentSong(playingAlbum.songs[currentIndex - 1]);
@@ -42,7 +42,7 @@ function App() {
       setCurrentSong(playingAlbum.songs[playingAlbum.songs.length - 1]);
     }
     setIsPlaying(true);
-  };
+  }, [playingAlbum, currentSong.id]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white font-sans overflow-hidden">

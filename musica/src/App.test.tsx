@@ -1,7 +1,12 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { vi } from 'vitest';
 import App from './App';
 
 describe('App', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders application header', () => {
     render(<App />);
     expect(screen.getByText('Musica SPA')).toBeInTheDocument();
@@ -24,7 +29,7 @@ describe('App', () => {
     expect(screen.getByText('Neon Lights')).toBeInTheDocument();
   });
 
-  it('plays a song, pauses it, and checks UI states', () => {
+  it('plays a song, pauses it via player and playlist, and checks UI states', () => {
     render(<App />);
     const playButton = screen.getByLabelText('Play Cosmic Dance');
     fireEvent.click(playButton);
@@ -34,17 +39,22 @@ describe('App', () => {
     const pauseButton = screen.getByLabelText('Pause');
     expect(pauseButton).toBeInTheDocument();
 
-    // Pause the song
-    fireEvent.click(pauseButton);
+    // Pause the song via playlist
+    fireEvent.click(screen.getByLabelText('Playing'));
     expect(screen.queryByLabelText('Playing')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Play Cosmic Dance')).toBeInTheDocument();
     
-    // Should have multiple 'Play' labels since the album has multiple songs
-    // But we check that the specific pause button is gone and play is back
+    // The player pause button should turn to play
     expect(screen.queryByLabelText('Pause')).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Play').length).toBeGreaterThan(0);
+    
+    // Play again via player
+    fireEvent.click(screen.getAllByLabelText('Play')[0]); // Player's play button is the first one or we can select it specifically
+    // Use getByLabelText on Player component side, pause should appear
+    expect(screen.getByLabelText('Pause')).toBeInTheDocument();
+    expect(screen.getByLabelText('Playing')).toBeInTheDocument();
   });
 
-  it('maintains playing song state while browsing another album', () => {
+  it('maintains playing song state while browsing another album, and respects cross-album next/prev', () => {
     render(<App />);
     
     // Play a song from the first album
@@ -63,21 +73,71 @@ describe('App', () => {
     
     // The first album's song should no longer be in the playlist (only the one in Player is present)
     expect(screen.getAllByText('Cosmic Dance').length).toBe(1);
+
+    // Clicking Next while browsing second album should advance to next song of the FIRST album
+    fireEvent.click(screen.getByLabelText('Next song'));
+    expect(screen.getByTitle('Nebula Dreams')).toBeInTheDocument();
+
+    // Play a song from the second album
+    fireEvent.click(screen.getByLabelText('Play Concrete Jungle'));
+    expect(screen.getAllByAltText('Urban Symphony cover').length).toBeGreaterThan(0);
   });
 
-  it('navigates previous and next songs', () => {
+  it('navigates previous and next songs, including wrap-around', () => {
     render(<App />);
     
-    // Start playback
+    // Start playback on first song
     fireEvent.click(screen.getByLabelText('Play Cosmic Dance'));
     expect(screen.getByTitle('Cosmic Dance')).toBeInTheDocument();
     
-    // Next song
+    // Previous song from the first song wraps to the last song
+    fireEvent.click(screen.getByLabelText('Previous song'));
+    expect(screen.getByTitle('Lunar Rise')).toBeInTheDocument();
+    
+    // Next song from the last song wraps to the first song
+    fireEvent.click(screen.getByLabelText('Next song'));
+    expect(screen.getByTitle('Cosmic Dance')).toBeInTheDocument();
+
+    // Next song goes to second song
     fireEvent.click(screen.getByLabelText('Next song'));
     expect(screen.getByTitle('Nebula Dreams')).toBeInTheDocument();
+  });
+
+  it('advances elapsed time and automatically goes to next song at the end', () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    // Play a short song (Cosmic Dance is 3:45, meaning 225 seconds)
+    fireEvent.click(screen.getByLabelText('Play Cosmic Dance'));
     
-    // Previous song
-    fireEvent.click(screen.getByLabelText('Previous song'));
-    expect(screen.getByTitle('Cosmic Dance')).toBeInTheDocument();
+    expect(screen.getByText('0:00')).toBeInTheDocument();
+    
+    // Advance timers by 3 seconds
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    
+    expect(screen.getByText('0:03')).toBeInTheDocument();
+
+    // Pause the song
+    fireEvent.click(screen.getByLabelText('Pause'));
+    
+    // Advance timers by another 3 seconds (should not change time)
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText('0:03')).toBeInTheDocument();
+    
+    // Resume and skip almost to the end
+    fireEvent.click(screen.getAllByLabelText('Play')[0]); // Player's Play button
+    act(() => {
+      vi.advanceTimersByTime(222000); // reaches 225 seconds
+    });
+    
+    // It should have moved to the next song (Nebula Dreams)
+    expect(screen.getByTitle('Nebula Dreams')).toBeInTheDocument();
+    
+    // Elapsed should reset to 0:00
+    expect(screen.getByText('0:00')).toBeInTheDocument();
   });
 });
