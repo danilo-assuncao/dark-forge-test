@@ -1,11 +1,10 @@
 # AGENTS.md
 
-<!-- logistics-module: logistica/tracker.js -->
+<!-- logistics-module: logistica/tracker.ts -->
 
 ## SPA Directory Isolation
 - **Strict Directory Boundaries**: Each Single Page Application (SPA) must be completely isolated within its own dedicated directory. Do not share code, state, or configurations between different SPAs.
 - When working on an SPA, restrict all file modifications and commands to that specific SPA's directory.
-- Check the `name` field inside each package's `package.json` to confirm the right name—skip the top-level one.
 
 ## Dev environment tips
 - **TypeScript Required**: All application code, test files, and configuration files (including Vite configurations) MUST be written in TypeScript (`.ts`, `.tsx`).
@@ -21,7 +20,7 @@
 
 ## Testing instructions
 - Run both `.factory/project.yaml` verification gates locally before committing.
-- Run the FX regression tests with `node --test cambio/tests/*.test.ts` (or the respective TypeScript test runner like Vitest) before committing changes to the FX module.
+- Run the FX regression tests with `npx vitest run cambio/tests/` before committing changes to the FX module.
 - Fix any test or type errors until the whole suite is green before completing a task.
 - Registered modules: `suporte/sla.ts`, `cambio/fx.ts`, `fiscal/nfe.ts`
 - After moving files or changing imports, run linting to be sure ESLint and TypeScript rules still pass.
