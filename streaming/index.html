@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+    <title>Dan Play</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Dan Play</h1>
+    </header>
+    <main>
+        <div id="spa-container">
+            <!-- Formulário de Assinatura -->
+            <section id="subscription-section">
+                <h2>Assinatura e Comparador de Planos</h2>
+                
+                <div class="plans-container" id="plans-container">
+                    <!-- Preenchido via JS -->
+                </div>
+                
+                <div class="cycle-container">
+                    <label>
+                        <input type="radio" name="cycle" value="mensal" checked> Mensal
+                    </label>
+                    <label>
+                        <input type="radio" name="cycle" value="anual"> Anual
+                    </label>
+                </div>
+
+                <h3>Canais Extras</h3>
+                <div class="channels-container" id="channels-container">
+                    <!-- Preenchido via JS -->
+                </div>
+
+                <h3>Vitrine de Aluguel 48h</h3>
+                <div class="rentals-container" id="rentals-container">
+                    <!-- Preenchido via JS -->
+                </div>
+
+                <h3>Cupom de Desconto</h3>
+                <input type="text" id="coupon-code" placeholder="Ex: DANPLAY20">
+            </section>
+
+            <!-- Configuração de Perfis -->
+            <section id="profiles-section">
+                <h2>Configuração de Perfis</h2>
+                <div class="profile-setup">
+                    <input type="password" id="account-pin" placeholder="PIN da Conta (4 dígitos numéricos)" maxlength="4">
+                    <button id="set-pin-btn">Definir PIN</button>
+                </div>
+                
+                <div id="profile-manager-ui" style="display: none;">
+                    <h3>Adicionar Perfil</h3>
+                    <input type="text" id="profile-name" placeholder="Nome do Perfil">
+                    <label>
+                        <input type="checkbox" id="profile-kids"> Perfil Kids
+                    </label>
+                    <select id="profile-rating">
+                        <option value="L">L</option>
+                        <option value="10">10</option>
+                        <option value="12">12</option>
+                        <option value="14">14</option>
+                        <option value="16">16</option>
+                        <option value="18" selected>18</option>
+                    </select>
+                    <button id="add-profile-btn">Adicionar Perfil</button>
+                    
+                    <ul id="profiles-list"></ul>
+                </div>
+            </section>
+
+            <!-- Resumo e Confirmação -->
+            <section id="checkout-section">
+                <h2>Resumo da Compra</h2>
+                <button id="calculate-btn">Calcular Checkout</button>
+                <div id="checkout-summary" style="display: none;">
+                    <p>Plano: <span id="summary-plan"></span></p>
+                    <p>Ciclo: <span id="summary-cycle"></span></p>
+                    <p>Canais Extras: <span id="summary-channels"></span></p>
+                    <p>Aluguéis (48h): R$ <span id="summary-rentals">0.00</span></p>
+                    <p>Desconto: R$ <span id="summary-discount">0.00</span></p>
+                    <p>Total a pagar: R$ <span id="summary-total">0.00</span></p>
+                    <p>Protocolo: <strong id="summary-protocol"></strong></p>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>
