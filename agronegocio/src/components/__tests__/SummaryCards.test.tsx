@@ -13,13 +13,15 @@ describe('SummaryCards', () => {
     render(<SummaryCards data={mockData} />) 
     
     expect(screen.getByText('Área Total Plantada')).toBeInTheDocument() 
-    expect(screen.getByText('1000 ha')).toBeInTheDocument() 
+    expect(screen.getByText('1.000 ha')).toBeInTheDocument() 
     
     expect(screen.getByText('Total de Animais')).toBeInTheDocument() 
-    expect(screen.getByText('5,000')).toBeInTheDocument() 
+    expect(screen.getByText('5.000')).toBeInTheDocument() 
     
     expect(screen.getByText('Receita Estimada')).toBeInTheDocument() 
+    expect(screen.getByText(/R\$\s?1\.500\.000,00/)).toBeInTheDocument() 
     
     expect(screen.getByText('Despesas')).toBeInTheDocument() 
+    expect(screen.getByText(/R\$\s?500\.000,00/)).toBeInTheDocument() 
   }) 
 }) 

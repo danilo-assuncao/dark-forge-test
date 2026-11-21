@@ -29,7 +29,7 @@ export const LivestockList = ({ livestock }: LivestockListProps) => {
             {livestock.map((item) => (
               <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="py-3 px-4 text-gray-800 font-medium">{item.type}</td>
-                <td className="py-3 px-4 text-gray-600">{item.count.toLocaleString()}</td>
+                <td className="py-3 px-4 text-gray-600">{item.count.toLocaleString('pt-BR')}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${healthMap[item.health].color}`}>
                     {healthMap[item.health].label}

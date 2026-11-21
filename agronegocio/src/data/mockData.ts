@@ -15,8 +15,8 @@ export const mockLivestock: Livestock[] = [
 ] 
 
 export const mockDashboardData: DashboardData = {
-  totalArea: 1150,
-  totalLivestock: 7350,
+  totalArea: mockCrops.reduce((sum, crop) => sum + crop.area, 0),
+  totalLivestock: mockLivestock.reduce((sum, item) => sum + item.count, 0),
   revenue: 2540000,
   expenses: 1120000,
 } 

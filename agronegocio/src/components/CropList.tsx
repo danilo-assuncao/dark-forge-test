@@ -35,7 +35,7 @@ export const CropList = ({ crops }: CropListProps) => {
                     {statusMap[crop.status].label}
                   </span>
                 </td>
-                <td className="py-3 px-4 text-gray-600">{crop.yieldEstimate.toLocaleString()}</td>
+                <td className="py-3 px-4 text-gray-600">{crop.yieldEstimate.toLocaleString('pt-BR')}</td>
               </tr>
             ))}
           </tbody>
