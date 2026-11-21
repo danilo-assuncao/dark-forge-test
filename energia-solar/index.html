@@ -101,29 +101,31 @@
   </div>
 
   <script>
-    window.module = { exports: {} };
-    window.__modules = {};
-    window.require = function(name) {
-      if (name === 'crypto') {
-        return {
-          randomBytes: function(size) {
-            const arr = new Uint8Array(size);
-            window.crypto.getRandomValues(arr);
-            return {
-              toString: function(enc) {
-                if (enc === 'hex') return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-                return arr.toString();
-              }
-            };
-          }
-        };
-      }
-      if (name === './sizing') return window.__modules['sizing'];
-      if (name === './savings') return window.__modules['savings'];
-      if (name === './financing') return window.__modules['financing'];
-      if (name === './proposal') return window.__modules['proposal'];
-      throw new Error('Module not found: ' + name);
-    };
+    (function() {
+      window.module = { exports: {} };
+      window.__modules = {};
+      window.require = function(name) {
+        if (name === 'crypto') {
+          return {
+            randomBytes: function(size) {
+              const arr = new Uint8Array(size);
+              window.crypto.getRandomValues(arr);
+              return {
+                toString: function(enc) {
+                  if (enc === 'hex') return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+                  return arr.toString();
+                }
+              };
+            }
+          };
+        }
+        if (name === './sizing') return window.__modules['sizing'];
+        if (name === './savings') return window.__modules['savings'];
+        if (name === './financing') return window.__modules['financing'];
+        if (name === './proposal') return window.__modules['proposal'];
+        throw new Error('Module not found: ' + name);
+      };
+    })();
   </script>
   <script src="sizing.js"></script>
   <script>window.__modules['sizing'] = module.exports; module.exports = {};</script>
@@ -132,7 +134,7 @@
   <script src="financing.js"></script>
   <script>window.__modules['financing'] = module.exports; module.exports = {};</script>
   <script src="proposal.js"></script>
-  <script>window.__modules['proposal'] = module.exports; module.exports = {};</script>
+  <script>window.__modules['proposal'] = module.exports; module.exports = {}; Object.freeze(window.__modules);</script>
   
   <script src="app.js"></script>
 </body>

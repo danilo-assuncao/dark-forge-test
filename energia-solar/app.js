@@ -1,10 +1,14 @@
 // energia-solar/app.js
 
 function getProposalBuilder() {
-    if (typeof require !== 'undefined') {
-        return require('./proposal.js').buildSolarProposal;
+    if (typeof window !== 'undefined' && window.__modules && window.__modules['proposal']) {
+        return window.__modules['proposal'].buildSolarProposal;
     }
-    return window.__modules['proposal'].buildSolarProposal;
+    return require('./proposal').buildSolarProposal;
+}
+
+function safeFormat(val, decimals = 2) {
+    return (typeof val === 'number' && !Number.isNaN(val)) ? val.toFixed(decimals) : 'N/A';
 }
 
 function initApp() {
@@ -39,7 +43,9 @@ function initApp() {
             const phaseType = document.getElementById('phaseType').value;
             const tariff = parseFloat(document.getElementById('tariff').value);
             const method = document.getElementById('method').value;
-            const months = parseInt(document.getElementById('months').value, 10);
+            const monthsStr = document.getElementById('months').value;
+            const months = method === 'price' ? parseInt(monthsStr, 10) : undefined;
+            if (method === 'price' && isNaN(months)) throw new Error('Número de parcelas inválido');
             const coupon = document.getElementById('coupon').value.trim();
 
             const buildSolarProposal = getProposalBuilder();
@@ -60,21 +66,21 @@ function initApp() {
             document.getElementById('res-panels').textContent = proposal.sizing.panels;
             document.getElementById('res-installedKwp').textContent = proposal.sizing.installedKwp;
             document.getElementById('res-roofArea').textContent = proposal.sizing.roofArea;
-            document.getElementById('res-estimatedCost').textContent = proposal.sizing.estimatedCost.toFixed(2);
+            document.getElementById('res-estimatedCost').textContent = safeFormat(proposal.sizing.estimatedCost);
 
-            document.getElementById('res-monthlySavings').textContent = proposal.savings.monthlySavingsBrl.toFixed(2);
-            document.getElementById('res-annualSavings').textContent = proposal.savings.annualSavingsBrl.toFixed(2);
+            document.getElementById('res-monthlySavings').textContent = safeFormat(proposal.savings.monthlySavingsBrl);
+            document.getElementById('res-annualSavings').textContent = safeFormat(proposal.savings.annualSavingsBrl);
             const payback = proposal.savings.paybackMonths;
-            document.getElementById('res-payback').textContent = payback === Infinity ? 'Infinito' : payback.toFixed(1);
+            document.getElementById('res-payback').textContent = payback === Infinity ? 'Infinito' : safeFormat(payback, 1);
 
             document.getElementById('res-paymentMethod').textContent = proposal.financing.method.toUpperCase();
-            document.getElementById('res-principal').textContent = proposal.financing.principal.toFixed(2);
-            document.getElementById('res-paymentTotal').textContent = proposal.financing.total.toFixed(2);
+            document.getElementById('res-principal').textContent = safeFormat(proposal.financing.principal);
+            document.getElementById('res-paymentTotal').textContent = safeFormat(proposal.financing.total);
             
             const installmentRow = document.getElementById('res-installment-row');
             if (proposal.financing.method === 'price') {
                 installmentRow.classList.remove('hidden');
-                document.getElementById('res-installment').textContent = proposal.financing.monthlyInstallment.toFixed(2);
+                document.getElementById('res-installment').textContent = safeFormat(proposal.financing.monthlyInstallment);
                 document.getElementById('res-months').textContent = proposal.financing.months;
             } else {
                 installmentRow.classList.add('hidden');
