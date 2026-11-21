@@ -1,7 +1,5 @@
 # AGENTS.md
 
-<!-- logistics-module: logistica/tracker.ts -->
-
 ## SPA Directory Isolation
 - **Strict Directory Boundaries**: Each Single Page Application (SPA) must be completely isolated within its own dedicated directory. Do not share code, state, or configurations between different SPAs.
 - When working on an SPA, restrict all file modifications and commands to that specific SPA's directory.
@@ -20,9 +18,7 @@
 
 ## Testing instructions
 - Run both `.factory/project.yaml` verification gates locally before committing.
-- Run the FX regression tests with `npx vitest run cambio/tests/` before committing changes to the FX module.
 - Fix any test or type errors until the whole suite is green before completing a task.
-- Registered modules: `suporte/sla.ts`, `cambio/fx.ts`, `fiscal/nfe.ts`
 - After moving files or changing imports, run linting to be sure ESLint and TypeScript rules still pass.
 
 ## PR instructions
