@@ -9,7 +9,7 @@ const RATINGS_ORDER = {
 };
 
 export function createProfileManager(accountPin) {
-  if (accountPin !== undefined && !/^\d{4}$/.test(accountPin)) {
+  if (accountPin !== undefined && (typeof accountPin !== 'string' || !/^\d{4}$/.test(accountPin))) {
     throw new Error('Invalid account PIN: must be a 4-digit numeric string');
   }
 
@@ -17,11 +17,22 @@ export function createProfileManager(accountPin) {
   let nextId = 1;
 
   function addProfile(options) {
+    if (!options || typeof options !== 'object') {
+      throw new Error('Options must be an object');
+    }
+    let { name, isKids = false, maxRating = '18' } = options;
+
+    if (typeof name !== 'string' || name.trim() === '') {
+      throw new Error('Name must be a non-empty string');
+    }
+    
+    if (typeof isKids !== 'boolean') {
+      throw new Error('isKids must be a boolean');
+    }
+
     if (profiles.size >= 5) {
       throw new Error('Maximum of 5 profiles reached');
     }
-    
-    let { name, isKids = false, maxRating = '18' } = options;
 
     if (!VALID_RATINGS.includes(maxRating)) {
       throw new Error('Invalid rating');
@@ -58,14 +69,18 @@ export function createProfileManager(accountPin) {
   }
 
   function unlockParentalSettings(profileId, pin) {
+    if (accountPin === undefined) {
+      throw new Error('No account PIN configured');
+    }
+
     const profile = profiles.get(profileId);
     if (!profile) throw new Error('Profile not found');
     
-    if (!/^\d{4}$/.test(pin)) {
+    if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) {
       throw new Error('PIN must be a 4-digit string');
     }
     
-    if (accountPin !== undefined && pin !== accountPin) {
+    if (pin !== accountPin) {
       return false;
     }
     
