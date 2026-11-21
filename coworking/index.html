@@ -69,28 +69,14 @@
     <div id="spaces-list"></div>
   </main>
   
-  <script>
-    window.module = { exports: {} };
-    window.require = function(mod) {
-      if (mod === 'node:crypto') {
-        return {
-          randomUUID: function() {
-            return window.crypto && window.crypto.randomUUID 
-              ? window.crypto.randomUUID() 
-              : 'HUB-' + Math.floor(Math.random() * 1000000);
-          }
-        };
-      }
-      if (mod === './spaces') return window.spacesAPI;
-      throw new Error('Unknown module: ' + mod);
-    };
-  </script>
+  <script src="shim.js"></script>
   <script src="spaces.js"></script>
-  <script>window.spacesAPI = module.exports; module.exports = {};</script>
+  <script src="save-spaces.js"></script>
   <script src="bookings.js"></script>
-  <script>window.bookingsAPI = module.exports; module.exports = {};</script>
+  <script src="save-bookings.js"></script>
   <script src="amenities.js"></script>
-  <script>window.amenitiesAPI = module.exports; module.exports = {};</script>
+  <script src="save-amenities.js"></script>
+  <script src="cleanup.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

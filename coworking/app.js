@@ -5,7 +5,12 @@ const spacesAPI = isNode ? require('./spaces.js') : window.spacesAPI;
 const bookingsAPI = isNode ? require('./bookings.js') : window.bookingsAPI;
 const amenitiesAPI = isNode ? require('./amenities.js') : window.amenitiesAPI;
 
-const scheduler = bookingsAPI.createBookingScheduler();
+let scheduler = bookingsAPI.createBookingScheduler();
+
+function resetScheduler() {
+  scheduler = bookingsAPI.createBookingScheduler();
+  App.scheduler = scheduler;
+}
 
 function formatBRL(amount) {
   return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -14,10 +19,6 @@ function formatBRL(amount) {
 function checkConflict(spaceId, dateIso, startHour, endHour) {
   const bookings = scheduler.listBookingsForDate(dateIso);
   return bookings.some(b => b.spaceId === spaceId && startHour < b.endHour && endHour > b.startHour);
-}
-
-function generatePass() {
-  return 'HUB-' + Math.floor(1000 + Math.random() * 9000);
 }
 
 function renderSpaces(doc, state) {
@@ -31,7 +32,13 @@ function renderSpaces(doc, state) {
     return;
   }
 
-  const spaces = spacesAPI.listSpaces({ minCapacity: state.attendees });
+  let spaces;
+  try {
+    spaces = spacesAPI.listSpaces({ minCapacity: state.attendees });
+  } catch (err) {
+    list.textContent = 'Erro ao buscar espaços: ' + err.message;
+    return;
+  }
   if (spaces.length === 0) {
     list.textContent = 'Nenhum espaço disponível para essa capacidade.';
     return;
@@ -86,19 +93,20 @@ function renderSpaces(doc, state) {
       btn.textContent = 'Reservar';
       btn.addEventListener('click', () => {
         try {
-          scheduler.bookSlot({
+          const booking = scheduler.bookSlot({
             spaceId: space.id,
             dateIso: state.dateIso,
             startHour: state.startHour,
             endHour: state.endHour,
             attendees: state.attendees
           });
+          const pass = 'HUB-' + booking.id.substring(0, 4).toUpperCase();
           const success = doc.getElementById('success-msg');
-          success.textContent = `Reserva confirmada! Passe: ${generatePass()}`;
+          success.textContent = `Reserva confirmada! Passe: ${pass}`;
           success.className = 'success';
           renderSpaces(doc, state); // re-render to show conflict
         } catch (e) {
-          alert('Erro ao reservar: ' + e.message);
+          globalThis.alert ? globalThis.alert('Erro ao reservar: ' + e.message) : undefined;
         }
       });
       card.appendChild(btn);
@@ -138,7 +146,7 @@ function init(doc) {
     
     return {
       dateIso: dateInput.value,
-      attendees: parseInt(attendeesInput.value, 10) || 1,
+      attendees: Math.max(1, parseInt(attendeesInput.value, 10) || 1),
       startHour: parseInt(startInput.value, 10) || 8,
       endHour: parseInt(endInput.value, 10) || 9,
       couponCode: couponInput.value.trim(),
@@ -163,7 +171,7 @@ function init(doc) {
   });
 }
 
-const App = { init, scheduler, renderSpaces };
+const App = { init, scheduler, renderSpaces, resetScheduler };
 
 if (isNode) {
   module.exports = App;

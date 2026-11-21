@@ -79,6 +79,7 @@ function findButtons(doc, text) {
 }
 
 test('initialization populates amenities', () => {
+  App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
   const container = doc.byId['amenities-container'];
@@ -87,6 +88,7 @@ test('initialization populates amenities', () => {
 });
 
 test('renderSpaces displays no spaces if invalid hours', () => {
+  App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
   doc.byId['date-input'].value = '2026-11-20';
@@ -97,6 +99,7 @@ test('renderSpaces displays no spaces if invalid hours', () => {
 });
 
 test('booking a space displays pass and updates conflict', () => {
+  App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
   doc.byId['date-input'].value = '2026-11-20';
@@ -105,18 +108,27 @@ test('booking a space displays pass and updates conflict', () => {
   doc.byId['attendees-input'].value = '1';
   doc.byId['filter-form'].dispatch('submit');
   
-  const buttons = findButtons(doc, 'Reservar');
-  assert.ok(buttons.length > 0);
+  let buttons = findButtons(doc, 'Reservar');
+  const initialButtonCount = buttons.length;
+  assert.ok(initialButtonCount > 0);
+  
+  // Retrieve the card of the first space
+  const firstCard = doc.byId['spaces-list'].children[0];
   
   buttons[0].click(); // Book the first space
   
-  assert.match(doc.byId['success-msg'].textContent, /Passe: HUB-\d{4}/);
+  assert.match(doc.byId['success-msg'].textContent, /Passe: HUB-[0-9A-F]{4}/);
   
   // Re-render happens. The booked space should now show conflict
-  assert.match(doc.byId['spaces-list'].textContent, /Conflito na agenda/);
+  const newFirstCard = doc.byId['spaces-list'].children[0];
+  assert.match(newFirstCard.className, /conflict/);
+  
+  buttons = findButtons(doc, 'Reservar');
+  assert.equal(buttons.length, initialButtonCount - 1);
 });
 
 test('applies DANHUB15 coupon successfully', () => {
+  App.resetScheduler();
   const doc = fakeDoc();
   App.init(doc);
   doc.byId['date-input'].value = '2026-11-21';
@@ -127,5 +139,163 @@ test('applies DANHUB15 coupon successfully', () => {
   doc.byId['filter-form'].dispatch('submit');
   
   // price for hot-desk (id 0) is 22/hr -> 44. 15% discount -> 6.6 -> total 37.40
-  assert.match(doc.byId['spaces-list'].textContent, /Desconto:/);
+  // Handle non-breaking spaces emitted by toLocaleString
+  const text = doc.byId['spaces-list'].textContent.replace(/\u00A0/g, ' ');
+  assert.match(text, /Total: R\$ 37,40/);
+  assert.match(text, /Desconto: R\$ 6,60/);
+});
+
+test('invalid coupon does not apply discount', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-22';
+  doc.byId['start-input'].value = '8';
+  doc.byId['end-input'].value = '10'; // 2 hours
+  doc.byId['attendees-input'].value = '1';
+  doc.byId['coupon-input'].value = 'INVALID';
+  doc.byId['filter-form'].dispatch('submit');
+  
+  const text = doc.byId['spaces-list'].textContent;
+  assert.doesNotMatch(text, /Desconto:/);
+});
+
+test('attendees above maximum capacity shows no spaces', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-25';
+  doc.byId['attendees-input'].value = '999';
+  doc.byId['filter-form'].dispatch('submit');
+  assert.match(doc.byId['spaces-list'].textContent, /Nenhum espaço disponível para essa capacidade/);
+});
+
+test('start hour equal to end hour shows invalid hours', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-25';
+  doc.byId['start-input'].value = '10';
+  doc.byId['end-input'].value = '10';
+  doc.byId['filter-form'].dispatch('submit');
+  assert.match(doc.byId['spaces-list'].textContent, /Horário inválido/);
+});
+
+test('amenity checked reflects in total', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-26';
+  doc.byId['start-input'].value = '10';
+  doc.byId['end-input'].value = '11'; // 1 hour
+  doc.byId['attendees-input'].value = '1'; // 1 attendee
+  
+  // hot-desk price is 22. Coffee-break is 28/attendee
+  const checkboxes = doc.querySelectorAll('.amenity-cb');
+  const coffeeBreakCb = checkboxes.find(cb => cb.value === 'coffee-break');
+  if (coffeeBreakCb) coffeeBreakCb.checked = true;
+  
+  doc.byId['filter-form'].dispatch('submit');
+  
+  const text = doc.byId['spaces-list'].textContent.replace(/\u00A0/g, ' ');
+  assert.match(text, /Total: R\$ 50,00/); // 22 + 28
+});
+
+test('bookSlot catch path calls alert', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-27';
+  doc.byId['start-input'].value = '8';
+  doc.byId['end-input'].value = '10';
+  doc.byId['filter-form'].dispatch('submit');
+  
+  let alerted = false;
+  globalThis.alert = () => { alerted = true; };
+  
+  // force quote to succeed, but book to fail
+  const originalBook = App.scheduler.bookSlot;
+  App.scheduler.bookSlot = () => { throw new Error('Simulated error'); };
+  
+  const buttons = findButtons(doc, 'Reservar');
+  buttons[0].click();
+  
+  assert.ok(alerted);
+  App.scheduler.bookSlot = originalBook;
+  delete globalThis.alert;
+});
+
+test('DOM rendering is safe against XSS', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-28';
+  doc.byId['start-input'].value = '10';
+  doc.byId['end-input'].value = '12';
+  
+  const originalQuote = App.scheduler.quoteSlot;
+  App.scheduler.quoteSlot = () => { throw new Error('<script>alert(1)</script>'); };
+  
+  doc.byId['filter-form'].dispatch('submit');
+  
+  // Check that the textContent preserves the script tag as plain text
+  const text = doc.byId['spaces-list'].textContent;
+  assert.match(text, /<script>alert\(1\)<\/script>/);
+  
+  App.scheduler.quoteSlot = originalQuote;
+});
+
+test('quoteSlot error branch renders error message', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '2026-11-29';
+  doc.byId['start-input'].value = '8';
+  doc.byId['end-input'].value = '10';
+  doc.byId['attendees-input'].value = '1';
+  
+  const originalQuote = App.scheduler.quoteSlot;
+  App.scheduler.quoteSlot = () => { throw new Error('Quote error injected'); };
+  
+  doc.byId['filter-form'].dispatch('submit');
+  assert.match(doc.byId['spaces-list'].textContent, /Quote error injected/);
+  
+  App.scheduler.quoteSlot = originalQuote;
+});
+
+test('empty date renders nothing', () => {
+  App.resetScheduler();
+  const doc = fakeDoc();
+  App.init(doc);
+  doc.byId['date-input'].value = '';
+  doc.byId['filter-form'].dispatch('submit');
+  assert.equal(doc.byId['spaces-list'].textContent, '');
+});
+
+test('shim provides valid exports and fallback crypto', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  
+  const ctx = {
+    window: {
+      crypto: {
+        getRandomValues: (arr) => { arr.fill(42); }
+      }
+    }
+  };
+  vm.createContext(ctx);
+  
+  const shimSrc = fs.readFileSync(path.join(__dirname, '../shim.js'), 'utf8');
+  vm.runInContext(shimSrc, ctx);
+  
+  assert.ok(ctx.window.module);
+  assert.equal(typeof ctx.window.require, 'function');
+  
+  const cryptoMock = ctx.window.require('node:crypto');
+  const uuid = cryptoMock.randomUUID();
+  assert.match(uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  
+  ctx.window.spacesAPI = { isSpaces: true };
+  assert.equal(ctx.window.require('./spaces').isSpaces, true);
 });
