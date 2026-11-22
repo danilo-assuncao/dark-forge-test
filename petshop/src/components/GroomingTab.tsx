@@ -16,18 +16,23 @@ export default function GroomingTab() {
   const handleCalculate = () => {
     try {
       setError('')
+      if (serviceIds.length === 0) {
+        throw new Error('Selecione pelo menos um serviço')
+      }
       const result = quoteGroomingSession({
         serviceIds,
         size,
         coat,
         addons,
         isClubMember,
-        coupon: coupon || undefined
+        coupon: coupon.trim() || undefined
       })
       setQuote(result)
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)
+      } else {
+        setError('Erro inesperado')
       }
       setQuote(null)
     }
@@ -51,8 +56,9 @@ export default function GroomingTab() {
       <h2>Banho & Tosa</h2>
       
       <div className="form-group">
-        <label className="form-label">Porte</label>
+        <label htmlFor="size" className="form-label">Porte</label>
         <select
+          id="size"
           className="form-select"
           value={size}
           onChange={(e) => setSize(e.target.value as PetSize)}
@@ -64,8 +70,9 @@ export default function GroomingTab() {
       </div>
 
       <div className="form-group">
-        <label className="form-label">Pelagem</label>
+        <label htmlFor="coat" className="form-label">Pelagem</label>
         <select
+          id="coat"
           className="form-select"
           value={coat}
           onChange={(e) => setCoat(e.target.value as CoatType)}

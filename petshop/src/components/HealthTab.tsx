@@ -14,7 +14,7 @@ const mockVaccineRecords: VaccineRecord[] = [
 ]
 
 export default function HealthTab() {
-  const [weightKg, setWeightKg] = useState<number>(10)
+  const [weightInput, setWeightInput] = useState<string>('10')
   const [ageStage, setAgeStage] = useState<AgeStage>('adulto')
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderada')
 
@@ -26,6 +26,8 @@ export default function HealthTab() {
 
   const nutrition = useMemo(() => {
     try {
+      const weightKg = parseFloat(weightInput)
+      if (isNaN(weightKg) || weightKg <= 0) return null
       return calculateDailyFoodGrams({
         weightKg,
         ageStage,
@@ -34,7 +36,7 @@ export default function HealthTab() {
     } catch {
       return null
     }
-  }, [weightKg, ageStage, activityLevel])
+  }, [weightInput, ageStage, activityLevel])
 
   return (
     <div className="card">
@@ -47,7 +49,7 @@ export default function HealthTab() {
             <li key={vaccineName} className="vaccine-item">
               <span>{vaccineName}</span>
               <span className={`status-${evalData.status}`}>
-                {evalData.status.replace(/-/g, ' ')} ({evalData.daysUntilBooster > 0 ? evalData.daysUntilBooster + ' dias restantes' : 'atrasada'})
+                {evalData.status.replace(/-/g, ' ')} ({evalData.status === 'atrasada' ? 'atrasada' : evalData.daysUntilBooster === 0 ? 'vence hoje' : evalData.daysUntilBooster + ' dias restantes'})
               </span>
             </li>
           ))}
@@ -62,15 +64,16 @@ export default function HealthTab() {
             id="weight"
             type="number"
             className="form-input"
-            value={weightKg}
-            onChange={(e) => setWeightKg(parseFloat(e.target.value) || 0)}
+            value={weightInput}
+            onChange={(e) => setWeightInput(e.target.value)}
             min="0.1"
             step="0.1"
           />
         </div>
         <div className="form-group">
-          <label className="form-label">Fase da Vida</label>
+          <label htmlFor="ageStage" className="form-label">Fase da Vida</label>
           <select
+            id="ageStage"
             className="form-select"
             value={ageStage}
             onChange={(e) => setAgeStage(e.target.value as AgeStage)}
@@ -81,8 +84,9 @@ export default function HealthTab() {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Nível de Atividade</label>
+          <label htmlFor="activityLevel" className="form-label">Nível de Atividade</label>
           <select
+            id="activityLevel"
             className="form-select"
             value={activityLevel}
             onChange={(e) => setActivityLevel(e.target.value as ActivityLevel)}
