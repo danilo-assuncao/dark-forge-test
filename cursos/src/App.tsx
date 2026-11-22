@@ -10,6 +10,7 @@ export default function App() {
   const [completedLessons, setCompletedLessons] = useState<Record<string, boolean>>({});
   const [quizAnswers, setQuizAnswers] = useState<Record<string, boolean[]>>({});
   const [certificates, setCertificates] = useState<Record<string, string>>({});
+  const [certificateErrors, setCertificateErrors] = useState<Record<string, string>>({});
   
   const [cartTracks, setCartTracks] = useState<string[]>([]);
   const [modality, setModality] = useState<EnrollmentModality>('avulsa');
@@ -23,8 +24,10 @@ export default function App() {
     return filterTracksByLevel(levelFilter);
   }, [levelFilter]);
 
-  const toggleLesson = (lessonId: string) => {
+  const toggleLesson = (trackId: string, lessonId: string) => {
     setCompletedLessons(prev => ({ ...prev, [lessonId]: !prev[lessonId] }));
+    setCertificates(prev => { const n = { ...prev }; delete n[trackId]; return n; });
+    setCertificateErrors(prev => { const n = { ...prev }; delete n[trackId]; return n; });
   };
 
   const handleQuizAnswer = (track: CourseTrack, index: number, isCorrect: boolean) => {
@@ -34,6 +37,8 @@ export default function App() {
       updated[index] = isCorrect;
       return { ...prev, [track.id]: updated };
     });
+    setCertificates(prev => { const n = { ...prev }; delete n[track.id]; return n; });
+    setCertificateErrors(prev => { const n = { ...prev }; delete n[track.id]; return n; });
   };
 
   const handleIssueCertificate = (track: CourseTrack) => {
@@ -45,15 +50,18 @@ export default function App() {
         trackId: track.id,
         completedLessonIds: trackCompletedIds,
         quizAnswers: trackQuizAnswers
-      }, 'user-123');
+      }, 'user-123'); // Demo simulated user ID
       
       if (cert) {
         setCertificates(prev => ({ ...prev, [track.id]: cert }));
+        setCertificateErrors(prev => { const n = { ...prev }; delete n[track.id]; return n; });
       } else {
-        alert('Não foi possível emitir o certificado. Complete 100% das aulas e acerte pelo menos 70% do quiz.');
+        setCertificates(prev => { const n = { ...prev }; delete n[track.id]; return n; });
+        setCertificateErrors(prev => ({ ...prev, [track.id]: 'Não foi possível emitir o certificado. Complete 100% das aulas e acerte pelo menos 70% do quiz.' }));
       }
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      setCertificates(prev => { const n = { ...prev }; delete n[track.id]; return n; });
+      setCertificateErrors(prev => ({ ...prev, [track.id]: e instanceof Error ? e.message : String(e) }));
     }
   };
 
@@ -61,17 +69,23 @@ export default function App() {
     setCartTracks(prev => prev.includes(trackId) ? prev.filter(id => id !== trackId) : [...prev, trackId]);
   };
 
-  const quote = useMemo(() => {
+  const quoteResult = useMemo(() => {
     if (cartTracks.length === 0) return null;
     try {
-      return quoteEnrollment({
-        trackIds: cartTracks,
-        modality,
-        isStudentScholarship: isStudent,
-        coupon
-      });
-    } catch (e) {
-      return null;
+      return {
+        quote: quoteEnrollment({
+          trackIds: cartTracks,
+          modality,
+          isStudentScholarship: isStudent,
+          coupon
+        }),
+        error: null
+      };
+    } catch (e: unknown) {
+      return {
+        quote: null,
+        error: e instanceof Error ? e.message : String(e)
+      };
     }
   }, [cartTracks, modality, isStudent, coupon]);
 
@@ -100,6 +114,7 @@ export default function App() {
             {tracks.map(track => {
               const trackQuiz = quizAnswers[track.id] || new Array(track.lessons.length).fill(false);
               const cert = certificates[track.id];
+              const certError = certificateErrors[track.id];
               const inCart = cartTracks.includes(track.id);
 
               return (
@@ -118,7 +133,7 @@ export default function App() {
                           <input 
                             type="checkbox" 
                             checked={!!completedLessons[lesson.id]} 
-                            onChange={() => toggleLesson(lesson.id)} 
+                            onChange={() => toggleLesson(track.id, lesson.id)} 
                           />
                           {lesson.title} ({lesson.durationMinutes} min)
                         </label>
@@ -127,7 +142,7 @@ export default function App() {
                   </div>
 
                   <div className="quiz">
-                    <h4>Quiz de Avaliação</h4>
+                    <h4>Simulador de Quiz de Avaliação</h4>
                     {track.lessons.map((lesson, idx) => (
                       <div key={`quiz-${lesson.id}`} className="quiz-item">
                         <label>
@@ -147,6 +162,7 @@ export default function App() {
                   <div className="certificate-section">
                     <button className="cert-btn" onClick={() => handleIssueCertificate(track)}>Emitir Certificado</button>
                     {cert && <div className="certificate-code">Certificado: <strong>{cert}</strong></div>}
+                    {certError && <div className="certificate-error">{certError}</div>}
                   </div>
                 </div>
               );
@@ -155,7 +171,7 @@ export default function App() {
         </section>
 
         <section className="cart-section">
-          <h2>Carrinho de Matrícula</h2>
+          <h2>Carrinho de Matrícula (Simulador)</h2>
           {cartTracks.length === 0 ? (
             <p>Seu carrinho está vazio.</p>
           ) : (
@@ -192,16 +208,21 @@ export default function App() {
                 )}
               </div>
 
-              {quote && (
+              {quoteResult?.quote && (
                 <div className="quote-result">
-                  <p>Subtotal: <span>R$ {quote.totalOriginal}</span></p>
-                  <p>Desconto: <span>R$ {quote.totalDiscount}</span></p>
-                  <p className="total-price">Total: <span>R$ {quote.totalFinal}</span></p>
-                  {quote.appliedDiscounts.length > 0 && (
+                  <p>Subtotal: <span>R$ {quoteResult.quote.totalOriginal}</span></p>
+                  <p>Desconto: <span>R$ {quoteResult.quote.totalDiscount}</span></p>
+                  <p className="total-price">Total: <span>R$ {quoteResult.quote.totalFinal}</span></p>
+                  {quoteResult.quote.appliedDiscounts.length > 0 && (
                     <p className="applied-discounts">
-                      Descontos aplicados: {quote.appliedDiscounts.join(', ')}
+                      Descontos aplicados: {quoteResult.quote.appliedDiscounts.join(', ')}
                     </p>
                   )}
+                </div>
+              )}
+              {quoteResult?.error && (
+                <div className="quote-error">
+                  <p>Erro ao cotar matrícula: {quoteResult.error}</p>
                 </div>
               )}
             </div>
