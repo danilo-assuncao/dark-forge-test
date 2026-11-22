@@ -29,9 +29,28 @@ export function simulateMortgage(input: MortgageInput): MortgageSimulation {
     annualInterestRate
   } = input
 
+  if (
+    !Number.isFinite(propertyValueBrl) ||
+    !Number.isFinite(ownResourcesBrl) ||
+    !Number.isFinite(fgtsBrl) ||
+    !Number.isFinite(monthlyIncomeBrl) ||
+    !Number.isFinite(annualInterestRate)
+  ) {
+    throw new Error('Input values must be finite numbers')
+  }
+
+  if (
+    propertyValueBrl <= 0 ||
+    ownResourcesBrl < 0 ||
+    fgtsBrl < 0 ||
+    monthlyIncomeBrl < 0 ||
+    annualInterestRate < 0
+  ) {
+    throw new Error('Invalid input values: must be non-negative and property value must be positive')
+  }
+
   const totalDownPayment = ownResourcesBrl + fgtsBrl
-  const minDownPayment = propertyValueBrl * 0.2
-  const downPaymentApproved = totalDownPayment >= minDownPayment
+  const downPaymentApproved = totalDownPayment * 5 >= propertyValueBrl - 0.001
 
   const financedAmountBrl = Math.max(0, propertyValueBrl - totalDownPayment)
   const monthlyInterestRate = annualInterestRate / 12
@@ -50,14 +69,23 @@ export function simulateMortgage(input: MortgageInput): MortgageSimulation {
       const pmt = (financedAmountBrl * i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1)
       firstInstallmentBrl = pmt
       lastInstallmentBrl = pmt
+    } else {
+      const _exhaustiveCheck: never = system
+      throw new Error(`Unknown system: ${_exhaustiveCheck}`)
     }
   } else if (financedAmountBrl > 0) {
     // Interest is 0
-    firstInstallmentBrl = financedAmountBrl / termMonths
-    lastInstallmentBrl = financedAmountBrl / termMonths
+    if (system === 'SAC' || system === 'PRICE') {
+      firstInstallmentBrl = financedAmountBrl / termMonths
+      lastInstallmentBrl = financedAmountBrl / termMonths
+    } else {
+      const _exhaustiveCheck: never = system
+      throw new Error(`Unknown system: ${_exhaustiveCheck}`)
+    }
   }
 
-  const incomeApproved = firstInstallmentBrl <= monthlyIncomeBrl * 0.3
+  // Use a small epsilon to fix floating point comparison edge cases
+  const incomeApproved = firstInstallmentBrl * 10 <= (monthlyIncomeBrl * 3) + 0.001
 
   return {
     financedAmountBrl,
