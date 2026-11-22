@@ -36,10 +36,20 @@ describe('loyalty domain', () => {
     expect(summary.voucher).toMatch(/^HTL-[A-Z0-9]{4}$/)
   })
 
+  it('should process bronze tier with empty-string or whitespace coupon (0% discount)', () => {
+    const summary = finalizeBookingSummary({
+      loyaltyTier: 'bronze',
+      suite: mockSuite,
+      nights: 2,
+      addons: [mockAddon],
+      couponCode: '   '
+    })
+
+    expect(summary.discount).toBe(0)
+    expect(summary.total).toBe(250)
+  })
+
   it('should process bronze tier with DANSTAY15 coupon (15% discount on room)', () => {
-    // Math.random will return 0 for first 2 chars, 0.99 for last 2 chars
-    // 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' has length 36
-    // 0 * 36 = 0 ('A'), 0.999 * 36 = 35 ('9')
     const spy = vi.spyOn(Math, 'random')
     spy.mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValueOnce(0.999).mockReturnValueOnce(0.999)
 
@@ -58,31 +68,6 @@ describe('loyalty domain', () => {
     expect(summary.voucher).toBe('HTL-AA99')
   })
 
-  it('should process bronze tier with coupon variant and empty addons', () => {
-    const summary = finalizeBookingSummary({
-      loyaltyTier: 'bronze',
-      suite: mockSuite,
-      nights: 2,
-      addons: [],
-      couponCode: ' danstay15 ' // Testing trim and uppercase
-    })
-
-    expect(summary.subtotal).toBe(200)
-    expect(summary.discount).toBe(30)
-    expect(summary.total).toBe(170)
-  })
-
-  it('should process bronze tier with invalid coupon (0% discount)', () => {
-    const summary = finalizeBookingSummary({
-      loyaltyTier: 'bronze',
-      suite: mockSuite,
-      nights: 2,
-      couponCode: 'INVALID'
-    })
-
-    expect(summary.discount).toBe(0)
-  })
-
   it('should process ouro tier (8% discount + late check-out)', () => {
     const summary = finalizeBookingSummary({
       loyaltyTier: 'ouro',
@@ -92,13 +77,10 @@ describe('loyalty domain', () => {
       couponCode: 'DANSTAY15' // Coupon should be ignored for non-bronze
     })
 
-    // subtotal = 3 * 99.99 + 50 = 299.97 + 50 = 349.97
-    // discount = 299.97 * 0.08 = 23.9976
-    // roundToCents(discount) = 24.00
-    // total = 349.97 - 24.00 = 325.97
-    expect(summary.subtotal).toBeCloseTo(349.97, 2)
-    expect(summary.discount).toBeCloseTo(24.00, 2)
-    expect(summary.total).toBeCloseTo(325.97, 2)
+    // Exact assertions using toBe
+    expect(summary.subtotal).toBe(349.97)
+    expect(summary.discount).toBe(24.00) // 299.97 * 0.08 = 23.9976 -> 24.00
+    expect(summary.total).toBe(325.97)
     expect(summary.benefits).toContain('late check-out cortesia')
   })
 
@@ -110,48 +92,109 @@ describe('loyalty domain', () => {
       addons: []
     })
 
-    // subtotal = 2 * 99.99 = 199.98
-    // discount = 199.98 * 0.15 = 29.997
-    // roundToCents(discount) = 30.00
-    // total = 199.98 - 30.00 = 169.98
-    expect(summary.subtotal).toBeCloseTo(199.98, 2)
-    expect(summary.discount).toBeCloseTo(30.00, 2)
-    expect(summary.total).toBeCloseTo(169.98, 2)
+    expect(summary.subtotal).toBe(199.98)
+    expect(summary.discount).toBe(30.00) // 199.98 * 0.15 = 29.997 -> 30.00
+    expect(summary.total).toBe(169.98)
     expect(summary.benefits).toContain('upgrade de categoria elegível')
   })
 
-  it('should process without addons correctly', () => {
+  it('should process diamante tier with coupon (coupon ignored)', () => {
     const summary = finalizeBookingSummary({
-      loyaltyTier: 'bronze',
-      suite: mockSuite,
-      nights: 1
+      loyaltyTier: 'diamante',
+      suite: { ...mockSuite, price: 100 },
+      nights: 2,
+      addons: [],
+      couponCode: 'DANSTAY15'
     })
 
-    expect(summary.subtotal).toBe(100)
+    expect(summary.subtotal).toBe(200)
+    expect(summary.discount).toBe(30) // 200 * 0.15 = 30
+    expect(summary.total).toBe(170)
+  })
+
+  it('should correctly handle rounding edge cases ensuring total = subtotal - discount', () => {
+    // subtotal float error test
+    // 3 * 99.99 = 299.97
+    // let's use 10.005
+    const summary = finalizeBookingSummary({
+      loyaltyTier: 'diamante',
+      suite: { ...mockSuite, price: 10.005 },
+      nights: 1, // roomTotal = 10.005
+      addons: [] // addonsTotal = 0
+    })
+
+    // subtotal = round(10.005) = 10.01
+    // discount = round(10.005 * 0.15) = round(1.50075) = 1.50
+    // total = 10.01 - 1.50 = 8.51
+    expect(summary.subtotal).toBe(10.01)
+    expect(summary.discount).toBe(1.50)
+    expect(summary.total).toBe(8.51)
+  })
+
+  it('should handle zero price suite properly, discount applies only to room', () => {
+    const summary = finalizeBookingSummary({
+      loyaltyTier: 'diamante',
+      suite: { ...mockSuite, price: 0 },
+      nights: 2,
+      addons: [mockAddon] // 50
+    })
+
+    expect(summary.subtotal).toBe(50)
     expect(summary.discount).toBe(0)
-    expect(summary.total).toBe(100)
+    expect(summary.total).toBe(50)
   })
 
-  it('should throw an error if nights is less than or equal to 0 or not an integer', () => {
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, nights: 0 }))
-      .toThrow(RangeError)
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, nights: -1 }))
-      .toThrow(RangeError)
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, nights: 1.5 }))
-      .toThrow(RangeError)
+  it('should handle free suite and free addons successfully', () => {
+    const summary = finalizeBookingSummary({
+      loyaltyTier: 'bronze',
+      suite: { ...mockSuite, price: 0 },
+      nights: 2,
+      addons: [{ ...mockAddon, price: 0 }]
+    })
+
+    expect(summary.subtotal).toBe(0)
+    expect(summary.discount).toBe(0)
+    expect(summary.total).toBe(0)
   })
 
-  it('should throw an error if prices are invalid', () => {
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: { ...mockSuite, price: -100 }, nights: 2 }))
-      .toThrow(RangeError)
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: { ...mockSuite, price: NaN }, nights: 2 }))
-      .toThrow(RangeError)
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, addons: [{ ...mockAddon, price: -50 }], nights: 2 }))
-      .toThrow(RangeError)
-  })
+  describe('input validation errors', () => {
+    it.each([
+      [0], [-1], [1.5], [NaN], [Infinity], [-Infinity]
+    ])('should throw RangeError for invalid nights: %s', (invalidNights) => {
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, nights: invalidNights }))
+        .toThrowError(/Nights must be a positive integer/)
+    })
 
-  it('should throw an error for unknown tier', () => {
-    expect(() => finalizeBookingSummary({ loyaltyTier: 'unknown' as any, suite: mockSuite, nights: 2 }))
-      .toThrow(Error)
+    it.each([
+      [-100], [NaN], [Infinity], [-Infinity]
+    ])('should throw RangeError for invalid suite price: %s', (invalidPrice) => {
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: { ...mockSuite, price: invalidPrice }, nights: 2 }))
+        .toThrowError(/Suite price must be a non-negative finite number/)
+    })
+
+    it.each([
+      [-50], [NaN], [Infinity], [-Infinity]
+    ])('should throw RangeError for invalid addon price: %s', (invalidPrice) => {
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, addons: [{ ...mockAddon, price: invalidPrice }], nights: 2 }))
+        .toThrowError(/Addon price must be a non-negative finite number/)
+    })
+
+    it('should throw TypeError if addon is invalid object', () => {
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, addons: [null as any], nights: 2 }))
+        .toThrowError(TypeError)
+      
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: mockSuite, addons: [undefined as any], nights: 2 }))
+        .toThrowError(TypeError)
+    })
+
+    it('should throw RangeError for subtotal overflow (e.g. 1e308)', () => {
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'bronze', suite: { ...mockSuite, price: 1e308 }, nights: 2 }))
+        .toThrowError(/Calculated subtotal is not finite \(overflow\)/)
+    })
+
+    it('should throw an error for unknown tier', () => {
+      expect(() => finalizeBookingSummary({ loyaltyTier: 'unknown' as any, suite: mockSuite, nights: 2 }))
+        .toThrowError(/Unknown loyalty tier: unknown/)
+    })
   })
 })

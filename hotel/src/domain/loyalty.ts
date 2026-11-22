@@ -30,7 +30,7 @@ function roundToCents(value: number): number {
 }
 
 export function finalizeBookingSummary(input: BookingInput): BookingSummary {
-  if (!Number.isInteger(input.nights) || input.nights <= 0) {
+  if (!Number.isSafeInteger(input.nights) || input.nights <= 0) {
     throw new RangeError('Nights must be a positive integer')
   }
   if (!Number.isFinite(input.suite.price) || input.suite.price < 0) {
@@ -38,6 +38,9 @@ export function finalizeBookingSummary(input: BookingInput): BookingSummary {
   }
   if (input.addons) {
     for (const addon of input.addons) {
+      if (!addon || typeof addon !== 'object') {
+        throw new TypeError('Addon must be an object')
+      }
       if (!Number.isFinite(addon.price) || addon.price < 0) {
         throw new RangeError('Addon price must be a non-negative finite number')
       }
@@ -46,7 +49,13 @@ export function finalizeBookingSummary(input: BookingInput): BookingSummary {
 
   const roomTotal = input.suite.price * input.nights
   const addonsTotal = input.addons?.reduce((sum, addon) => sum + addon.price, 0) ?? 0
-  const subtotal = roomTotal + addonsTotal
+  const rawSubtotal = roomTotal + addonsTotal
+
+  if (!Number.isFinite(rawSubtotal)) {
+    throw new RangeError('Calculated subtotal is not finite (overflow)')
+  }
+
+  const subtotal = roundToCents(rawSubtotal)
 
   let discountPercent = 0
   const benefits: string[] = []
@@ -69,13 +78,14 @@ export function finalizeBookingSummary(input: BookingInput): BookingSummary {
       throw new Error(`Unknown loyalty tier: ${input.loyaltyTier}`)
   }
 
-  const discount = roomTotal * discountPercent
-  const total = Math.max(0, subtotal - discount)
+  const rawDiscount = roomTotal * discountPercent
+  const discount = roundToCents(rawDiscount)
+  const total = roundToCents(subtotal - discount)
 
   return {
-    subtotal: roundToCents(subtotal),
-    discount: roundToCents(discount),
-    total: roundToCents(total),
+    subtotal,
+    discount,
+    total,
     benefits,
     voucher: generateVoucher()
   }
