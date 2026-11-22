@@ -25,11 +25,11 @@ const destinations: TravelDestination[] = [
   }
 ]
 
-export function listDestinations(): TravelDestination[] {
+export function listDestinations(): readonly TravelDestination[] {
   return destinations
 }
 
-export function filterDestinationsByScope(scope: RegionScope): TravelDestination[] {
+export function filterDestinationsByScope(scope: RegionScope): readonly TravelDestination[] {
   return destinations.filter((dest) => dest.scope === scope)
 }
 
