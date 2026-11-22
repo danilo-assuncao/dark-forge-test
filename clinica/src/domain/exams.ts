@@ -15,7 +15,7 @@ export const EXAM_CATALOG: ExamCatalogItem[] = [
 ];
 
 export function listLabExams(): ExamCatalogItem[] {
-  return EXAM_CATALOG;
+  return EXAM_CATALOG.map(e => ({ ...e }));
 }
 
 export interface QuoteInput {
@@ -32,15 +32,24 @@ export interface QuoteResult {
 }
 
 export function quoteExamBundle(input: QuoteInput): QuoteResult {
-  let originalPrice = 0;
-  let requiredFastingHours = 0;
+  if (input.exams.length === 0) {
+    throw new Error('Exam list cannot be empty.');
+  }
+
+  const distinctExams = new Map<string, ExamCatalogItem>();
 
   for (const requestedExam of input.exams) {
     const exam = EXAM_CATALOG.find(e => e.id === requestedExam.examName || e.name === requestedExam.examName);
     if (!exam) {
       throw new Error(`Exam not found in catalog: ${requestedExam.examName}`);
     }
-    
+    distinctExams.set(exam.id, exam);
+  }
+
+  let originalPrice = 0;
+  let requiredFastingHours = 0;
+
+  for (const exam of distinctExams.values()) {
     originalPrice += exam.price;
     if (exam.fastingHours > requiredFastingHours) {
       requiredFastingHours = exam.fastingHours;
@@ -49,13 +58,13 @@ export function quoteExamBundle(input: QuoteInput): QuoteResult {
 
   let finalPrice = originalPrice;
 
-  // 3+ exams = 10% off
-  if (input.exams.length >= 3) {
+  // 3+ distinct exams = 10% off
+  if (distinctExams.size >= 3) {
     finalPrice -= originalPrice * 0.10;
   }
 
-  // Coupon 'DANMED15' = 15% off sequentially
-  if (input.couponCode === 'DANMED15') {
+  // Coupon 'DANMED15' = 15% off sequentially (case insensitive)
+  if (input.couponCode && input.couponCode.toUpperCase() === 'DANMED15') {
     finalPrice -= finalPrice * 0.15;
   }
 
