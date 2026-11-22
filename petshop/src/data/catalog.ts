@@ -51,11 +51,11 @@ const groomingAddons: GroomingAddon[] = [
   { id: 'a3', name: 'Escovação de Dentes', price: 20 }
 ]
 
-export function listPetServices(): PetServiceItem[] {
+export function listPetServices(): readonly PetServiceItem[] {
   return petServices
 }
 
-export function listGroomingAddons(): GroomingAddon[] {
+export function listGroomingAddons(): readonly GroomingAddon[] {
   return groomingAddons
 }
 

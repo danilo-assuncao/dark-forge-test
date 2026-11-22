@@ -2,22 +2,22 @@ export type PetSize = 'pequeno' | 'medio' | 'grande'
 export type CoatType = 'curta' | 'longa'
 
 export interface GroomingAddon {
-  id: string
-  name: string
-  price: number
+  readonly id: string
+  readonly name: string
+  readonly price: number
 }
 
 export interface VaccineRecord {
-  id: string
-  name: string
-  date: string
-  veterinarian: string
+  readonly id: string
+  readonly name: string
+  readonly date: string
+  readonly veterinarian: string
 }
 
 export interface PetServiceItem {
-  id: string
-  name: string
-  description: string
-  basePrice: number
-  priceBySize: Record<PetSize, number>
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly basePrice: number
+  readonly priceBySize: Readonly<Record<PetSize, number>>
 }
