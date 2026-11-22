@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { listDestinations, filterDestinationsByScope } from './data/destinations';
 import { buildTravelPackageQuote } from './domain/packages';
 import type { PackageQuote } from './domain/packages';
@@ -31,6 +31,11 @@ export default function App() {
     return destinations.find(d => d.id === selectedDestId) || null;
   }, [destinations, selectedDestId]);
 
+  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFilter(e.target.value as any);
+    setSelectedDestId('');
+  };
+
   // Handle excursion toggle
   const toggleExcursion = (id: string) => {
     setSelectedExcursions(prev => 
@@ -39,10 +44,10 @@ export default function App() {
   };
 
   // Quote result
-  const quoteResult: PackageQuote | null = useMemo(() => {
-    if (!selectedDestination) return null;
+  const { quoteResult, quoteError } = useMemo<{ quoteResult: PackageQuote | null, quoteError: string | null }>(() => {
+    if (!selectedDestination) return { quoteResult: null, quoteError: null };
     try {
-      return buildTravelPackageQuote({
+      const quote = buildTravelPackageQuote({
         destinationId: selectedDestination.id,
         travelers,
         cabinClass,
@@ -52,20 +57,29 @@ export default function App() {
         extraBaggageUnitRate,
         selectedExcursionIds: selectedExcursions
       });
-    } catch (err) {
-      return null;
+      return { quoteResult: quote, quoteError: null };
+    } catch (err: any) {
+      return { quoteResult: null, quoteError: err.message || 'Erro ao calcular pacote' };
     }
   }, [selectedDestination, travelers, cabinClass, hotelDays, hotelDailyRate, extraBaggageCount, extraBaggageUnitRate, selectedExcursions]);
 
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null);
   const [checkoutError, setCheckoutError] = useState<string>('');
 
+  useEffect(() => {
+    setCheckoutResult(null);
+    setCheckoutError('');
+  }, [
+    travelers, cabinClass, hotelDays, hotelDailyRate, extraBaggageCount, extraBaggageUnitRate, selectedExcursions,
+    miles, hasTravelInsurance, coupon
+  ]);
+
   const handleCheckout = () => {
-    if (!selectedDestination) return;
+    if (!selectedDestination || !quoteResult) return;
     try {
       setCheckoutError('');
       const res = finalizeTripCheckout({
-        destination: selectedDestination,
+        destination: { ...selectedDestination, price: quoteResult.total },
         miles,
         hasTravelInsurance,
         coupon
@@ -84,7 +98,7 @@ export default function App() {
       <section className="filter-section">
         <label>
           Filtro de Destino:
-          <select value={filter} onChange={e => setFilter(e.target.value as any)}>
+          <select value={filter} onChange={handleFilterChange}>
             <option value="all">Todos</option>
             <option value="nacional">Nacional</option>
             <option value="internacional">Internacional</option>
@@ -104,8 +118,6 @@ export default function App() {
                   setSelectedDestId(dest.id);
                   setCabinClass(dest.availableCabins[0]);
                   setSelectedExcursions([]);
-                  setCheckoutResult(null);
-                  setCheckoutError('');
                 }}
               >
                 <strong>{dest.name}</strong> - {dest.scope} (R$ {dest.price})
@@ -163,6 +175,8 @@ export default function App() {
               ))}
             </div>
 
+            {quoteError && <p className="error" data-testid="quote-error">{quoteError}</p>}
+
             {quoteResult && (
               <div className="quote-result">
                 <h3>Resumo do Pacote</h3>
@@ -197,7 +211,7 @@ export default function App() {
               <input type="text" data-testid="input-coupon" value={coupon} onChange={e => setCoupon(e.target.value)} />
             </div>
 
-            <button onClick={handleCheckout} data-testid="btn-checkout">Gerar Localizador TRP-XXXX</button>
+            <button onClick={handleCheckout} disabled={!quoteResult} data-testid="btn-checkout">Gerar Localizador TRP-XXXX</button>
 
             {checkoutError && <p className="error" data-testid="checkout-error">{checkoutError}</p>}
 

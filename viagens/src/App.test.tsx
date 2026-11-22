@@ -43,25 +43,63 @@ describe('App', () => {
     expect(quoteTotal.textContent).toContain('6900');
   });
 
-  it('should finalize checkout with miles and coupon', () => {
+  it('should finalize checkout with miles and coupon using the calculated quote total', () => {
     render(<App />);
-    const dest = screen.getByTestId('dest-1'); // Rio (1500 base price)
+    const dest = screen.getByTestId('dest-1'); // Rio
     fireEvent.click(dest);
+
+    // Build package to total 6900
+    fireEvent.change(screen.getByTestId('input-travelers'), { target: { value: '2' } });
+    fireEvent.change(screen.getByTestId('select-cabin'), { target: { value: 'executiva' } });
+    fireEvent.click(screen.getByTestId('exc-e1'));
 
     const miles = screen.getByTestId('input-miles');
     fireEvent.change(miles, { target: { value: '20000' } }); // 20k miles = 500 discount
     
     const coupon = screen.getByTestId('input-coupon');
-    fireEvent.change(coupon, { target: { value: 'DANTRIP10' } }); // 10% on (1500 - 500) = 10% of 1000 = 100
+    fireEvent.change(coupon, { target: { value: 'DANTRIP10' } });
 
     const btn = screen.getByTestId('btn-checkout');
     fireEvent.click(btn);
 
     const finalValue = screen.getByTestId('checkout-final');
-    expect(finalValue.textContent).toContain('900'); // 1000 - 100 = 900
+    // Package: 6900. Miles disc: 500. Balance: 6400. Coupon 10%: 640. Final: 5760.
+    expect(finalValue.textContent).toContain('5760');
     
     const locator = screen.getByTestId('locator');
     expect(locator.textContent).toMatch(/TRP-[A-Z0-9]{4}/);
+  });
+
+  it('should clear selection when filter changes', () => {
+    render(<App />);
+    fireEvent.click(screen.getByTestId('dest-1'));
+    expect(screen.getByText(/Montador de Pacotes/i)).toBeDefined();
+
+    const filter = screen.getByLabelText(/Filtro de Destino/i);
+    fireEvent.change(filter, { target: { value: 'nacional' } });
+    expect(screen.queryByText(/Montador de Pacotes/i)).toBeNull();
+  });
+
+  it('should show error and hide quote when input is invalid', () => {
+    render(<App />);
+    fireEvent.click(screen.getByTestId('dest-1'));
+
+    fireEvent.change(screen.getByTestId('input-travelers'), { target: { value: '0' } });
+    expect(screen.getByTestId('quote-error')).toBeDefined();
+    expect(screen.queryByTestId('quote-total')).toBeNull();
+    expect(screen.getByTestId('btn-checkout')).toHaveProperty('disabled', true);
+  });
+
+  it('should clear checkout result when inputs change', () => {
+    render(<App />);
+    fireEvent.click(screen.getByTestId('dest-1'));
+
+    fireEvent.click(screen.getByTestId('btn-checkout'));
+    expect(screen.getByTestId('checkout-final')).toBeDefined();
+
+    // Change an input
+    fireEvent.change(screen.getByTestId('input-miles'), { target: { value: '1000' } });
+    expect(screen.queryByTestId('checkout-final')).toBeNull();
   });
 
   it('should enforce travel insurance for international destinations', () => {
