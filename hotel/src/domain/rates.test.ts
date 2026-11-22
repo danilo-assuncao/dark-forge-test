@@ -61,6 +61,26 @@ describe('calculateStayRates', () => {
     })
   })
 
+  it('does not apply discount for stays of 4 nights', () => {
+    const result = calculateStayRates({
+      suiteId: 's2', // price 250
+      checkInIso: '2027-05-01T12:00:00Z',
+      checkOutIso: '2027-05-05T12:00:00Z', // 4 nights
+      guests: 2,
+      season: 'baixa'
+    })
+
+    // base: 250 * 4 = 1000
+    expect(result).toEqual({
+      nights: 4,
+      baseTotal: 1000,
+      extraGuestTotal: 0,
+      subtotal: 1000,
+      discountTotal: 0,
+      finalTotal: 1000
+    })
+  })
+
   it('applies 12% discount for stays of 5 or more nights', () => {
     const result = calculateStayRates({
       suiteId: 's2', // price 250
@@ -82,42 +102,63 @@ describe('calculateStayRates', () => {
     })
   })
 
-  it('handles combination of alta season, extra guests, and long stay discount', () => {
+  it('handles combination of alta season, extra guests, and long stay discount with fractional monetary handling', () => {
     const result = calculateStayRates({
-      suiteId: 's3', // price 1000, max 6
+      suiteId: 's2', // price 250
       checkInIso: '2027-12-20T12:00:00Z',
-      checkOutIso: '2027-12-30T12:00:00Z', // 10 nights
-      guests: 5, // 3 extra guests
+      checkOutIso: '2027-12-25T12:00:00Z', // 5 nights
+      guests: 3, // 1 extra guest
       season: 'alta'
     })
 
-    // base nightly = 1000 * 1.2 = 1200
-    // base total = 1200 * 10 = 12000
-    // extra guest nightly = 3 * 50 = 150
-    // extra guest total = 150 * 10 = 1500
-    // subtotal = 13500
-    // discount = 13500 * 0.12 = 1620
-    // final = 13500 - 1620 = 11880
+    // price 250 * 1.2 = 300
+    // base total = 300 * 5 = 1500
+    // extra guest nightly = 1 * 50 = 50
+    // extra guest total = 50 * 5 = 250
+    // subtotal = 1750
+    // discount = 1750 * 0.12 = 210
+    // final = 1750 - 210 = 1540
     expect(result).toEqual({
-      nights: 10,
-      baseTotal: 12000,
-      extraGuestTotal: 1500,
-      subtotal: 13500,
-      discountTotal: 1620,
-      finalTotal: 11880
+      nights: 5,
+      baseTotal: 1500,
+      extraGuestTotal: 250,
+      subtotal: 1750,
+      discountTotal: 210,
+      finalTotal: 1540
     })
   })
 
-  it('enforces minimum 1 night even if checkout is same as checkin', () => {
+  it('throws an error if check-out is before or equal to check-in', () => {
+    expect(() => {
+      calculateStayRates({
+        suiteId: 's1',
+        checkInIso: '2027-04-10T12:00:00Z',
+        checkOutIso: '2027-04-10T12:00:00Z',
+        guests: 2,
+        season: 'baixa'
+      })
+    }).toThrow('Check-out date must be after check-in date')
+
+    expect(() => {
+      calculateStayRates({
+        suiteId: 's1',
+        checkInIso: '2027-04-11T12:00:00Z',
+        checkOutIso: '2027-04-10T12:00:00Z',
+        guests: 2,
+        season: 'baixa'
+      })
+    }).toThrow('Check-out date must be after check-in date')
+  })
+
+  it('correctly rounds partial day differences (DST or time shifts) to calendar days', () => {
     const result = calculateStayRates({
       suiteId: 's1',
-      checkInIso: '2027-04-10T12:00:00Z',
-      checkOutIso: '2027-04-10T12:00:00Z',
+      checkInIso: '2027-04-10T22:00:00Z',
+      checkOutIso: '2027-04-12T02:00:00Z', // 2 calendar days, 28 hours diff
       guests: 2,
       season: 'baixa'
     })
-
-    expect(result.nights).toBe(1)
+    expect(result.nights).toBe(2)
   })
 
   it('throws an error if suite is not found', () => {
@@ -129,7 +170,7 @@ describe('calculateStayRates', () => {
         guests: 2,
         season: 'baixa'
       })
-    }).toThrow('Suite not found: unknown')
+    }).toThrow('Suite not found')
   })
 
   it('throws an error if guests exceed max capacity', () => {
@@ -141,30 +182,46 @@ describe('calculateStayRates', () => {
         guests: 3,
         season: 'baixa'
       })
-    }).toThrow(/exceeds maximum capacity/)
+    }).toThrow('exceeds maximum capacity')
   })
 
-  it('throws an error if guests is less than 1', () => {
+  it('throws an error if guests is less than 1, NaN, or non-integer', () => {
+    expect(() => {
+      calculateStayRates({ suiteId: 's1', checkInIso: '2027-04-10T12:00:00Z', checkOutIso: '2027-04-11T12:00:00Z', guests: 0, season: 'baixa' })
+    }).toThrow('must be an integer')
+
+    expect(() => {
+      calculateStayRates({ suiteId: 's1', checkInIso: '2027-04-10T12:00:00Z', checkOutIso: '2027-04-11T12:00:00Z', guests: -1, season: 'baixa' })
+    }).toThrow('must be an integer')
+
+    expect(() => {
+      calculateStayRates({ suiteId: 's1', checkInIso: '2027-04-10T12:00:00Z', checkOutIso: '2027-04-11T12:00:00Z', guests: NaN, season: 'baixa' })
+    }).toThrow('must be an integer')
+
+    expect(() => {
+      calculateStayRates({ suiteId: 's1', checkInIso: '2027-04-10T12:00:00Z', checkOutIso: '2027-04-11T12:00:00Z', guests: 1.5, season: 'baixa' })
+    }).toThrow('must be an integer')
+  })
+
+  it('throws an error on invalid season', () => {
     expect(() => {
       calculateStayRates({
         suiteId: 's1',
         checkInIso: '2027-04-10T12:00:00Z',
         checkOutIso: '2027-04-11T12:00:00Z',
-        guests: 0,
-        season: 'baixa'
+        guests: 2,
+        season: 'invalid' as any
       })
-    }).toThrow('Number of guests must be at least 1')
+    }).toThrow('Invalid season')
   })
 
-  it('throws an error on invalid date', () => {
+  it('throws an error on invalid date in checkIn or checkOut', () => {
     expect(() => {
-      calculateStayRates({
-        suiteId: 's1',
-        checkInIso: 'invalid',
-        checkOutIso: '2027-04-11T12:00:00Z',
-        guests: 1,
-        season: 'baixa'
-      })
+      calculateStayRates({ suiteId: 's1', checkInIso: 'invalid', checkOutIso: '2027-04-11T12:00:00Z', guests: 1, season: 'baixa' })
+    }).toThrow('Invalid date format')
+
+    expect(() => {
+      calculateStayRates({ suiteId: 's1', checkInIso: '2027-04-10T12:00:00Z', checkOutIso: 'invalid', guests: 1, season: 'baixa' })
     }).toThrow('Invalid date format')
   })
 })

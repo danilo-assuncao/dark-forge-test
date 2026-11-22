@@ -24,15 +24,19 @@ const EXTRA_GUEST_FEE_PER_NIGHT = 50
 export const calculateStayRates = (input: RateCalculationInput): RateCalculationResult => {
   const suite: SuiteItem | undefined = getSuiteById(input.suiteId)
   if (!suite) {
-    throw new Error(`Suite not found: ${input.suiteId}`)
+    throw new Error('Suite not found')
   }
 
-  if (input.guests < 1) {
-    throw new Error('Number of guests must be at least 1')
+  if (!Number.isInteger(input.guests) || input.guests < 1) {
+    throw new Error('Number of guests must be an integer of at least 1')
   }
 
   if (input.guests > suite.maxGuests) {
-    throw new Error(`Number of guests (${input.guests}) exceeds maximum capacity of the suite (${suite.maxGuests})`)
+    throw new Error('Number of guests exceeds maximum capacity of the suite')
+  }
+
+  if (input.season !== 'baixa' && input.season !== 'alta') {
+    throw new Error('Invalid season')
   }
 
   const checkIn = new Date(input.checkInIso)
@@ -42,30 +46,34 @@ export const calculateStayRates = (input: RateCalculationInput): RateCalculation
     throw new Error('Invalid date format')
   }
 
-  const timeDiff = checkOut.getTime() - checkIn.getTime()
-  let nights = Math.round(timeDiff / (1000 * 3600 * 24))
-  if (nights < 1) {
-    nights = 1
+  const checkInUtc = Date.UTC(checkIn.getUTCFullYear(), checkIn.getUTCMonth(), checkIn.getUTCDate())
+  const checkOutUtc = Date.UTC(checkOut.getUTCFullYear(), checkOut.getUTCMonth(), checkOut.getUTCDate())
+
+  const timeDiff = checkOutUtc - checkInUtc
+  const nights = Math.round(timeDiff / (1000 * 3600 * 24))
+
+  if (nights <= 0) {
+    throw new Error('Check-out date must be after check-in date')
   }
 
   let nightlyRate = suite.price
   if (input.season === 'alta') {
-    nightlyRate = nightlyRate * 1.2
+    nightlyRate = Math.round(nightlyRate * 1.2 * 100) / 100
   }
 
-  const baseTotal = nightlyRate * nights
+  const baseTotal = Math.round(nightlyRate * nights * 100) / 100
 
   const extraGuests = Math.max(0, input.guests - BASE_OCCUPANCY)
-  const extraGuestTotal = extraGuests * EXTRA_GUEST_FEE_PER_NIGHT * nights
+  const extraGuestTotal = Math.round(extraGuests * EXTRA_GUEST_FEE_PER_NIGHT * nights * 100) / 100
 
-  const subtotal = baseTotal + extraGuestTotal
+  const subtotal = Math.round((baseTotal + extraGuestTotal) * 100) / 100
 
   let discountTotal = 0
   if (nights >= 5) {
-    discountTotal = subtotal * 0.12
+    discountTotal = Math.round(subtotal * 0.12 * 100) / 100
   }
 
-  const finalTotal = subtotal - discountTotal
+  const finalTotal = Math.round((subtotal - discountTotal) * 100) / 100
 
   return {
     nights,
