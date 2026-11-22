@@ -34,11 +34,16 @@ const events: LiveEventItem[] = [
 ]
 
 export const listEvents = (): LiveEventItem[] => {
-  return events
+  return [...events]
+}
+
+const normalizeString = (str: string): string => {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 }
 
 export const filterEventsByCity = (city: string): LiveEventItem[] => {
-  return events.filter(event => event.city.toLowerCase() === city.toLowerCase())
+  const normalizedSearch = normalizeString(city)
+  return events.filter(event => normalizeString(event.city) === normalizedSearch)
 }
 
 export const getEventById = (id: string): LiveEventItem | undefined => {

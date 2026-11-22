@@ -4,11 +4,36 @@ import { listEvents, filterEventsByCity, getEventById } from './events'
 describe('events data', () => {
   it('listEvents should return all events', () => {
     const events = listEvents()
-    expect(events.length).toBeGreaterThan(0)
+    expect(events.length).toBe(3)
+    expect(events.map(e => e.id)).toEqual(['1', '2', '3'])
   })
 
-  it('filterEventsByCity should return events for a specific city', () => {
-    const events = filterEventsByCity('são paulo')
+  it('listEvents should not mutate the original data if modified', () => {
+    const events = listEvents()
+    events.push({
+      id: '99',
+      name: 'Fake Event',
+      city: 'Test City',
+      date: '2027-01-01',
+      sector: 'pista',
+      batch: 1,
+      benefit: 'inteira',
+      price: 100
+    })
+    
+    const freshEvents = listEvents()
+    expect(freshEvents.length).toBe(3)
+    expect(freshEvents.find(e => e.id === '99')).toBeUndefined()
+  })
+
+  it('filterEventsByCity should return events for a specific city ignoring case and accents', () => {
+    const events = filterEventsByCity('sao paulo')
+    expect(events.length).toBe(1)
+    expect(events[0].name).toBe('Lollapalooza')
+  })
+
+  it('filterEventsByCity should ignore extra whitespace', () => {
+    const events = filterEventsByCity('  são paulo   ')
     expect(events.length).toBe(1)
     expect(events[0].name).toBe('Lollapalooza')
   })
