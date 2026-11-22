@@ -27,23 +27,32 @@ const ADDON_PRICES: Record<OptionalAddon, number> = {
   'leva-e-traz': 25
 }
 
+function roundToCents(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
 export function quoteGroomingSession(input: GroomingSessionInput): GroomingQuote {
   let subtotalServices = 0
-  
+
   for (const id of input.serviceIds) {
     const service = getServiceById(id)
-    if (service) {
-      let price = service.priceBySize[input.size]
-      if (input.coat === 'longa') {
-        price *= 1.2
-      }
-      subtotalServices += price
+    if (!service) {
+      throw new Error(`Service not found: ${id}`)
     }
+    let price = service.priceBySize[input.size]
+    if (input.coat === 'longa') {
+      price *= 1.2
+    }
+    subtotalServices += price
   }
 
   let subtotalAddons = 0
   for (const addon of input.addons) {
-    subtotalAddons += ADDON_PRICES[addon]
+    const addonPrice = ADDON_PRICES[addon]
+    if (addonPrice === undefined) {
+      throw new Error(`Invalid addon: ${addon}`)
+    }
+    subtotalAddons += addonPrice
   }
 
   let discountClub = 0
@@ -55,20 +64,22 @@ export function quoteGroomingSession(input: GroomingSessionInput): GroomingQuote
   let discountCoupon = 0
   let protocol: string | undefined
 
-  if (input.coupon === 'DANPET10') {
-    // 10% on single closing? (total after club discount? or total without club? Let's apply on the remaining subtotal)
-    discountCoupon = subtotalWithClub * 0.1
-    protocol = `PET-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+  if (input.coupon) {
+    const normalizedCoupon = input.coupon.trim().toUpperCase()
+    if (normalizedCoupon === 'DANPET10') {
+      discountCoupon = subtotalWithClub * 0.1
+      protocol = `PET-${crypto.randomUUID().split('-')[0].substring(0, 4).toUpperCase()}`
+    } else {
+      throw new Error('Invalid coupon')
+    }
   }
 
-  const total = subtotalWithClub - discountCoupon
-
   return {
-    subtotalServices,
-    subtotalAddons,
-    discountClub,
-    discountCoupon,
-    total,
+    subtotalServices: roundToCents(subtotalServices),
+    subtotalAddons: roundToCents(subtotalAddons),
+    discountClub: roundToCents(discountClub),
+    discountCoupon: roundToCents(discountCoupon),
+    total: roundToCents(subtotalWithClub - discountCoupon),
     protocol
   }
 }
