@@ -1,4 +1,4 @@
-import { SuiteItem } from '../types'
+import type { SuiteItem } from '../types'
 
 const suites: SuiteItem[] = [
   { id: 's1', name: 'Standard Room', tier: 'standard', maxGuests: 2, price: 100 },
@@ -6,7 +6,7 @@ const suites: SuiteItem[] = [
   { id: 's3', name: 'Presidential Suite', tier: 'presidencial', maxGuests: 6, price: 1000 }
 ]
 
-export const listSuites = (): SuiteItem[] => suites
+export const listSuites = (): SuiteItem[] => [...suites]
 
 export const filterSuitesByGuests = (guests: number): SuiteItem[] => suites.filter((s) => s.maxGuests >= guests)
 
