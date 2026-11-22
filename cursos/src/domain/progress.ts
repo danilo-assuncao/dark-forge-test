@@ -27,23 +27,19 @@ export function evaluateTrackProgress(input: EvaluateTrackProgressInput): Evalua
     throw new Error(`Track ${sanitizedTrackId} has no lessons and cannot be completed`)
   }
 
-  if (input.quizAnswers.length !== totalLessons) {
-    return {
-      completedPercent: 0,
-      scorePercent: 0,
-      passed: false
-    }
-  }
-
   const validCompleted = input.completedLessonIds.filter(id => 
     track.lessons.some(l => l.id === id)
   )
   const uniqueCompletedCount = new Set(validCompleted).size
   const completedPercent = (uniqueCompletedCount / totalLessons) * 100
 
-  let scorePercent = 0
+  // The quiz answers length must match the number of lessons exactly
+  if (input.quizAnswers.length !== totalLessons) {
+    throw new Error(`Invalid quiz answers length: expected ${totalLessons}, got ${input.quizAnswers.length}`)
+  }
+
   const correctCount = input.quizAnswers.filter(a => a === true).length
-  scorePercent = (correctCount / totalLessons) * 100
+  const scorePercent = (correctCount / totalLessons) * 100
 
   const passed = scorePercent >= 70
 
@@ -57,24 +53,29 @@ export function evaluateTrackProgress(input: EvaluateTrackProgressInput): Evalua
 export function issueTrackCertificate(input: EvaluateTrackProgressInput, userId: string): string | null {
   const progress = evaluateTrackProgress(input)
   
-  if (Math.round(progress.completedPercent) === 100 && progress.passed) {
-    // Generate deterministic certificate code using trackId and userId
-    const data = `${input.trackId}:::${userId}`
+  // Use exact equality / >= 100 to avoid floating point rounding giving certificates to incomplete tracks
+  if (progress.completedPercent >= 100 && progress.passed) {
+    // Generate deterministic hash prefix using unambiguous encoding
+    const data = JSON.stringify([input.trackId, userId])
     let hash = 0
     for (let i = 0; i < data.length; i++) {
       const char = data.charCodeAt(i)
       hash = ((hash << 5) - hash) + char
       hash = hash & hash // Convert to 32bit integer
     }
+    const hexHash = Math.abs(hash).toString(16).padStart(8, '0').toUpperCase()
     
-    // Add crypto random to make it harder to guess but keep it long enough
-    const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID().split('-')[0]
-      : Math.random().toString(36).substring(2, 10).toUpperCase()
+    // Fallback path is removed. A CSPRNG is strictly required.
+    if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.getRandomValues === 'undefined') {
+      throw new Error('Secure random number generation is not available')
+    }
+    
+    // Generate 128-bit random hex string for unguessable certificate code
+    const array = new Uint8Array(16)
+    globalThis.crypto.getRandomValues(array)
+    const randomHex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
       
-    // Create a 14-char code
-    const hexHash = Math.abs(hash).toString(16).padStart(8, '0').toUpperCase().substring(0, 6)
-    return `ACD-${hexHash}${randomPart}`.substring(0, 14)
+    return `ACD-${hexHash}-${randomHex}`
   }
   
   return null
