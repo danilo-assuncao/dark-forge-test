@@ -15,7 +15,12 @@ export const TrackingPanel: React.FC = () => {
     const result = lookupShipment(code);
     if (result) {
       setShipment(result);
-      setSla(evaluateShipmentSla(result, new Date().toISOString()));
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const localDateIso = `${year}-${month}-${day}T00:00:00Z`;
+      setSla(evaluateShipmentSla(result, localDateIso));
       setError(null);
     } else {
       setShipment(null);
@@ -56,7 +61,7 @@ export const TrackingPanel: React.FC = () => {
               <p className="delayed" data-testid="sla-delayed">Atrasado ({-sla.daysDifference} dias)</p>
             ) : (
               <p className="on-time" data-testid="sla-on-time">
-                {shipment.status === 'entregue' ? 'Entregue no prazo' : `No prazo (${sla.daysDifference} dias restantes)`}
+                {shipment.status === 'entregue' ? 'Entregue' : `No prazo (${sla.daysDifference} dias restantes)`}
               </p>
             )}
           </div>

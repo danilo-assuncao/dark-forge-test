@@ -193,39 +193,67 @@ describe('calculateFreightQuote', () => {
         declaredValueBrl: 1000,
         quantity: 1
       })
-    }).toThrow('Route not found for XX to YY')
+    }).toThrow('Rota não encontrada para XX até YY.')
   })
   
   it('should validate inputs: reject negative or zero weights and dimensions', () => {
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: -1, lengthCm: 10, widthCm: 10, heightCm: 10, declaredValueBrl: 100, quantity: 1 })
-    }).toThrow('Weight and dimensions must be positive finite numbers')
+    }).toThrow('Peso e dimensões devem ser números positivos.')
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: 1, lengthCm: 0, widthCm: 10, heightCm: 10, declaredValueBrl: 100, quantity: 1 })
-    }).toThrow('Weight and dimensions must be positive finite numbers')
+    }).toThrow('Peso e dimensões devem ser números positivos.')
   })
 
   it('should validate inputs: reject NaN or Infinity dimensions', () => {
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: 1, lengthCm: NaN, widthCm: 10, heightCm: 10, declaredValueBrl: 100, quantity: 1 })
-    }).toThrow('Weight and dimensions must be positive finite numbers')
+    }).toThrow('Peso e dimensões devem ser números positivos.')
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: 1, lengthCm: 10, widthCm: 10, heightCm: Infinity, declaredValueBrl: 100, quantity: 1 })
-    }).toThrow('Weight and dimensions must be positive finite numbers')
+    }).toThrow('Peso e dimensões devem ser números positivos.')
   })
 
   it('should validate inputs: reject invalid quantity', () => {
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: 1, lengthCm: 10, widthCm: 10, heightCm: 10, declaredValueBrl: 100, quantity: 0 })
-    }).toThrow('Quantity must be a positive integer')
+    }).toThrow('A quantidade deve ser um número inteiro positivo.')
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: 1, lengthCm: 10, widthCm: 10, heightCm: 10, declaredValueBrl: 100, quantity: 1.5 })
-    }).toThrow('Quantity must be a positive integer')
+    }).toThrow('A quantidade deve ser um número inteiro positivo.')
   })
 
   it('should validate inputs: reject negative declared value', () => {
     expect(() => {
       calculateFreightQuote({ originUf: 'SP', destUf: 'RJ', actualWeightKg: 1, lengthCm: 10, widthCm: 10, heightCm: 10, declaredValueBrl: -10, quantity: 1 })
-    }).toThrow('Declared value must be a non-negative finite number')
+    }).toThrow('O valor declarado deve ser um número não-negativo.')
+  })
+
+  it('should apply mode multiplier correctly (default, expresso, aereo-proximo-dia) and combine with discounts', () => {
+    const input = {
+      originUf: 'SP',
+      destUf: 'RJ',
+      actualWeightKg: 10,
+      lengthCm: 10,
+      widthCm: 10,
+      heightCm: 10,
+      declaredValueBrl: 1000,
+      quantity: 5,
+      coupon: 'DANCARGO10'
+    }
+
+    const resultEco = calculateFreightQuote(input)
+    expect(resultEco.baseFreight).toBe(2500)
+    expect(resultEco.corporateDiscount).toBe(250)
+    expect(resultEco.couponDiscount).toBe(250)
+    expect(resultEco.totalFreight).toBe(2008)
+
+    const resultExp = calculateFreightQuote({ ...input, mode: 'expresso' })
+    expect(resultExp.baseFreight).toBe(3750)
+    expect(resultExp.totalFreight).toBe(3008)
+
+    const resultAer = calculateFreightQuote({ ...input, mode: 'aereo-proximo-dia' })
+    expect(resultAer.baseFreight).toBe(6250)
+    expect(resultAer.totalFreight).toBe(5008)
   })
 })

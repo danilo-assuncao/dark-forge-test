@@ -24,18 +24,6 @@ interface QuoteResultData {
 
 const mapDomainError = (err: unknown): string => {
   if (err instanceof Error) {
-    if (err.message.includes('Weight and dimensions must be positive finite numbers')) {
-      return 'Peso e dimensões devem ser números positivos.';
-    }
-    if (err.message.includes('Quantity must be a positive integer')) {
-      return 'A quantidade deve ser um número inteiro positivo.';
-    }
-    if (err.message.includes('Declared value must be a non-negative finite number')) {
-      return 'O valor declarado deve ser um número não-negativo.';
-    }
-    if (err.message.includes('Route not found')) {
-      return 'Rota não encontrada para as UFs selecionadas.';
-    }
     return err.message;
   }
   return 'Erro ao calcular frete';
@@ -61,6 +49,8 @@ export const CalculatorPanel: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setInput(prev => ({ ...prev, [name]: value }));
+    setResult(null);
+    setError(null);
   };
 
   const handleSubmit = (e: FormEvent) => {

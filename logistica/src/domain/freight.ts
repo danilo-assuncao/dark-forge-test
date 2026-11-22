@@ -35,20 +35,20 @@ export const calculateFreightQuote = (input: FreightQuoteInput): FreightQuoteRes
     !Number.isFinite(input.widthCm) || input.widthCm <= 0 ||
     !Number.isFinite(input.heightCm) || input.heightCm <= 0
   ) {
-    throw new Error('Weight and dimensions must be positive finite numbers')
+    throw new Error('Peso e dimensões devem ser números positivos.')
   }
 
   if (!Number.isInteger(input.quantity) || input.quantity < 1) {
-    throw new Error('Quantity must be a positive integer')
+    throw new Error('A quantidade deve ser um número inteiro positivo.')
   }
 
   if (!Number.isFinite(input.declaredValueBrl) || input.declaredValueBrl < 0) {
-    throw new Error('Declared value must be a non-negative finite number')
+    throw new Error('O valor declarado deve ser um número não-negativo.')
   }
 
   const route = findRoute(input.originUf, input.destUf)
   if (!route) {
-    throw new Error(`Route not found for ${input.originUf} to ${input.destUf}`)
+    throw new Error(`Rota não encontrada para ${input.originUf} até ${input.destUf}.`)
   }
 
   const volumetricWeightKg = (input.lengthCm * input.widthCm * input.heightCm) / 6000

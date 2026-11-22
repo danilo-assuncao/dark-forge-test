@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import App from './App'
+import * as zones from './data/zones'
 
 describe('App', () => {
   beforeEach(() => {
@@ -31,7 +32,7 @@ describe('App', () => {
   })
 
   describe('CalculatorPanel', () => {
-    it('calculates freight and asserts modalitiy prices and shipping label', () => {
+    it('calculates freight and asserts modality prices and shipping label', () => {
       render(<App />)
       fireEvent.change(screen.getByLabelText(/Origem/i), { target: { value: 'SP' } })
       fireEvent.change(screen.getByLabelText(/Destino/i), { target: { value: 'RJ' } })
@@ -77,6 +78,43 @@ describe('App', () => {
 
       expect(screen.getByText(/Peso e dimensões devem ser números positivos\./)).toBeInTheDocument()
       expect(screen.queryByTestId('calculator-results')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText(/Peso Real/i), { target: { value: '1' } })
+      fireEvent.change(screen.getByLabelText(/Quantidade/i), { target: { value: '0' } })
+      fireEvent.click(screen.getByText('Calcular'))
+      expect(screen.getByText(/A quantidade deve ser um número inteiro positivo\./)).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText(/Quantidade/i), { target: { value: '1.5' } })
+      fireEvent.click(screen.getByText('Calcular'))
+      expect(screen.getByText(/A quantidade deve ser um número inteiro positivo\./)).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText(/Quantidade/i), { target: { value: '1' } })
+      fireEvent.change(screen.getByLabelText(/Valor Declarado/i), { target: { value: '-10' } })
+      fireEvent.click(screen.getByText('Calcular'))
+      expect(screen.getByText(/O valor declarado deve ser um número não-negativo\./)).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText(/Valor Declarado/i), { target: { value: '100' } })
+      
+      const findRouteSpy = vi.spyOn(zones, 'findRoute').mockReturnValue(undefined)
+      fireEvent.click(screen.getByText('Calcular'))
+      expect(screen.getByText(/Rota não encontrada/)).toBeInTheDocument()
+      findRouteSpy.mockRestore()
+
+      fireEvent.change(screen.getByLabelText(/Altura/i), { target: { value: '' } })
+      fireEvent.click(screen.getByText('Calcular'))
+      // Number('') is 0, which triggers the positive number error
+      expect(screen.getByText(/Peso e dimensões devem ser números positivos\./)).toBeInTheDocument()
+    })
+
+    it('calculates freight without coupon and shipping label', () => {
+      render(<App />)
+      fireEvent.change(screen.getByLabelText(/Origem/i), { target: { value: 'SP' } })
+      fireEvent.change(screen.getByLabelText(/Destino/i), { target: { value: 'RJ' } })
+      fireEvent.change(screen.getByLabelText(/Cupom/i), { target: { value: '' } })
+      fireEvent.click(screen.getByText('Calcular'))
+
+      expect(screen.getByTestId('calculator-results')).toBeInTheDocument()
+      expect(screen.queryByText('CRG-XXXX')).not.toBeInTheDocument()
     })
   })
 
@@ -86,21 +124,35 @@ describe('App', () => {
       fireEvent.click(screen.getByText('Rastreamento'))
     })
 
-    it('shows error for unknown tracking code', () => {
+    it('shows error for unknown tracking code or empty', () => {
       fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: 'INVALID' } })
       fireEvent.click(screen.getByText('Buscar'))
-
       expect(screen.getByText('Encomenda não encontrada.')).toBeInTheDocument()
       expect(screen.queryByTestId('tracking-results')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: '   ' } })
+      fireEvent.click(screen.getByText('Buscar'))
+      expect(screen.getByText('Encomenda não encontrada.')).toBeInTheDocument()
     })
 
-    it('shows on-time status for future delivery', () => {
+    it('handles lowercase and padded code normalization', () => {
+      fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: '  crg-1001  ' } })
+      fireEvent.click(screen.getByText('Buscar'))
+      expect(screen.getByTestId('tracking-results')).toBeInTheDocument()
+    })
+
+    it('shows on-time status for future delivery and due-today', () => {
       // 2026-12-01 vs 2026-11-20
       fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: 'CRG-1001' } })
       fireEvent.click(screen.getByText('Buscar'))
 
       expect(screen.getByTestId('tracking-results')).toBeInTheDocument()
       expect(screen.getByTestId('sla-on-time')).toHaveTextContent('No prazo (11 dias restantes)')
+
+      // due-today
+      fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: 'CRG-1002' } })
+      fireEvent.click(screen.getByText('Buscar'))
+      expect(screen.getByTestId('sla-on-time')).toHaveTextContent('No prazo (0 dias restantes)')
     })
 
     it('shows delivered-on-time status', () => {
@@ -108,13 +160,10 @@ describe('App', () => {
       fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: 'CRG-1004' } })
       fireEvent.click(screen.getByText('Buscar'))
 
-      expect(screen.getByTestId('sla-on-time')).toHaveTextContent('Entregue no prazo')
+      expect(screen.getByTestId('sla-on-time')).toHaveTextContent('Entregue')
     })
+
     it('shows delayed status for past delivery', () => {
-      // 2026-11-15 vs 2026-11-20, not delivered
-      // Wait, there is no delayed shipment in SIMULATED_SHIPMENTS that is not delivered.
-      // Let's modify tracking code 'CRG-1002' which has 2026-11-20, but we need a past date.
-      // Actually, we can just use setSystemTime to a future date to make CRG-1001 delayed.
       vi.setSystemTime(new Date('2026-12-05T12:00:00Z'))
       fireEvent.change(screen.getByPlaceholderText('CRG-1001'), { target: { value: 'CRG-1001' } })
       fireEvent.click(screen.getByText('Buscar'))
