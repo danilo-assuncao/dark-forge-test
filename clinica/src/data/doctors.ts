@@ -1,4 +1,4 @@
-import { DoctorProfile, Specialty } from '../types'
+import type { DoctorProfile, Specialty } from '../types'
 
 const doctors: DoctorProfile[] = [
   {
@@ -32,7 +32,7 @@ const doctors: DoctorProfile[] = [
 ]
 
 export const listDoctors = (): DoctorProfile[] => {
-  return doctors
+  return [...doctors]
 }
 
 export const filterDoctorsBySpecialty = (spec: Specialty): DoctorProfile[] => {
