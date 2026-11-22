@@ -1,0 +1,117 @@
+.app-container {
+  font-family: Arial, sans-serif;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #333;
+}
+
+h1, h2, h3 {
+  color: #2c3e50;
+}
+
+.filter-section {
+  margin-bottom: 20px;
+}
+
+.destination-list ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.destination-list li > div {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.destination-list li > div:hover {
+  background-color: #f9f9f9;
+}
+
+.destination-list li.selected > div {
+  border-color: #3498db;
+  background-color: #ebf5fb;
+}
+
+.package-builder {
+  display: flex;
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.quote-form, .checkout-form {
+  flex: 1;
+  background-color: #fcfcfc;
+  border: 1px solid #eee;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-weight: normal;
+  gap: 5px;
+}
+
+input[type="number"], input[type="text"], select {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+input[type="range"] {
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+}
+
+button:hover {
+  background-color: #2980b9;
+}
+
+.quote-result, .checkout-result {
+  margin-top: 20px;
+  background-color: #eaf2f8;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #d4e6f1;
+}
+
+.error {
+  color: #c0392b;
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.locator {
+  font-size: 1.2em;
+  color: #27ae60;
+}
