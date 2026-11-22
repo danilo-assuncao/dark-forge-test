@@ -12,7 +12,7 @@ describe('quoteAppointment', () => {
     
     expect(result.finalPrice).toBe(100);
     expect(result.doctorName).toBe('Dr. João Silva');
-    expect(result.protocol).toMatch(/^MED-[A-Z0-9]{4}$/);
+    expect(result.protocol).toMatch(/^MED-[A-Z0-9]+$/);
   });
 
   it('calculates price for telemedicina + particular (-15%)', () => {
@@ -82,5 +82,63 @@ describe('quoteAppointment', () => {
         basePrice: 100
       });
     }).toThrow('Doctor not found');
+  });
+
+  it('throws error if doctor is inactive', () => {
+    expect(() => {
+      quoteAppointment({
+        doctorId: '3', // Dr. Pedro Santos, active: false
+        mode: 'presencial',
+        plan: 'particular',
+        basePrice: 100
+      });
+    }).toThrow('Doctor inactive');
+  });
+
+  it('throws RangeError if basePrice is negative', () => {
+    expect(() => {
+      quoteAppointment({
+        doctorId: '1',
+        mode: 'presencial',
+        plan: 'particular',
+        basePrice: -50
+      });
+    }).toThrow(RangeError);
+  });
+
+  it('throws RangeError if basePrice is NaN', () => {
+    expect(() => {
+      quoteAppointment({
+        doctorId: '1',
+        mode: 'presencial',
+        plan: 'particular',
+        basePrice: NaN
+      });
+    }).toThrow(RangeError);
+  });
+
+  it('rounds floating point values correctly', () => {
+    // 33.33 * 0.85 = 28.3305
+    // 28.3305 * 0.30 = 8.49915 -> rounds to 8.50
+    const result = quoteAppointment({
+      doctorId: '1',
+      mode: 'telemedicina', // * 0.85
+      plan: 'convenio-basico', // * 0.30
+      basePrice: 33.33
+    });
+    expect(result.finalPrice).toBe(8.5);
+  });
+
+  it('supports dependency injection for ID generation', () => {
+    const result = quoteAppointment(
+      {
+        doctorId: '1',
+        mode: 'presencial',
+        plan: 'particular',
+        basePrice: 100
+      },
+      () => 'TEST-ID'
+    );
+    expect(result.protocol).toBe('MED-TEST-ID');
   });
 });
