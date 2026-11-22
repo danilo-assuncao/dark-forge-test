@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import './App.css';
 
 type MenuItem = {
@@ -23,10 +23,20 @@ type CartItem = MenuItem & { quantity: number };
 function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCheckout, setIsCheckout] = useState(false);
+  const checkoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (checkoutTimer.current) {
+        clearTimeout(checkoutTimer.current);
+      }
+    };
+  }, []);
 
   const categories = Array.from(new Set(MENU.map((item) => item.category)));
 
   const addToCart = (item: MenuItem) => {
+    if (isCheckout) return;
     setCart((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
@@ -39,6 +49,7 @@ function App() {
   };
 
   const removeFromCart = (id: string) => {
+    if (isCheckout) return;
     setCart((prev) => {
       const existing = prev.find((i) => i.id === id);
       if (existing && existing.quantity > 1) {
@@ -55,12 +66,13 @@ function App() {
   const totalCart = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const handleCheckout = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isCheckout) return;
     setIsCheckout(true);
-    setTimeout(() => {
+    checkoutTimer.current = setTimeout(() => {
       alert('Pedido realizado com sucesso!');
       clearCart();
       setIsCheckout(false);
+      checkoutTimer.current = null;
     }, 1500);
   };
 
@@ -83,7 +95,7 @@ function App() {
                     <p>{item.description}</p>
                     <div className="menu-card-footer">
                       <span className="price">R$ {item.price.toFixed(2)}</span>
-                      <button onClick={() => addToCart(item)}>Adicionar</button>
+                      <button onClick={() => addToCart(item)} disabled={isCheckout}>Adicionar</button>
                     </div>
                   </div>
                 ))}
@@ -107,9 +119,9 @@ function App() {
                     </span>
                   </div>
                   <div className="cart-item-actions">
-                    <button onClick={() => removeFromCart(item.id)}>-</button>
+                    <button onClick={() => removeFromCart(item.id)} disabled={isCheckout}>-</button>
                     <span>{item.quantity}</span>
-                    <button onClick={() => addToCart(item)}>+</button>
+                    <button onClick={() => addToCart(item)} disabled={isCheckout}>+</button>
                   </div>
                 </div>
               ))}
