@@ -32,6 +32,10 @@ export function calculateDailyFoodGrams({
   ageStage,
   activityLevel,
 }: NutritionalParams): NutritionalRecommendation {
+  if (!Number.isFinite(weightKg) || weightKg <= 0) {
+    throw new RangeError("Invalid weight");
+  }
+
   const rer = 70 * Math.pow(weightKg, 0.75);
   let multiplier = 1.6;
 
@@ -61,9 +65,15 @@ export function evaluateVaccineStatus(
   vaccineName: VaccineName,
   referenceDateIso: string
 ): VaccineEvaluation {
+  const refTime = new Date(referenceDateIso).getTime();
+  if (isNaN(refTime)) {
+    throw new Error('Invalid reference date');
+  }
+
   const normalizedVaccineName = vaccineName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   
   const relevantRecords = vaccineRecords
+    .filter((r) => !isNaN(new Date(r.date).getTime()))
     .filter((r) => {
       const normalizedRecordName = r.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       return normalizedRecordName === normalizedVaccineName;
@@ -79,10 +89,13 @@ export function evaluateVaccineStatus(
   const refDate = new Date(referenceDateIso);
 
   const dueDate = new Date(lastVaccineDate);
-  dueDate.setFullYear(dueDate.getFullYear() + 1);
+  dueDate.setUTCFullYear(dueDate.getUTCFullYear() + 1);
 
-  const diffTime = dueDate.getTime() - refDate.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const dueDateMs = Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+  const refDateMs = Date.UTC(refDate.getUTCFullYear(), refDate.getUTCMonth(), refDate.getUTCDate());
+
+  const diffTime = dueDateMs - refDateMs;
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
     return { status: 'atrasada', daysUntilBooster: diffDays };
