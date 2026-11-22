@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { finalizeBookingSummary } from './loyalty'
-import { SuiteItem, ConciergeAddon } from '../types'
+import type { SuiteItem, ConciergeAddon } from '../types'
 
 describe('loyalty domain', () => {
   const mockSuite: SuiteItem = {
@@ -14,7 +14,8 @@ describe('loyalty domain', () => {
   const mockAddon: ConciergeAddon = {
     id: 'a1',
     name: 'Café da manhã',
-    price: 50
+    price: 50,
+    pricing: 'per-stay'
   }
 
   afterEach(() => {
