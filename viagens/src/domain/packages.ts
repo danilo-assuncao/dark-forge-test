@@ -36,8 +36,26 @@ export function buildTravelPackageQuote(input: BuildPackageQuoteInput): PackageQ
     selectedExcursionIds
   } = input
 
-  if (travelers < 1) {
+  if (!Number.isInteger(travelers) || travelers < 1) {
     throw new Error('Number of travelers must be at least 1')
+  }
+
+  if (!Number.isInteger(hotelDays) || hotelDays < 0) {
+    throw new Error('Hotel days must be a non-negative integer')
+  }
+  if (!Number.isFinite(hotelDailyRate) || hotelDailyRate < 0) {
+    throw new Error('Hotel daily rate must be a non-negative number')
+  }
+  if (!Number.isInteger(extraBaggageCount) || extraBaggageCount < 0) {
+    throw new Error('Extra baggage count must be a non-negative integer')
+  }
+  if (!Number.isFinite(extraBaggageUnitRate) || extraBaggageUnitRate < 0) {
+    throw new Error('Extra baggage unit rate must be a non-negative number')
+  }
+
+  const uniqueExcursions = new Set(selectedExcursionIds)
+  if (uniqueExcursions.size !== selectedExcursionIds.length) {
+    throw new Error('Duplicate excursion ids are not allowed')
   }
 
   const destination = getDestinationById(destinationId)
@@ -67,18 +85,20 @@ export function buildTravelPackageQuote(input: BuildPackageQuoteInput): PackageQ
     excursionsTotal += excursion.price * travelers
   }
 
-  const subtotal = airfareTotal + hotelTotal + baggageTotal + excursionsTotal
+  const round = (val: number) => Number(val.toFixed(2))
 
-  const discount = travelers >= 4 ? subtotal * 0.08 : 0
-  const total = subtotal - discount
+  const subtotal = round(airfareTotal + hotelTotal + baggageTotal + excursionsTotal)
+
+  const discount = travelers >= 4 ? round(subtotal * 0.08) : 0
+  const total = round(subtotal - discount)
 
   return {
     destinationId,
     travelers,
-    airfareTotal,
-    hotelTotal,
-    baggageTotal,
-    excursionsTotal,
+    airfareTotal: round(airfareTotal),
+    hotelTotal: round(hotelTotal),
+    baggageTotal: round(baggageTotal),
+    excursionsTotal: round(excursionsTotal),
     subtotal,
     discount,
     total
