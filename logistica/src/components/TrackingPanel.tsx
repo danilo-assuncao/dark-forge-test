@@ -48,7 +48,7 @@ export const TrackingPanel: React.FC = () => {
           <h3>Status da Encomenda: {shipment.trackingCode}</h3>
           <p><strong>Modalidade:</strong> <span style={{ textTransform: 'capitalize' }}>{shipment.mode.replace(/-/g, ' ')}</span></p>
           <p><strong>Status:</strong> <span style={{ textTransform: 'capitalize' }}>{shipment.status.replace(/-/g, ' ')}</span></p>
-          <p><strong>Previsão de Entrega:</strong> {new Date(shipment.estimatedDeliveryDate).toLocaleDateString()}</p>
+          <p><strong>Previsão de Entrega:</strong> {new Date(shipment.estimatedDeliveryDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</p>
           
           <div className="sla-status">
             <h4>Status de SLA</h4>

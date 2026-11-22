@@ -3,42 +3,92 @@ import type { FormEvent } from 'react';
 import { calculateFreightQuote } from '../domain/freight';
 import type { FreightQuoteInput, FreightQuoteResult } from '../domain/freight';
 import { listRoutes } from '../data/zones';
-import type { ZoneRoute } from '../types';
+import type { ZoneRoute, ShippingMode } from '../types';
+
+interface FormState {
+  originUf: string;
+  destUf: string;
+  actualWeightKg: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
+  declaredValueBrl: string;
+  quantity: string;
+  coupon: string;
+}
+
+interface QuoteResultData {
+  submittedInput: FreightQuoteInput;
+  quotes: Record<ShippingMode, FreightQuoteResult>;
+}
+
+const mapDomainError = (err: unknown): string => {
+  if (err instanceof Error) {
+    if (err.message.includes('Weight and dimensions must be positive finite numbers')) {
+      return 'Peso e dimensões devem ser números positivos.';
+    }
+    if (err.message.includes('Quantity must be a positive integer')) {
+      return 'A quantidade deve ser um número inteiro positivo.';
+    }
+    if (err.message.includes('Declared value must be a non-negative finite number')) {
+      return 'O valor declarado deve ser um número não-negativo.';
+    }
+    if (err.message.includes('Route not found')) {
+      return 'Rota não encontrada para as UFs selecionadas.';
+    }
+    return err.message;
+  }
+  return 'Erro ao calcular frete';
+};
 
 export const CalculatorPanel: React.FC = () => {
-  const [input, setInput] = useState<FreightQuoteInput>({
+  const [input, setInput] = useState<FormState>({
     originUf: 'SP',
     destUf: 'RJ',
-    actualWeightKg: 1,
-    lengthCm: 20,
-    widthCm: 20,
-    heightCm: 20,
-    declaredValueBrl: 100,
-    quantity: 1,
+    actualWeightKg: '1',
+    lengthCm: '20',
+    widthCm: '20',
+    heightCm: '20',
+    declaredValueBrl: '100',
+    quantity: '1',
     coupon: ''
   });
 
-  const [result, setResult] = useState<FreightQuoteResult | null>(null);
+  const [result, setResult] = useState<QuoteResultData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [routes] = useState<ZoneRoute[]>(listRoutes());
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setInput(prev => ({
-      ...prev,
-      [name]: name === 'originUf' || name === 'destUf' || name === 'coupon' ? value : Number(value)
-    }));
+    setInput(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     try {
       setError(null);
-      const res = calculateFreightQuote(input);
-      setResult(res);
-    } catch (err: any) {
+      const parsedInput: FreightQuoteInput = {
+        originUf: input.originUf,
+        destUf: input.destUf,
+        actualWeightKg: Number(input.actualWeightKg),
+        lengthCm: Number(input.lengthCm),
+        widthCm: Number(input.widthCm),
+        heightCm: Number(input.heightCm),
+        declaredValueBrl: Number(input.declaredValueBrl),
+        quantity: Number(input.quantity),
+        coupon: input.coupon || undefined
+      };
+
+      const quotes: Record<ShippingMode, FreightQuoteResult> = {
+        'economico': calculateFreightQuote({ ...parsedInput, mode: 'economico' }),
+        'expresso': calculateFreightQuote({ ...parsedInput, mode: 'expresso' }),
+        'aereo-proximo-dia': calculateFreightQuote({ ...parsedInput, mode: 'aereo-proximo-dia' })
+      };
+
+      setResult({ submittedInput: parsedInput, quotes });
+    } catch (err: unknown) {
       setResult(null);
-      setError(err.message || 'Erro ao calcular frete');
+      setError(mapDomainError(err));
     }
   };
 
@@ -96,7 +146,7 @@ export const CalculatorPanel: React.FC = () => {
         </div>
         <div className="form-group">
           <label htmlFor="coupon">Cupom (Ex: DANCARGO10)</label>
-          <input id="coupon" type="text" name="coupon" value={input.coupon || ''} onChange={handleChange} placeholder="DANCARGO10" />
+          <input id="coupon" type="text" name="coupon" value={input.coupon} onChange={handleChange} placeholder="DANCARGO10" />
         </div>
         <button type="submit">Calcular</button>
       </form>
@@ -104,27 +154,27 @@ export const CalculatorPanel: React.FC = () => {
       {result && (
         <div className="calculator-results" data-testid="calculator-results">
           <h3>Resultados</h3>
-          <p><strong>Peso Real:</strong> {input.actualWeightKg} kg</p>
-          <p><strong>Peso Cubado:</strong> {result.volumetricWeightKg.toFixed(2)} kg</p>
-          <p><strong>Peso Faturado:</strong> {result.billableWeightKg.toFixed(2)} kg</p>
+          <p><strong>Peso Real:</strong> {result.submittedInput.actualWeightKg} kg</p>
+          <p><strong>Peso Cubado:</strong> {result.quotes.economico.volumetricWeightKg.toFixed(2)} kg</p>
+          <p><strong>Peso Faturado:</strong> {result.quotes.economico.billableWeightKg.toFixed(2)} kg</p>
           
           <div className="modalities-comparison">
             <h4>Comparador de Modalidades</h4>
             <div className="modality">
-              <strong>Econômico:</strong> R$ {result.totalFreight.toFixed(2)}
+              <strong>Econômico:</strong> R$ {result.quotes.economico.totalFreight.toFixed(2)}
             </div>
             <div className="modality">
-              <strong>Expresso:</strong> R$ {(result.totalFreight * 1.5).toFixed(2)}
+              <strong>Expresso:</strong> R$ {result.quotes.expresso.totalFreight.toFixed(2)}
             </div>
             <div className="modality">
-              <strong>Aéreo Próximo Dia:</strong> R$ {(result.totalFreight * 2.5).toFixed(2)}
+              <strong>Aéreo Próximo Dia:</strong> R$ {result.quotes['aereo-proximo-dia'].totalFreight.toFixed(2)}
             </div>
           </div>
 
-          {result.shippingLabel && (
+          {result.quotes.economico.shippingLabel && (
             <div className="dispatch-section">
-              <h4>Despacho Gerado</h4>
-              <div className="shipping-label">{result.shippingLabel}</div>
+              <h4>Pré-autorização de Despacho</h4>
+              <div className="shipping-label">{result.quotes.economico.shippingLabel}</div>
             </div>
           )}
         </div>

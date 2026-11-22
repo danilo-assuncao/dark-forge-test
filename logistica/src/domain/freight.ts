@@ -1,4 +1,5 @@
 import { findRoute } from '../data/zones'
+import type { ShippingMode } from '../types'
 
 export interface FreightQuoteInput {
   originUf: string
@@ -11,6 +12,7 @@ export interface FreightQuoteInput {
   declaredValueBrl: number
   quantity: number
   coupon?: string
+  mode?: ShippingMode
 }
 
 export interface FreightQuoteResult {
@@ -53,7 +55,13 @@ export const calculateFreightQuote = (input: FreightQuoteInput): FreightQuoteRes
   const billableWeightKg = Math.max(input.actualWeightKg, volumetricWeightKg)
   
   const totalBillableWeight = billableWeightKg * input.quantity
-  const baseFreight = round(route.baseCost * totalBillableWeight)
+  
+  const mode = input.mode || 'economico'
+  let modeMultiplier = 1
+  if (mode === 'expresso') modeMultiplier = 1.5
+  if (mode === 'aereo-proximo-dia') modeMultiplier = 2.5
+
+  const baseFreight = round(route.baseCost * totalBillableWeight * modeMultiplier)
 
   const adValoremCost = round(input.declaredValueBrl * 0.008)
 
