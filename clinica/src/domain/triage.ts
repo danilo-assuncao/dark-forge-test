@@ -1,4 +1,4 @@
-import { Specialty, TriagePriority } from '../types';
+import type { Specialty, TriagePriority } from '../types';
 
 export interface TriageInput {
   chestPain: boolean;

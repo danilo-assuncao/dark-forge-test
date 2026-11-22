@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateSymptomTriage, TriageInput } from './triage';
+import { evaluateSymptomTriage, type TriageInput } from './triage';
 
 describe('evaluateSymptomTriage', () => {
   it('should return priority vermelho and specialty cardiologia for chestPain', () => {
@@ -72,5 +72,53 @@ describe('evaluateSymptomTriage', () => {
     const result = evaluateSymptomTriage(input);
     expect(result.priority).toBe('vermelho');
     expect(result.specialty).toBe('cardiologia');
+  });
+
+  it('should return priority verde for durationDays = 5', () => {
+    const input: TriageInput = {
+      chestPain: false,
+      highFever: false,
+      shortnessOfBreath: false,
+      durationDays: 5,
+    };
+    const result = evaluateSymptomTriage(input);
+    expect(result.priority).toBe('verde');
+    expect(result.specialty).toBe('clinica-geral');
+  });
+
+  it('should return priority verde for durationDays = 0', () => {
+    const input: TriageInput = {
+      chestPain: false,
+      highFever: false,
+      shortnessOfBreath: false,
+      durationDays: 0,
+    };
+    const result = evaluateSymptomTriage(input);
+    expect(result.priority).toBe('verde');
+    expect(result.specialty).toBe('clinica-geral');
+  });
+
+  it('should prioritize chestPain specialty cardiologia when both chestPain and shortnessOfBreath are true', () => {
+    const input: TriageInput = {
+      chestPain: true,
+      highFever: false,
+      shortnessOfBreath: true,
+      durationDays: 1,
+    };
+    const result = evaluateSymptomTriage(input);
+    expect(result.priority).toBe('vermelho');
+    expect(result.specialty).toBe('cardiologia');
+  });
+
+  it('should return priority vermelho and specialty clinica-geral for shortnessOfBreath and highFever', () => {
+    const input: TriageInput = {
+      chestPain: false,
+      highFever: true,
+      shortnessOfBreath: true,
+      durationDays: 1,
+    };
+    const result = evaluateSymptomTriage(input);
+    expect(result.priority).toBe('vermelho');
+    expect(result.specialty).toBe('clinica-geral');
   });
 });
