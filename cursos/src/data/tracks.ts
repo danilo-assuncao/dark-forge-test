@@ -1,6 +1,6 @@
 import { CourseTrack, TrackLevel } from '../types'
 
-const tracks: CourseTrack[] = [
+const tracks: readonly CourseTrack[] = [
   {
     id: 't1',
     title: 'React Básico',
@@ -39,11 +39,11 @@ const tracks: CourseTrack[] = [
   }
 ]
 
-export function listTracks(): CourseTrack[] {
+export function listTracks(): readonly CourseTrack[] {
   return tracks
 }
 
-export function filterTracksByLevel(level: TrackLevel): CourseTrack[] {
+export function filterTracksByLevel(level: TrackLevel): readonly CourseTrack[] {
   return tracks.filter(t => t.level === level)
 }
 

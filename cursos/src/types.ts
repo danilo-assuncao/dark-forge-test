@@ -1,20 +1,20 @@
 export type TrackLevel = 'iniciante' | 'intermediario' | 'avancado'
 
 export interface LessonItem {
-  id: string
-  title: string
-  durationMinutes: number
+  readonly id: string
+  readonly title: string
+  readonly durationMinutes: number
 }
 
 export interface CourseTrack {
-  id: string
-  title: string
-  level: TrackLevel
-  lessons: LessonItem[]
+  readonly id: string
+  readonly title: string
+  readonly level: TrackLevel
+  readonly lessons: readonly LessonItem[]
 }
 
 export interface QuizSubmission {
-  trackId: string
-  score: number
-  passed: boolean
+  readonly trackId: string
+  readonly score: number
+  readonly passed: boolean
 }
