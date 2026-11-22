@@ -1,4 +1,4 @@
-import { TrackingShipment } from '../types';
+import type { TrackingShipment } from '../types';
 
 export const SIMULATED_SHIPMENTS: TrackingShipment[] = [
   {
