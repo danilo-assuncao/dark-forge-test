@@ -28,6 +28,12 @@ describe('SPA Dan Med App Integration', () => {
   it('should calculate exam bundle with coupon and display fasting hours', () => {
     render(<App />);
     
+    const checkupButton = screen.getByText('Calcular Check-up');
+    
+    // Assert error when nothing is selected
+    fireEvent.click(checkupButton);
+    expect(screen.getByText('Selecione pelo menos um exame')).toBeInTheDocument();
+
     // Select three exams to get the 10% discount
     const lipidicoCheckbox = screen.getByLabelText(/Perfil Lipídico/i);
     const hemogramaCheckbox = screen.getByLabelText(/Hemograma/i);
@@ -45,7 +51,6 @@ describe('SPA Dan Med App Integration', () => {
     
     // 15% off sequentially -> 162 * 0.85 = 137.7
     
-    const checkupButton = screen.getByText('Calcular Check-up');
     fireEvent.click(checkupButton);
     
     const examResult = screen.getByTestId('exam-result');
@@ -75,5 +80,32 @@ describe('SPA Dan Med App Integration', () => {
     expect(appointmentResult).toHaveTextContent('MED-');
     expect(appointmentResult).toHaveTextContent('Dr. João Silva');
     expect(appointmentResult).toHaveTextContent('R$ 25.50');
+  });
+
+  it('should handle appointment UI edge cases properly', () => {
+    render(<App />);
+
+    const appointmentButton = screen.getByText('Cotar e Agendar');
+    expect(appointmentButton).toBeDisabled(); // Initially disabled as no doctor is selected
+
+    const specialtySelect = screen.getByLabelText(/Especialidade:/i);
+    fireEvent.change(specialtySelect, { target: { value: 'ortopedia' } });
+
+    const doctorSelect = screen.getByLabelText(/Médico:/i);
+    
+    // Check that Dr. Pedro Santos is inactive and disabled
+    const pedroSantosOption = screen.getByText(/Dr. Pedro Santos/i) as HTMLOptionElement;
+    expect(pedroSantosOption.disabled).toBe(true);
+
+    // Button should still be disabled as no valid doctor can be selected yet
+    expect(appointmentButton).toBeDisabled();
+    
+    // Select valid doctor manually and verify resetting specialty removes doctorId
+    fireEvent.change(specialtySelect, { target: { value: 'cardiologia' } });
+    fireEvent.change(doctorSelect, { target: { value: '1' } });
+    expect(appointmentButton).not.toBeDisabled();
+    
+    fireEvent.change(specialtySelect, { target: { value: 'dermatologia' } });
+    expect(appointmentButton).toBeDisabled();
   });
 });

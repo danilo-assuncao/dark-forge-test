@@ -25,8 +25,8 @@ export const Appointment: React.FC = () => {
         basePrice
       });
       setQuote(res);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
       setQuote(null);
     }
   };
@@ -39,6 +39,7 @@ export const Appointment: React.FC = () => {
         <select id="specialty" value={specialty} onChange={e => {
           setSpecialty(e.target.value as Specialty | '');
           setDoctorId('');
+          setQuote(null);
         }}>
           <option value="">Todas</option>
           <option value="cardiologia">Cardiologia</option>
@@ -49,7 +50,7 @@ export const Appointment: React.FC = () => {
       </div>
       <div className="form-group">
         <label htmlFor="doctor">Médico:</label>
-        <select id="doctor" value={doctorId} onChange={e => setDoctorId(e.target.value)}>
+        <select id="doctor" value={doctorId} onChange={e => { setDoctorId(e.target.value); setQuote(null); }}>
           <option value="">Selecione...</option>
           {filteredDoctors.map(doc => (
             <option key={doc.id} value={doc.id} disabled={!doc.active}>
@@ -60,14 +61,14 @@ export const Appointment: React.FC = () => {
       </div>
       <div className="form-group">
         <label htmlFor="mode">Modalidade:</label>
-        <select id="mode" value={mode} onChange={e => setMode(e.target.value as AppointmentMode)}>
+        <select id="mode" value={mode} onChange={e => { setMode(e.target.value as AppointmentMode); setQuote(null); }}>
           <option value="presencial">Presencial</option>
           <option value="telemedicina">Telemedicina</option>
         </select>
       </div>
       <div className="form-group">
         <label htmlFor="plan">Plano de Saúde:</label>
-        <select id="plan" value={plan} onChange={e => setPlan(e.target.value as HealthPlan)}>
+        <select id="plan" value={plan} onChange={e => { setPlan(e.target.value as HealthPlan); setQuote(null); }}>
           <option value="particular">Particular</option>
           <option value="convenio-basico">Convênio Básico</option>
           <option value="convenio-plus">Convênio Plus</option>
@@ -75,7 +76,7 @@ export const Appointment: React.FC = () => {
       </div>
       <div className="form-group">
         <label htmlFor="basePrice">Preço Base (R$):</label>
-        <input id="basePrice" type="number" min="0" value={basePrice} onChange={e => setBasePrice(Number(e.target.value))} />
+        <input id="basePrice" type="number" min="0" value={basePrice} onChange={e => { setBasePrice(Number(e.target.value)); setQuote(null); }} />
       </div>
       
       <button onClick={handleQuote} disabled={!doctorId}>Cotar e Agendar</button>

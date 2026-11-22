@@ -24,26 +24,26 @@ export const Triage: React.FC = () => {
       <h3>Assistente de Triagem</h3>
       <div className="form-group">
         <label>
-          <input type="checkbox" checked={chestPain} onChange={e => setChestPain(e.target.checked)} />
+          <input type="checkbox" checked={chestPain} onChange={e => { setChestPain(e.target.checked); setResult(null); }} />
           Dor no peito
         </label>
       </div>
       <div className="form-group">
         <label>
-          <input type="checkbox" checked={highFever} onChange={e => setHighFever(e.target.checked)} />
+          <input type="checkbox" checked={highFever} onChange={e => { setHighFever(e.target.checked); setResult(null); }} />
           Febre alta
         </label>
       </div>
       <div className="form-group">
         <label>
-          <input type="checkbox" checked={shortnessOfBreath} onChange={e => setShortnessOfBreath(e.target.checked)} />
+          <input type="checkbox" checked={shortnessOfBreath} onChange={e => { setShortnessOfBreath(e.target.checked); setResult(null); }} />
           Falta de ar
         </label>
       </div>
       <div className="form-group">
         <label>
           Dias de duração:
-          <input type="number" min="0" value={durationDays} onChange={e => setDurationDays(Number(e.target.value))} />
+          <input type="number" min="0" value={durationDays} onChange={e => { setDurationDays(Number(e.target.value)); setResult(null); }} />
         </label>
       </div>
       <button onClick={handleTriage}>Avaliar Sintomas</button>

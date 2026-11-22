@@ -13,6 +13,7 @@ export const ExamBuilder: React.FC = () => {
     setSelectedExams(prev => 
       prev.includes(examId) ? prev.filter(id => id !== examId) : [...prev, examId]
     );
+    setQuote(null);
   };
 
   const handleQuote = () => {
@@ -26,8 +27,8 @@ export const ExamBuilder: React.FC = () => {
         couponCode: couponCode || undefined
       });
       setQuote(res);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
       setQuote(null);
     }
   };
@@ -53,7 +54,7 @@ export const ExamBuilder: React.FC = () => {
       <div className="form-group">
         <label>
           Cupom de Desconto:
-          <input type="text" value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="Ex: DANMED15" />
+          <input type="text" value={couponCode} onChange={e => { setCouponCode(e.target.value); setQuote(null); }} placeholder="Ex: DANMED15" />
         </label>
       </div>
 
