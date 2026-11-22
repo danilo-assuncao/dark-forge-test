@@ -28,6 +28,9 @@ export const SIMULATED_SHIPMENTS: TrackingShipment[] = [
 ];
 
 export function lookupShipment(code: string): TrackingShipment | undefined {
+  if (!code || !code.trim()) {
+    return undefined;
+  }
   const normalizedCode = code.trim().toUpperCase();
   return SIMULATED_SHIPMENTS.find(
     (shipment) => shipment.trackingCode.toUpperCase() === normalizedCode
@@ -39,9 +42,19 @@ export interface SlaEvaluation {
   daysDifference: number;
 }
 
+/**
+ * Evaluates the SLA for a shipment based on a reference date.
+ * 
+ * @param shipment The shipment to evaluate.
+ * @param referenceDateIso An ISO 8601 string representing the reference date. It is highly recommended to use a UTC timezone indicator (e.g., 'Z' or offset) to avoid local timezone parsing inconsistencies.
+ */
 export function evaluateShipmentSla(shipment: TrackingShipment, referenceDateIso: string): SlaEvaluation {
   const estimatedDate = new Date(shipment.estimatedDeliveryDate);
   const referenceDate = new Date(referenceDateIso);
+
+  if (Number.isNaN(estimatedDate.getTime()) || Number.isNaN(referenceDate.getTime())) {
+    throw new Error('Invalid date');
+  }
 
   // Set times to midnight for pure day comparison
   estimatedDate.setUTCHours(0, 0, 0, 0);
