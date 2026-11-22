@@ -1,4 +1,4 @@
-import { ConciergeAddon } from '../types';
+import type { ConciergeAddon } from '../types';
 
 export const CONCIERGE_ADDONS: ConciergeAddon[] = [
   { id: 'cafe-colonial', name: 'Café Colonial', price: 50, pricing: 'per-guest-night' },

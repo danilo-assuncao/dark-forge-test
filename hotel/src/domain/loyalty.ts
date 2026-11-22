@@ -1,4 +1,4 @@
-import { LoyaltyTier, SuiteItem, ConciergeAddon } from '../types'
+import type { LoyaltyTier, SuiteItem, ConciergeAddon } from '../types'
 
 export interface BookingInput {
   loyaltyTier: LoyaltyTier
