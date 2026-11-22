@@ -12,7 +12,7 @@ interface OrderFormProps {
 }
 
 export function OrderForm({ event, onIssueTicket, onCancel }: OrderFormProps) {
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<number | ''>(1);
   const [sector, setSector] = useState<SectorTier>(event.sector);
   const [batch, setBatch] = useState<BatchNumber>(event.batch);
   const [benefit, setBenefit] = useState<TicketBenefitType>(event.benefit);
@@ -24,24 +24,33 @@ export function OrderForm({ event, onIssueTicket, onCancel }: OrderFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const orderInput: OrderInput = {
-    items: [{ eventId: event.id, quantity, sector, batch, benefit }],
+    items: [{ eventId: event.id, quantity: typeof quantity === 'number' ? quantity : 1, sector, batch, benefit }],
     deliveryMethod: delivery,
     coupon
   };
 
   let pricing = { subtotal: 0, discount: 0, fee: 0, total: 0 };
+  let currentPricingError: string | null = null;
   try {
+    if (typeof quantity !== 'number' || quantity < 1 || quantity > 4) {
+      throw new Error('Quantidade inválida (deve ser entre 1 e 4).');
+    }
     pricing = calculateTicketsOrder(orderInput);
   } catch (e: any) {
-    // fallback if price calculation throws
+    currentPricingError = e.message || 'Erro ao calcular o preço.';
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    if (currentPricingError) {
+      setError(currentPricingError);
+      return;
+    }
+
     const ticketInput: TicketOrderInput = {
-      ticketsQuantity: quantity,
+      ticketsQuantity: typeof quantity === 'number' ? quantity : 0,
       benefitType: benefit,
       studentCardNumber: studentCard,
       foodDonationPledged: foodPledge
@@ -62,10 +71,21 @@ export function OrderForm({ event, onIssueTicket, onCancel }: OrderFormProps) {
     <div className="order-form">
       <h2>Comprar Ingresso - {event.name}</h2>
       {error && <div className="error" role="alert">{error}</div>}
+      {currentPricingError && <div className="error" role="alert">{currentPricingError}</div>}
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="quantity">Quantidade:</label>
-          <input id="quantity" type="number" min="1" max="4" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} />
+          <input 
+            id="quantity" 
+            type="number" 
+            min="1" 
+            max="4" 
+            value={quantity} 
+            onChange={e => {
+              const val = e.target.value;
+              setQuantity(val === '' ? '' : parseInt(val, 10));
+            }} 
+          />
         </div>
         
         <div className="form-group">
