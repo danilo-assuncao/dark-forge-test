@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateDailyFoodGrams, evaluateVaccineStatus, evaluateWallet } from './health';
-import { VaccineRecord } from '../types';
+import type { VaccineRecord } from '../types';
 
 describe('health domain', () => {
   describe('calculateDailyFoodGrams', () => {

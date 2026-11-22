@@ -1,4 +1,4 @@
-import { VaccineRecord } from '../types';
+import type { VaccineRecord } from '../types';
 
 export type AgeStage = 'filhote' | 'adulto' | 'idoso';
 export type ActivityLevel = 'baixa' | 'moderada' | 'alta';
