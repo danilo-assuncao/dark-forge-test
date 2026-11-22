@@ -40,12 +40,13 @@ export function OrderForm({ event, onIssueTicket, onCancel }: OrderFormProps) {
     currentPricingError = e.message || 'Erro ao calcular o preço.';
   }
 
+  const displayError = currentPricingError || error;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (currentPricingError) {
-      setError(currentPricingError);
       return;
     }
 
@@ -70,8 +71,7 @@ export function OrderForm({ event, onIssueTicket, onCancel }: OrderFormProps) {
   return (
     <div className="order-form">
       <h2>Comprar Ingresso - {event.name}</h2>
-      {error && <div className="error" role="alert">{error}</div>}
-      {currentPricingError && <div className="error" role="alert">{currentPricingError}</div>}
+      {displayError && <div className="error" role="alert">{displayError}</div>}
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="quantity">Quantidade:</label>
