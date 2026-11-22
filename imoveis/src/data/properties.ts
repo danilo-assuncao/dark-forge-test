@@ -1,4 +1,4 @@
-import { PropertyListing, PropertyType } from '../types'
+import type { PropertyListing, PropertyType } from '../types'
 
 const properties: PropertyListing[] = [
   {
@@ -36,7 +36,7 @@ const properties: PropertyListing[] = [
 ]
 
 export const listProperties = (): PropertyListing[] => {
-  return properties
+  return [...properties]
 }
 
 export interface FilterOptions {
