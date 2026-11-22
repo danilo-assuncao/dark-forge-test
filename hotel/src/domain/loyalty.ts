@@ -25,7 +25,25 @@ function generateVoucher(): string {
   return result
 }
 
+function roundToCents(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
 export function finalizeBookingSummary(input: BookingInput): BookingSummary {
+  if (!Number.isInteger(input.nights) || input.nights <= 0) {
+    throw new RangeError('Nights must be a positive integer')
+  }
+  if (!Number.isFinite(input.suite.price) || input.suite.price < 0) {
+    throw new RangeError('Suite price must be a non-negative finite number')
+  }
+  if (input.addons) {
+    for (const addon of input.addons) {
+      if (!Number.isFinite(addon.price) || addon.price < 0) {
+        throw new RangeError('Addon price must be a non-negative finite number')
+      }
+    }
+  }
+
   const roomTotal = input.suite.price * input.nights
   const addonsTotal = input.addons?.reduce((sum, addon) => sum + addon.price, 0) ?? 0
   const subtotal = roomTotal + addonsTotal
@@ -35,7 +53,7 @@ export function finalizeBookingSummary(input: BookingInput): BookingSummary {
 
   switch (input.loyaltyTier) {
     case 'bronze':
-      if (input.couponCode === 'DANSTAY15') {
+      if (input.couponCode?.trim().toUpperCase() === 'DANSTAY15') {
         discountPercent = 0.15
       }
       break
@@ -47,15 +65,17 @@ export function finalizeBookingSummary(input: BookingInput): BookingSummary {
       discountPercent = 0.15
       benefits.push('upgrade de categoria elegível')
       break
+    default:
+      throw new Error(`Unknown loyalty tier: ${input.loyaltyTier}`)
   }
 
   const discount = roomTotal * discountPercent
-  const total = subtotal - discount
+  const total = Math.max(0, subtotal - discount)
 
   return {
-    subtotal,
-    discount,
-    total,
+    subtotal: roundToCents(subtotal),
+    discount: roundToCents(discount),
+    total: roundToCents(total),
     benefits,
     voucher: generateVoucher()
   }
