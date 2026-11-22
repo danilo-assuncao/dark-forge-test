@@ -35,9 +35,17 @@ const BATCH_MULTIPLIERS: Record<BatchNumber, number> = {
 }
 
 export function calculateTicketsOrder(input: OrderInput): OrderResult {
+  if (!input.items || input.items.length === 0) {
+    throw new Error('Order must contain at least one item')
+  }
+
   let subtotal = 0
 
   for (const item of input.items) {
+    if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+      throw new Error(`Invalid quantity: ${item.quantity}`)
+    }
+
     const event = getEventById(item.eventId)
     if (!event) {
       throw new Error(`Event not found: ${item.eventId}`)
@@ -47,33 +55,48 @@ export function calculateTicketsOrder(input: OrderInput): OrderResult {
     const batch = item.batch ?? event.batch
     const benefit = item.benefit ?? event.benefit
 
+    if (!(sector in SECTOR_MULTIPLIERS)) {
+      throw new Error(`Invalid sector: ${sector}`)
+    }
+    if (!(batch in BATCH_MULTIPLIERS)) {
+      throw new Error(`Invalid batch: ${batch}`)
+    }
+    const validBenefits = ['inteira', 'estudante', 'idoso', 'social']
+    if (!validBenefits.includes(benefit)) {
+      throw new Error(`Invalid benefit: ${benefit}`)
+    }
+
     const sectorMult = SECTOR_MULTIPLIERS[sector]
     const batchMult = BATCH_MULTIPLIERS[batch]
     
     const faceValue = event.price * sectorMult * batchMult
-    const isMeia = benefit !== 'inteira'
+    const isMeia = benefit === 'estudante' || benefit === 'idoso' || benefit === 'social'
     
     const finalTicketPrice = isMeia ? faceValue * 0.5 : faceValue
 
     subtotal += finalTicketPrice * item.quantity
   }
 
+  subtotal = Math.round(subtotal * 100) / 100
+
   let discount = 0
   if (input.coupon === 'DANSHOW10') {
-    discount = subtotal * 0.10
+    discount = Math.round((subtotal * 0.10) * 100) / 100
   }
 
   const discountedSubtotal = subtotal - discount
 
   let fee = 0
   if (input.deliveryMethod !== 'bilheteria') {
-    fee = discountedSubtotal * 0.10
+    fee = Math.round((discountedSubtotal * 0.10) * 100) / 100
   }
+
+  const total = Math.round((discountedSubtotal + fee) * 100) / 100
 
   return {
     subtotal,
     discount,
     fee,
-    total: discountedSubtotal + fee
+    total
   }
 }
