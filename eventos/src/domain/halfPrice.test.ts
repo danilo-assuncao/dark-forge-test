@@ -9,7 +9,19 @@ describe('halfPrice domain', () => {
         benefitType: 'inteira'
       });
       expect(result.valid).toBe(false);
-      expect(result.error).toBe('Maximum of 4 tickets allowed per order');
+      expect(result.error).toBe('Tickets quantity must be an integer between 1 and 4');
+    });
+
+    it('should invalidate orders with 0, negative, fractional or NaN tickets', () => {
+      const cases = [0, -1, 2.5, NaN];
+      for (const q of cases) {
+        const result = validateTicketEligibility({
+          ticketsQuantity: q,
+          benefitType: 'inteira'
+        });
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('Tickets quantity must be an integer between 1 and 4');
+      }
     });
 
     it('should validate orders with 4 or fewer tickets', () => {
@@ -64,6 +76,14 @@ describe('halfPrice domain', () => {
       });
       expect(result.valid).toBe(true);
     });
+
+    it('should validate idoso benefit without requiring extra fields', () => {
+      const result = validateTicketEligibility({
+        ticketsQuantity: 1,
+        benefitType: 'idoso'
+      });
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe('issueTicketPass', () => {
@@ -81,9 +101,9 @@ describe('halfPrice domain', () => {
       const result = issueTicketPass({
         ticketsQuantity: 2,
         benefitType: 'inteira'
-      });
+      }, () => 'A1B2');
       expect(result.valid).toBe(true);
-      expect(result.code).toMatch(/^TKT-[A-Z0-9]{4}$/);
+      expect(result.code).toBe('TKT-A1B2');
       expect(result.error).toBeUndefined();
     });
   });

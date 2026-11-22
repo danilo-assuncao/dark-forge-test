@@ -8,8 +8,8 @@ export interface TicketOrderInput {
 }
 
 export function validateTicketEligibility(input: TicketOrderInput): { valid: boolean; error?: string } {
-  if (input.ticketsQuantity > 4) {
-    return { valid: false, error: 'Maximum of 4 tickets allowed per order' };
+  if (!Number.isInteger(input.ticketsQuantity) || input.ticketsQuantity < 1 || input.ticketsQuantity > 4) {
+    return { valid: false, error: 'Tickets quantity must be an integer between 1 and 4' };
   }
   
   if (input.benefitType === 'estudante') {
@@ -27,13 +27,16 @@ export function validateTicketEligibility(input: TicketOrderInput): { valid: boo
   return { valid: true };
 }
 
-export function issueTicketPass(input: TicketOrderInput): { code?: string; valid: boolean; error?: string } {
+export function issueTicketPass(
+  input: TicketOrderInput,
+  generateSuffix: () => string = () => crypto.randomUUID().substring(0, 4).toUpperCase()
+): { code?: string; valid: boolean; error?: string } {
   const eligibility = validateTicketEligibility(input);
   if (!eligibility.valid) {
     return { valid: false, error: eligibility.error };
   }
   
-  const codeSuffix = Math.random().toString(36).substring(2, 6).toUpperCase().padStart(4, '0');
+  const codeSuffix = generateSuffix();
   
   return { valid: true, code: `TKT-${codeSuffix}` };
 }
