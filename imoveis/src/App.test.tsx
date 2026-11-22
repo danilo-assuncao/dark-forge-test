@@ -49,6 +49,20 @@ describe('App', () => {
     expect(screen.queryByText('Simulador de Financiamento')).toBeNull()
   })
 
+  it('handles negative inputs and displays error in mortgage simulator', () => {
+    render(<App />)
+    const simBtns = screen.getAllByText('Simular Financiamento')
+    fireEvent.click(simBtns[0])
+
+    const incomeInput = screen.getByLabelText(/Renda Mensal/i)
+    fireEvent.change(incomeInput, { target: { value: '-20000' } })
+    
+    const calcBtn = screen.getByText('Calcular')
+    fireEvent.click(calcBtn)
+    
+    expect(screen.getByText(/Invalid input values: must be non-negative/i)).toBeTruthy()
+  })
+
   it('can open and schedule visit', () => {
     render(<App />)
     const visitBtns = screen.getAllByText('Agendar Visita')
@@ -71,6 +85,29 @@ describe('App', () => {
     expect(screen.getByText(/Visit scheduled successfully/i)).toBeTruthy()
   })
 
+  it('rejects visit scheduling with empty name or past date', () => {
+    render(<App />)
+    const visitBtns = screen.getAllByText('Agendar Visita')
+    fireEvent.click(visitBtns[0])
+
+    const nameInput = screen.getByLabelText(/Seu Nome:/i)
+    fireEvent.change(nameInput, { target: { value: '   ' } })
+    
+    const schedBtn = screen.getByText('Agendar')
+    fireEvent.click(schedBtn)
+    
+    expect(screen.getByText(/Invalid visitor name/i)).toBeTruthy()
+
+    fireEvent.change(nameInput, { target: { value: 'João Silva' } })
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const dateInput = screen.getByLabelText(/Data da Visita/i)
+    fireEvent.change(dateInput, { target: { value: yesterday.toISOString().slice(0, 16) } })
+    
+    fireEvent.click(schedBtn)
+    expect(screen.getByText(/Invalid or past visit date/i)).toBeTruthy()
+  })
+
   it('can open and evaluate purchase offer with coupon', () => {
     render(<App />)
     const offerBtns = screen.getAllByText('Fazer Proposta')
@@ -87,5 +124,48 @@ describe('App', () => {
     // Desconto de 5% sobre 450000 = 22500
     expect(screen.getByText(/Offer evaluated successfully/i)).toBeTruthy()
     expect(screen.getByText(/R\$\s*22\.500,00/i)).toBeTruthy() // check discount
+  })
+
+  it('rejects purchase offer with invalid price', () => {
+    render(<App />)
+    const offerBtns = screen.getAllByText('Fazer Proposta')
+    fireEvent.click(offerBtns[0])
+    
+    const offerPriceInput = screen.getByLabelText(/Preço Ofertado/i)
+    fireEvent.change(offerPriceInput, { target: { value: '-1000' } })
+    
+    const offerBtn = screen.getByText('Enviar Proposta')
+    fireEvent.click(offerBtn)
+    
+    expect(screen.getByText(/Invalid offered price/i)).toBeTruthy()
+  })
+
+  it('shows no results message when filters exclude all properties', () => {
+    render(<App />)
+    const typeSelect = screen.getByLabelText(/Tipo:/i)
+    fireEvent.change(typeSelect, { target: { value: 'cobertura' } })
+    
+    const maxPriceInput = screen.getByLabelText(/Máx\. Preço/i)
+    fireEvent.change(maxPriceInput, { target: { value: '1000' } })
+
+    expect(screen.getByText(/Nenhum imóvel encontrado/i)).toBeTruthy()
+  })
+
+  it('handles rejected branches in mortgage simulator (income or down payment)', () => {
+    render(<App />)
+    const simBtns = screen.getAllByText('Simular Financiamento')
+    fireEvent.click(simBtns[0])
+
+    const incomeInput = screen.getByLabelText(/Renda Mensal/i)
+    fireEvent.change(incomeInput, { target: { value: '1000' } }) // too low for a 450k property
+    
+    const ownResourcesInput = screen.getByLabelText(/Recursos Próprios/i)
+    fireEvent.change(ownResourcesInput, { target: { value: '1000' } }) // 1k on 450k is < 20%
+    
+    const calcBtn = screen.getByText('Calcular')
+    fireEvent.click(calcBtn)
+    
+    expect(screen.getByText(/❌ Renda Reprovada/i)).toBeTruthy()
+    expect(screen.getByText(/❌ Entrada Reprovada/i)).toBeTruthy()
   })
 })

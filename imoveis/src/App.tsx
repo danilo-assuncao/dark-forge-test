@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { filterProperties } from './data/properties'
 import type { FilterOptions } from './data/properties'
-import type { PropertyListing } from './types'
+import type { PropertyListing, PropertyType } from './types'
 import { PropertyCard } from './components/PropertyCard'
 import { MortgageSimulator } from './components/MortgageSimulator'
 import { ScheduleVisit } from './components/ScheduleVisit'
@@ -31,7 +31,7 @@ function App() {
               Tipo:
               <select
                 value={filters.type || ''}
-                onChange={e => setFilters({ ...filters, type: e.target.value ? (e.target.value as any) : undefined })}
+                onChange={e => setFilters({ ...filters, type: e.target.value ? (e.target.value as PropertyType) : undefined })}
               >
                 <option value="">Todos</option>
                 <option value="apartamento">Apartamento</option>
@@ -46,7 +46,7 @@ function App() {
               <input
                 type="number"
                 min="0"
-                value={filters.minBedrooms || ''}
+                value={filters.minBedrooms ?? ''}
                 onChange={e => setFilters({ ...filters, minBedrooms: e.target.value ? Number(e.target.value) : undefined })}
               />
             </label>
@@ -57,7 +57,7 @@ function App() {
                 type="number"
                 min="0"
                 step="10000"
-                value={filters.maxPriceBrl || ''}
+                value={filters.maxPriceBrl ?? ''}
                 onChange={e => setFilters({ ...filters, maxPriceBrl: e.target.value ? Number(e.target.value) : undefined })}
               />
             </label>

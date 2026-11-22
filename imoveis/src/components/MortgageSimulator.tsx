@@ -2,14 +2,12 @@ import React, { useState } from 'react'
 import type { PropertyListing, AmortizationSystem } from '../types'
 import { simulateMortgage } from '../domain/mortgage'
 import type { MortgageSimulation } from '../domain/mortgage'
+import { formatPrice } from '../utils/format'
+import { Modal } from './Modal'
 
 interface Props {
   property: PropertyListing
   onClose: () => void
-}
-
-const formatPrice = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
 export const MortgageSimulator: React.FC<Props> = ({ property, onClose }) => {
@@ -36,19 +34,18 @@ export const MortgageSimulator: React.FC<Props> = ({ property, onClose }) => {
         annualInterestRate,
       })
       setSimulation(result)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
       setSimulation(null)
     }
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Simulador de Financiamento</h2>
-        <h3>{property.title} - {formatPrice(property.priceBrl)}</h3>
+    <Modal onClose={onClose} titleId="mortgage-simulator-title">
+      <h2 id="mortgage-simulator-title">Simulador de Financiamento</h2>
+      <h3>{property.title} - {formatPrice(property.priceBrl)}</h3>
 
-        <div className="form-group">
+      <div className="form-group">
           <label>
             Recursos Próprios (R$):
             <input type="number" min="0" value={ownResources} onChange={e => setOwnResources(Number(e.target.value))} />
@@ -119,7 +116,6 @@ export const MortgageSimulator: React.FC<Props> = ({ property, onClose }) => {
             </p>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

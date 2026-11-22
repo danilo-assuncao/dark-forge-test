@@ -1,15 +1,12 @@
 import React from 'react'
 import type { PropertyListing } from '../types'
+import { formatPrice } from '../utils/format'
 
 interface Props {
   property: PropertyListing
   onSimulate: () => void
   onVisit: () => void
   onOffer: () => void
-}
-
-const formatPrice = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
 export const PropertyCard: React.FC<Props> = ({ property, onSimulate, onVisit, onOffer }) => {

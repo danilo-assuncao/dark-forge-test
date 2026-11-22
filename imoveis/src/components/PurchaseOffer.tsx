@@ -2,14 +2,12 @@ import React, { useState } from 'react'
 import type { PropertyListing } from '../types'
 import { evaluatePurchaseOffer } from '../domain/visits'
 import type { PaymentMethod, PurchaseOfferResult } from '../domain/visits'
+import { formatPrice } from '../utils/format'
+import { Modal } from './Modal'
 
 interface Props {
   property: PropertyListing
   onClose: () => void
-}
-
-const formatPrice = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
 export const PurchaseOffer: React.FC<Props> = ({ property, onClose }) => {
@@ -30,12 +28,11 @@ export const PurchaseOffer: React.FC<Props> = ({ property, onClose }) => {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Fazer Nova Proposta</h2>
-        <h3>{property.title}</h3>
+    <Modal onClose={onClose} titleId="purchase-offer-title">
+      <h2 id="purchase-offer-title">Fazer Nova Proposta</h2>
+      <h3>{property.title}</h3>
 
-        <div className="form-group">
+      <div className="form-group">
           <label>
             Método de Pagamento:
             <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}>
@@ -82,7 +79,6 @@ export const PurchaseOffer: React.FC<Props> = ({ property, onClose }) => {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

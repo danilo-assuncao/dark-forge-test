@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import type { PropertyListing } from '../types'
 import { schedulePropertyVisit } from '../domain/visits'
 import type { VisitType, ScheduleVisitResult } from '../domain/visits'
+import { Modal } from './Modal'
 
 interface Props {
   property: PropertyListing
@@ -26,12 +27,11 @@ export const ScheduleVisit: React.FC<Props> = ({ property, onClose }) => {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Agendar Nova Visita</h2>
-        <h3>{property.title}</h3>
+    <Modal onClose={onClose} titleId="schedule-visit-title">
+      <h2 id="schedule-visit-title">Agendar Nova Visita</h2>
+      <h3>{property.title}</h3>
 
-        <div className="form-group">
+      <div className="form-group">
           <label>
             Seu Nome:
             <input type="text" value={visitorName} onChange={e => setVisitorName(e.target.value)} />
@@ -68,7 +68,6 @@ export const ScheduleVisit: React.FC<Props> = ({ property, onClose }) => {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
