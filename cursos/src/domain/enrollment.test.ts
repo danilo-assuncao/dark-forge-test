@@ -98,8 +98,102 @@ describe('quoteEnrollment', () => {
       basePricePerTrack: 1000
     })
     
+    expect(result.totalOriginal).toBe(1000)
     expect(result.totalDiscount).toBe(0)
     expect(result.totalFinal).toBe(1000)
+    expect(result.appliedDiscounts).toHaveLength(0)
+  })
+
+  it('should apply 20% discount for lowercase and padded coupon in avulsa modality', () => {
+    const result = quoteEnrollment({
+      trackIds: ['t1'],
+      modality: 'avulsa',
+      coupon: '  danedu20 ',
+      basePricePerTrack: 1000
+    })
+    
+    expect(result.totalDiscount).toBe(200)
+    expect(result.appliedDiscounts).toContain('COUPON_DANEDU20')
+  })
+
+  it('should use default base price when omitted', () => {
+    const result = quoteEnrollment({
+      trackIds: ['t1'],
+      modality: 'avulsa'
+    })
+    
+    expect(result.totalOriginal).toBe(1000)
+    expect(result.totalDiscount).toBe(0)
+    expect(result.totalFinal).toBe(1000)
+  })
+
+  it('should throw for empty trackIds', () => {
+    expect(() => {
+      quoteEnrollment({
+        trackIds: [],
+        modality: 'avulsa'
+      })
+    }).toThrow('trackIds cannot be empty')
+  })
+
+  it('should deduplicate tracks and apply correct discount and total', () => {
+    const result = quoteEnrollment({
+      trackIds: ['t1', 't1'],
+      modality: 'passaporte',
+      basePricePerTrack: 1000
+    })
+    
+    // De-duplicated to just ['t1'], so length is 1 -> no passaporte discount
+    expect(result.totalOriginal).toBe(1000)
+    expect(result.totalDiscount).toBe(0)
+    expect(result.totalFinal).toBe(1000)
+    expect(result.appliedDiscounts).toHaveLength(0)
+  })
+
+  it('should apply passaporte discount for 3+ tracks', () => {
+    const result = quoteEnrollment({
+      trackIds: ['t1', 't2', 't3'],
+      modality: 'passaporte',
+      basePricePerTrack: 1000
+    })
+    
+    expect(result.totalOriginal).toBe(3000)
+    expect(result.totalDiscount).toBe(750) // 25% of 3000
+    expect(result.totalFinal).toBe(2250)
+    expect(result.appliedDiscounts).toContain('PASSAPORTE_25')
+  })
+
+  it('should round totalDiscount correctly for non-round values', () => {
+    const result = quoteEnrollment({
+      trackIds: ['t1'],
+      modality: 'avulsa',
+      isStudentScholarship: true,
+      basePricePerTrack: 9990 // e.g. integer cents
+    })
+    
+    expect(result.totalOriginal).toBe(9990)
+    // 9990 * 0.15 = 1498.5, which rounds to 1499
+    expect(result.totalDiscount).toBe(1499)
+    expect(result.totalFinal).toBe(8491) // 9990 - 1499
+  })
+
+  it('should throw for negative basePricePerTrack', () => {
+    expect(() => {
+      quoteEnrollment({
+        trackIds: ['t1'],
+        modality: 'avulsa',
+        basePricePerTrack: -100
+      })
+    }).toThrow('Invalid basePricePerTrack')
+  })
+
+  it('should throw for invalid modality', () => {
+    expect(() => {
+      quoteEnrollment({
+        trackIds: ['t1'],
+        modality: 'invalid' as any
+      })
+    }).toThrow('Invalid modality')
   })
 
   it('should throw an error for an invalid track id', () => {
