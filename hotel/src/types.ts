@@ -13,4 +13,5 @@ export interface ConciergeAddon {
   id: string
   name: string
   price: number
+  pricing: 'per-guest-night' | 'per-stay'
 }
