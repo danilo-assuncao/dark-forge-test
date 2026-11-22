@@ -23,6 +23,15 @@ export const schedulePropertyVisit = (input: ScheduleVisitInput): ScheduleVisitR
   if (input.visitType !== 'presencial' && input.visitType !== 'videochamada') {
     return { success: false, message: 'Invalid visit type' }
   }
+  
+  if (!input.visitorName || input.visitorName.trim() === '') {
+    return { success: false, message: 'Invalid visitor name' }
+  }
+
+  const parsedDate = Date.parse(input.date)
+  if (Number.isNaN(parsedDate) || parsedDate < Date.now()) {
+    return { success: false, message: 'Invalid or past visit date' }
+  }
 
   const randomCode = Math.floor(1000 + Math.random() * 9000).toString()
   const protocol = `IMV-${randomCode}`
@@ -63,12 +72,25 @@ export const evaluatePurchaseOffer = (input: PurchaseOfferInput): PurchaseOfferR
     }
   }
 
+  if (input.offeredPriceBrl !== undefined) {
+    if (!Number.isFinite(input.offeredPriceBrl) || input.offeredPriceBrl <= 0) {
+      return { 
+        success: false, 
+        propertyId: input.propertyId, 
+        originalPriceBrl: 0,
+        finalPriceBrl: 0, 
+        discountApplied: 0, 
+        message: 'Invalid offered price' 
+      }
+    }
+  }
+
   const basePrice = input.offeredPriceBrl !== undefined ? input.offeredPriceBrl : property.priceBrl
   let finalPrice = basePrice
   let discount = 0
 
-  if (input.paymentMethod === 'a-vista' && input.coupon === 'DANHOME5') {
-    discount = basePrice * 0.05
+  if (input.paymentMethod === 'a-vista' && input.coupon?.trim().toUpperCase() === 'DANHOME5') {
+    discount = Math.round(basePrice * 5) / 100
     finalPrice = basePrice - discount
   }
 
