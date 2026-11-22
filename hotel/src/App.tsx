@@ -1,13 +1,20 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import './App.css'
 import { filterSuitesByGuests, getSuiteById } from './data/suites'
 import { calculateStayRates } from './domain/rates'
 import { listConciergeAddons } from './domain/concierge'
 import { finalizeBookingSummary } from './domain/loyalty'
+import type { BookingSummary } from './domain/loyalty'
 import type { LoyaltyTier, SuiteTier } from './types'
 
+interface VoucherData extends BookingSummary {
+  roomTotal: number
+  addonsTotal: number
+}
+
 function App() {
-  const [guests, setGuests] = useState<number>(2)
+  const [guestsInput, setGuestsInput] = useState<string>('2')
+  const guests = parseInt(guestsInput) || 1
   const [category, setCategory] = useState<SuiteTier | 'all'>('all')
   const [season, setSeason] = useState<'baixa' | 'alta'>('baixa')
   const [checkIn, setCheckIn] = useState<string>('')
@@ -19,7 +26,7 @@ function App() {
   const [loyaltyTier, setLoyaltyTier] = useState<LoyaltyTier>('bronze')
   const [couponCode, setCouponCode] = useState<string>('')
   
-  const [voucherData, setVoucherData] = useState<any>(null)
+  const [voucherData, setVoucherData] = useState<VoucherData | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const suites = useMemo(() => {
@@ -29,6 +36,19 @@ function App() {
     }
     return filtered
   }, [guests, category])
+
+  // Desmarca a suíte se ela não estiver mais nos resultados filtrados
+  useEffect(() => {
+    if (selectedSuiteId && !suites.find(s => s.id === selectedSuiteId)) {
+      setSelectedSuiteId('')
+    }
+  }, [suites, selectedSuiteId])
+
+  // Limpa o voucher sempre que algum filtro mudar para evitar exibição de dados obsoletos
+  useEffect(() => {
+    setVoucherData(null)
+    setError(null)
+  }, [guestsInput, category, season, checkIn, checkOut, selectedSuiteId, selectedAddonIds, loyaltyTier, couponCode])
 
   const handleAddonToggle = (addonId: string) => {
     setSelectedAddonIds(prev => 
@@ -66,6 +86,9 @@ function App() {
         return { ...addon, price: total }
       })
 
+      // Para evitar o arredondamento na multiplicação e divisão e englobar a taxa extra, 
+      // passamos o subtotal que contém baseTotal + extraGuestTotal,
+      // pois finalizeBookingSummary irá multiplicar `price` (abaixo) por `nights`.
       const effectiveSuite = {
         ...suite,
         price: rateResult.subtotal / rateResult.nights
@@ -78,11 +101,22 @@ function App() {
         addons: computedAddons,
         couponCode
       })
+      
+      const addonsTotal = computedAddons.reduce((sum, a) => sum + a.price, 0)
+      
+      // Acumulamos os descontos do domínio loyalty e do domínio de hospedagem longa
+      const totalDiscount = summary.discount + rateResult.discountTotal
+      
+      // Recalculamos o total somando a tarifa final da hospedagem (que já tem o rateResult.discountTotal descontado)
+      // ao valor dos addons e descontando o desconto exclusivo do loyalty para refletir ambos.
+      const finalTotal = rateResult.finalTotal + addonsTotal - summary.discount
 
       setVoucherData({
         ...summary,
         roomTotal: rateResult.subtotal,
-        addonsTotal: computedAddons.reduce((sum, a) => sum + a.price, 0)
+        addonsTotal,
+        discount: totalDiscount,
+        total: finalTotal
       })
 
     } catch (err: any) {
@@ -110,7 +144,7 @@ function App() {
             </label>
             <label>
               Hóspedes:
-              <input type="number" min="1" value={guests} onChange={e => setGuests(parseInt(e.target.value) || 1)} />
+              <input type="number" min="1" value={guestsInput} onChange={e => setGuestsInput(e.target.value)} />
             </label>
             <label>
               Temporada:
@@ -148,7 +182,7 @@ function App() {
                   <h3>{suite.name}</h3>
                   <p>Categoria: {suite.tier}</p>
                   <p>Capacidade: {suite.maxGuests}</p>
-                  <p>Preço Base: R$ {suite.price}</p>
+                  <p>Preço Base: R$ {suite.price.toFixed(2)}</p>
                 </div>
               ))
             )}
@@ -165,7 +199,7 @@ function App() {
                   checked={selectedAddonIds.includes(addon.id)}
                   onChange={() => handleAddonToggle(addon.id)}
                 />
-                <span>{addon.name} - R$ {addon.price} ({addon.pricing === 'per-stay' ? 'Por estadia' : 'Por hóspede/noite'})</span>
+                <span>{addon.name} - R$ {addon.price.toFixed(2)} ({addon.pricing === 'per-stay' ? 'Por estadia' : 'Por hóspede/noite'})</span>
               </label>
             ))}
           </div>
@@ -190,7 +224,7 @@ function App() {
           
           <button className="book-button" onClick={handleBook}>Calcular e Reservar</button>
           
-          {error && <p className="error-message">{error}</p>}
+          {error && <p className="error-message" role="alert">{error}</p>}
         </section>
 
         {voucherData && (
