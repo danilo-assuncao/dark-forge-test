@@ -20,6 +20,8 @@ export interface BillingResult {
   highestConsumptionAppliance?: ApplianceConsumption;
 }
 
+// Tariff flag rates are R$ per 100 kWh, applied proportionally to total consumption.
+// These values are a point-in-time snapshot.
 export const TARIFF_RATES: Record<TariffFlag, number> = {
   green: 0,
   yellow: 1.885,
@@ -28,13 +30,30 @@ export const TARIFF_RATES: Record<TariffFlag, number> = {
 };
 
 export const calculateMonthlyBill = (input: BillingInput): BillingResult => {
+  if (!Number.isFinite(input.pricePerKwh) || input.pricePerKwh < 0) {
+    throw new Error('Invalid pricePerKwh');
+  }
+
+  if (!(input.tariffFlag in TARIFF_RATES)) {
+    throw new Error('Invalid tariff flag');
+  }
+
   let totalKwh = 0;
   let highestConsumption = -1;
   let highestAppliance: ApplianceConsumption | undefined;
 
   for (const usage of input.usages) {
+    if (!Number.isFinite(usage.hoursPerDay) || usage.hoursPerDay < 0 || usage.hoursPerDay > 24) {
+      throw new Error(`Invalid hoursPerDay for appliance ${usage.applianceId}`);
+    }
+    if (!Number.isFinite(usage.daysPerMonth) || usage.daysPerMonth < 0 || usage.daysPerMonth > 31) {
+      throw new Error(`Invalid daysPerMonth for appliance ${usage.applianceId}`);
+    }
+
     const appliance = getApplianceById(usage.applianceId);
-    if (!appliance) continue;
+    if (!appliance) {
+      throw new Error(`Unknown appliance ID: ${usage.applianceId}`);
+    }
 
     const monthlyKwh = (appliance.powerWatts * usage.hoursPerDay * usage.daysPerMonth) / 1000;
     totalKwh += monthlyKwh;
@@ -46,11 +65,7 @@ export const calculateMonthlyBill = (input: BillingInput): BillingResult => {
   }
 
   const baseCost = totalKwh * input.pricePerKwh;
-  // Tariff flags are usually charged per 100 kWh
-  // We use Math.floor to know how many full 100 kWh blocks, or is it proportional?
-  // According to ANEEL, it's per 100 kWh consumed (proportional actually, but strictly speaking it's a value per 100 kWh, meaning rate/100 per kWh).
-  // Let's do (totalKwh / 100) * TARIFF_RATES[input.tariffFlag] for proportional, as it's the standard calculation.
-  const flagRate = TARIFF_RATES[input.tariffFlag] ?? 0;
+  const flagRate = TARIFF_RATES[input.tariffFlag];
   const flagCost = (totalKwh / 100) * flagRate;
 
   return {
