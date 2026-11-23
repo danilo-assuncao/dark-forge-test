@@ -40,6 +40,13 @@ export interface QuoteResult {
   }>;
 }
 
+/**
+ * Calculates the total cost of additional amenities for a workspace booking.
+ * 
+ * Fixed amenities are charged once per booking.
+ * Per-person amenities are charged based on the participant count. If participants
+ * is 0, the space's full capacity is used.
+ */
 export function quoteAmenities(input: QuoteAmenitiesInput): QuoteResult {
   let total = 0;
   const details = [];
