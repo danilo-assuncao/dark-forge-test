@@ -9,7 +9,10 @@ describe('spaces data functions', () => {
 
   test('filterSpacesByCapacity should return spaces with enough capacity', () => {
     const spaces = filterSpacesByCapacity(4);
-    expect(spaces.every(s => s.capacity >= 4)).toBe(true);
+    expect(spaces.map(s => s.id)).toEqual(['1', '3']);
+
+    const empty = filterSpacesByCapacity(100);
+    expect(empty).toEqual([]);
   });
 
   test('getSpaceById should return the correct space or undefined', () => {

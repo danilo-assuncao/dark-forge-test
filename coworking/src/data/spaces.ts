@@ -28,7 +28,7 @@ const spaces: WorkspaceItem[] = [
 ];
 
 export function listSpaces(): WorkspaceItem[] {
-  return spaces;
+  return [...spaces];
 }
 
 export function filterSpacesByCapacity(minCapacity: number): WorkspaceItem[] {
