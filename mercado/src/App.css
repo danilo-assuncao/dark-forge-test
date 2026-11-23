@@ -1,0 +1,150 @@
+.app-container {
+  font-family: Arial, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #333;
+}
+
+header h1 {
+  text-align: center;
+  color: #2c3e50;
+  border-bottom: 2px solid #ecf0f1;
+  padding-bottom: 10px;
+}
+
+.main-content {
+  display: flex;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.products-section {
+  flex: 2;
+}
+
+.cart-section {
+  flex: 1;
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.filters {
+  margin-bottom: 20px;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.product-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  background: white;
+}
+
+.product-card h3 {
+  margin-top: 0;
+  color: #2c3e50;
+}
+
+.wholesale-indicator {
+  color: #e67e22;
+  font-size: 0.9em;
+  font-weight: bold;
+  margin: 5px 0;
+}
+
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+.cart-list {
+  list-style: none;
+  padding: 0;
+}
+
+.cart-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.cart-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.pricing-summary {
+  background: white;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.discount {
+  color: #27ae60;
+}
+
+.cashback {
+  color: #8e44ad;
+  font-weight: bold;
+}
+
+.checkout-button {
+  width: 100%;
+  font-size: 1.1em;
+  padding: 12px;
+  background-color: #2ecc71;
+}
+
+.checkout-button:hover {
+  background-color: #27ae60;
+}
+
+.quote-result {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #d4edda;
+  color: #155724;
+  border-radius: 4px;
+  border: 1px solid #c3e6cb;
+}
+
+.thermal-bag-notice {
+  font-size: 0.9em;
+  color: #856404;
+  background-color: #fff3cd;
+  padding: 5px;
+  border-radius: 4px;
+}
