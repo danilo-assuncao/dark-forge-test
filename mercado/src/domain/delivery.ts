@@ -22,15 +22,28 @@ function generateProtocol(): string {
   return `MKT-${code}`;
 }
 
-export function quoteGroceryDelivery(input: DeliveryQuoteInput): DeliveryQuote {
+export function quoteGroceryDelivery(input: DeliveryQuoteInput, generateId = generateProtocol): DeliveryQuote {
+  if (input.entries.length === 0) {
+    throw new Error('Cart cannot be empty');
+  }
+
   let subtotal = 0;
   let requiresThermalBag = false;
 
   for (const entry of input.entries) {
+    if (!Number.isInteger(entry.quantity) || entry.quantity <= 0) {
+      throw new Error(`Invalid quantity for item ${entry.itemId}: ${entry.quantity}`);
+    }
+
     const item = getGroceryById(entry.itemId);
     if (!item) {
       throw new Error(`Item not found: ${entry.itemId}`);
     }
+    
+    if (!item.inStock) {
+      throw new Error(`Item out of stock: ${entry.itemId}`);
+    }
+
     subtotal += item.price * entry.quantity;
 
     if (input.method === 'HOME_DELIVERY' && (item.aisle === 'FROZEN' || item.aisle === 'DAIRY')) {
@@ -52,7 +65,7 @@ export function quoteGroceryDelivery(input: DeliveryQuoteInput): DeliveryQuote {
     freight,
     requiresThermalBag,
     total,
-    protocol: generateProtocol(),
+    protocol: generateId(),
     entries: input.entries
   };
 }
