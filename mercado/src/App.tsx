@@ -3,7 +3,6 @@ import { listGroceries, filterByAisle, getGroceryById } from './data/groceries';
 import { quoteGroceryDelivery, DeliveryMethod, DeliveryQuote } from './domain/delivery';
 import { calculateCartPricing, WholesaleRule } from './domain/wholesale';
 import { AisleCategory, CartEntry, SubstitutionRule, GroceryItem } from './types';
-// @ts-ignore
 import './App.css';
 
 const WHOLESALE_RULES: WholesaleRule[] = [
@@ -18,13 +17,15 @@ export default function App() {
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('HOME_DELIVERY');
   const [couponCode, setCouponCode] = useState('');
   const [isClubeMember, setIsClubeMember] = useState(false);
-  const [quote, setQuote] = useState<DeliveryQuote | null>(null);
+  const [quote, setQuote] = useState<(DeliveryQuote & { pricingTotal: number }) | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const displayedGroceries = useMemo(() => {
     return aisleFilter === 'ALL' ? listGroceries() : filterByAisle(aisleFilter);
   }, [aisleFilter]);
 
   const addToCart = (itemId: string) => {
+    setQuote(null);
     setCart(prev => {
       const existing = prev.find(entry => entry.itemId === itemId);
       if (existing) {
@@ -35,6 +36,7 @@ export default function App() {
   };
 
   const updateQuantity = (itemId: string, delta: number) => {
+    setQuote(null);
     setCart(prev => prev.map(entry => {
       if (entry.itemId === itemId) {
         return { ...entry, quantity: Math.max(0, entry.quantity + delta) };
@@ -44,6 +46,7 @@ export default function App() {
   };
 
   const updateSubstitution = (itemId: string, substitution: SubstitutionRule) => {
+    setQuote(null);
     setCart(prev => prev.map(entry => {
       if (entry.itemId === itemId) {
         return { ...entry, substitution };
@@ -63,10 +66,16 @@ export default function App() {
 
   const handleCheckout = () => {
     try {
+      setError(null);
       const result = quoteGroceryDelivery({ entries: cart, method: deliveryMethod });
-      setQuote(result);
-    } catch (err: any) {
-      alert(err.message);
+      setQuote({ ...result, pricingTotal: pricing.total });
+      setCart([]);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Ocorreu um erro desconhecido.');
+      }
     }
   };
 
@@ -115,14 +124,14 @@ export default function App() {
                   <p>{item.inStock ? 'Em estoque' : 'Esgotado'}</p>
                   
                   {quantityInCart === 0 ? (
-                    <button onClick={() => addToCart(item.id)} disabled={!item.inStock}>
+                    <button className="add-button" onClick={() => addToCart(item.id)} disabled={!item.inStock}>
                       Adicionar ao Carrinho
                     </button>
                   ) : (
                     <div className="quantity-controls">
-                      <button onClick={() => updateQuantity(item.id, -1)}>-</button>
+                      <button className="quantity-button" onClick={() => updateQuantity(item.id, -1)}>-</button>
                       <span>{quantityInCart}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} disabled={!item.inStock}>+</button>
+                      <button className="quantity-button" onClick={() => updateQuantity(item.id, 1)} disabled={!item.inStock}>+</button>
                     </div>
                   )}
                 </div>
@@ -165,7 +174,10 @@ export default function App() {
                   Modo de Entrega:
                   <select
                     value={deliveryMethod}
-                    onChange={(e) => setDeliveryMethod(e.target.value as DeliveryMethod)}
+                    onChange={(e) => {
+                      setDeliveryMethod(e.target.value as DeliveryMethod);
+                      setQuote(null);
+                    }}
                   >
                     <option value="HOME_DELIVERY">Entrega em Domicílio</option>
                     <option value="DRIVE_THRU">Drive-Thru (Retirada)</option>
@@ -205,15 +217,17 @@ export default function App() {
             </>
           )}
 
+          {error && <div className="error-notice">{error}</div>}
+
           {quote && (
             <div className="quote-result">
               <h3>Resumo do Pedido #{quote.protocol}</h3>
-              <p>Produtos: R$ {quote.subtotal.toFixed(2)}</p>
+              <p>Produtos: R$ {quote.pricingTotal.toFixed(2)}</p>
               <p>Frete: {quote.freight > 0 ? `R$ ${quote.freight.toFixed(2)}` : 'Grátis'}</p>
               {quote.requiresThermalBag && (
                 <p className="thermal-bag-notice">Inclui embalagem térmica para itens congelados/laticínios.</p>
               )}
-              <p><strong>Total: R$ {quote.total.toFixed(2)}</strong></p>
+              <p><strong>Total: R$ {(quote.pricingTotal + quote.freight).toFixed(2)}</strong></p>
               <p className="success-msg">Pedido realizado com sucesso!</p>
             </div>
           )}
