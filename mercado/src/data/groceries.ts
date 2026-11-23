@@ -7,13 +7,14 @@ const groceries: GroceryItem[] = [
 ];
 
 export function listGroceries(): GroceryItem[] {
-  return groceries;
+  return groceries.map(item => ({ ...item }));
 }
 
 export function filterByAisle(aisle: AisleCategory): GroceryItem[] {
-  return groceries.filter(item => item.aisle === aisle);
+  return groceries.filter(item => item.aisle === aisle).map(item => ({ ...item }));
 }
 
 export function getGroceryById(id: string): GroceryItem | undefined {
-  return groceries.find(item => item.id === id);
+  const item = groceries.find(item => item.id === id);
+  return item ? { ...item } : undefined;
 }
