@@ -16,6 +16,7 @@ describe('amenities', () => {
     it('should return the list of available additional amenities', () => {
       const amenities = listAmenities();
       expect(amenities).toEqual(ADDITIONAL_AMENITIES);
+      expect(amenities).not.toBe(ADDITIONAL_AMENITIES); // Ensure it's a copy
       expect(amenities.length).toBe(4);
     });
   });
@@ -68,15 +69,60 @@ describe('amenities', () => {
       }).toThrow('Participants exceed space capacity');
     });
 
-    it('should ignore unknown amenities', () => {
+    it('should quote correctly when participants exactly equal space capacity', () => {
+      const result = quoteAmenities({
+        space: mockSpace,
+        participants: 10,
+        amenities: ['coffee-break']
+      });
+
+      expect(result.total).toBe(250); // 25 * 10
+      expect(result.details[0].quantity).toBe(10);
+    });
+
+    it('should handle empty amenities list', () => {
       const result = quoteAmenities({
         space: mockSpace,
         participants: 5,
-        amenities: ['unknown-amenity' as any, 'coffee-break']
+        amenities: []
       });
 
+      expect(result.total).toBe(0);
+      expect(result.details.length).toBe(0);
+    });
+
+    it('should throw on negative, NaN, or fractional participants', () => {
+      const invalidInputs = [-1, NaN, 2.5];
+      invalidInputs.forEach(participants => {
+        expect(() => {
+          quoteAmenities({
+            space: mockSpace,
+            participants,
+            amenities: ['coffee-break']
+          });
+        }).toThrow('Invalid participants count');
+      });
+    });
+
+    it('should de-duplicate amenity ids', () => {
+      const result = quoteAmenities({
+        space: mockSpace,
+        participants: 5,
+        amenities: ['kit-streaming-4k', 'kit-streaming-4k']
+      });
+
+      expect(result.total).toBe(150);
       expect(result.details.length).toBe(1);
-      expect(result.total).toBe(125);
+    });
+
+    it('should throw on unknown amenities', () => {
+      expect(() => {
+        quoteAmenities({
+          space: mockSpace,
+          participants: 5,
+          amenities: ['unknown-amenity' as any, 'coffee-break']
+        });
+      }).toThrow('Unknown amenity: unknown-amenity');
     });
   });
 });

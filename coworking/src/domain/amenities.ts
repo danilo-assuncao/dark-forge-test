@@ -21,7 +21,7 @@ export const ADDITIONAL_AMENITIES: AdditionalAmenity[] = [
 ];
 
 export function listAmenities(): AdditionalAmenity[] {
-  return ADDITIONAL_AMENITIES;
+  return [...ADDITIONAL_AMENITIES];
 }
 
 export interface QuoteAmenitiesInput {
@@ -51,15 +51,23 @@ export function quoteAmenities(input: QuoteAmenitiesInput): QuoteResult {
   let total = 0;
   const details = [];
 
-  const participantsCount = input.participants > 0 ? input.participants : input.space.capacity;
+  if (!Number.isInteger(input.participants) || input.participants < 0) {
+    throw new Error('Invalid participants count');
+  }
+
+  const participantsCount = input.participants === 0 ? input.space.capacity : input.participants;
 
   if (participantsCount > input.space.capacity) {
     throw new Error('Participants exceed space capacity');
   }
 
-  for (const amenityId of input.amenities) {
+  const uniqueAmenities = Array.from(new Set(input.amenities));
+
+  for (const amenityId of uniqueAmenities) {
     const amenity = ADDITIONAL_AMENITIES.find(a => a.id === amenityId);
-    if (!amenity) continue;
+    if (!amenity) {
+      throw new Error(`Unknown amenity: ${amenityId}`);
+    }
 
     let subtotal = 0;
     let quantity = 0;
