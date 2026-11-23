@@ -9,7 +9,7 @@ const appliances: ApplianceItem[] = [
 ];
 
 export const listAppliances = (): ApplianceItem[] => {
-  return appliances;
+  return [...appliances];
 };
 
 export const filterAppliancesByRoom = (room: string): ApplianceItem[] => {

@@ -1,10 +1,12 @@
 export type TariffFlag = 'green' | 'yellow' | 'red1' | 'red2';
 
+export type Room = 'Cozinha' | 'Sala' | 'Quarto' | 'Banheiro' | 'Lavanderia' | 'Escritório';
+
 export interface ApplianceItem {
   id: string;
   name: string;
   powerWatts: number;
-  room: string;
+  room: Room;
 }
 
 export interface ApplianceUsage {

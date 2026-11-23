@@ -15,6 +15,11 @@ describe('Appliances Data', () => {
     expect(kitchenAppliances.length).toBeGreaterThan(0);
   });
 
+  it('should return empty array for an unknown room', () => {
+    const emptyAppliances = filterAppliancesByRoom('Inexistente');
+    expect(emptyAppliances).toEqual([]);
+  });
+
   it('should get an appliance by id', () => {
     const appliance = getApplianceById('1');
     expect(appliance).toBeDefined();
