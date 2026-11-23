@@ -4,6 +4,7 @@ export interface SolarInput {
   monthlyConsumptionKwh: number;
   tariffValue: number;
   coupon?: string;
+  generateProtocol?: () => string;
 }
 
 export interface SolarEstimate extends SolarQuote {
@@ -19,7 +20,16 @@ export function estimateSolarSystem(input: SolarInput): SolarEstimate {
   const COST_PER_KWP = 4000; // base estimate
   const MINIMUM_FEE_KWH = 50; // discount 50 kWh
 
-  const { monthlyConsumptionKwh, tariffValue, coupon } = input;
+
+  const { monthlyConsumptionKwh, tariffValue, coupon, generateProtocol } = input;
+
+  if (!Number.isFinite(monthlyConsumptionKwh) || monthlyConsumptionKwh <= 0) {
+    throw new Error('Invalid monthly consumption');
+  }
+  if (!Number.isFinite(tariffValue) || tariffValue <= 0) {
+    throw new Error('Invalid tariff value');
+  }
+
 
   // Required size to match consumption
   const requiredKwp = monthlyConsumptionKwh / AVG_GENERATION_PER_KWP;
@@ -47,11 +57,11 @@ export function estimateSolarSystem(input: SolarInput): SolarEstimate {
   const netEconomyMonthly = discountedConsumption * tariffValue;
 
   // Payback in months
-  const paybackMonths = netEconomyMonthly > 0 ? totalCost / netEconomyMonthly : 0;
+  const paybackMonths = netEconomyMonthly > 0 ? totalCost / netEconomyMonthly : Infinity;
 
   // Protocol generation: ENR-XXXX
-  const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  const protocol = `ENR-${randomSuffix}`;
+  const generator = generateProtocol || (() => `ENR-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`);
+  const protocol = generator();
 
   return {
     protocol,
