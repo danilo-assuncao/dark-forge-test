@@ -19,8 +19,12 @@ export interface BookingResult {
 export function calculateSpaceRental(input: BookingInput): BookingResult {
   const { spaceId, hours, participants } = input;
 
-  if (hours <= 0) {
-    return { success: false, error: 'Hours must be greater than zero' };
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return { success: false, error: 'Hours must be greater than zero and finite' };
+  }
+
+  if (!Number.isInteger(participants) || participants < 1) {
+    return { success: false, error: 'Participants must be a positive integer' };
   }
 
   const space: WorkspaceItem | undefined = getSpaceById(spaceId);
@@ -32,15 +36,15 @@ export function calculateSpaceRental(input: BookingInput): BookingResult {
     return { success: false, error: 'Participants exceed space capacity' };
   }
 
-  const baseAmount = space.pricePerHour * hours;
+  const baseAmount = Math.round((space.pricePerHour * hours) * 100) / 100;
   let isDaily = false;
   let discount = 0;
   let totalAmount = baseAmount;
 
   if (hours >= 8) {
     isDaily = true;
-    discount = baseAmount * 0.20;
-    totalAmount = baseAmount - discount;
+    discount = Math.round((baseAmount * 0.20) * 100) / 100;
+    totalAmount = Math.round((baseAmount - discount) * 100) / 100;
   }
 
   return {
