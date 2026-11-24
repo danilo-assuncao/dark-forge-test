@@ -1,0 +1,16 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #1f2933; background: #f7f5f0; }
+body { margin: 0; }
+.app { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+.header { display: flex; justify-content: space-between; align-items: center; }
+.genres { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+button { padding: .4rem .8rem; border: 1px solid #3b2f2f; border-radius: 6px; background: #fff; color: #1f2933; cursor: pointer; }
+button[aria-pressed='true'] { background: #3b2f2f; color: #fff; }
+.layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 800px) { .layout { grid-template-columns: 2fr 1fr; } }
+.grid, .cart ul { list-style: none; padding: 0; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.card, .details, .cart { background: #fff; border: 1px solid #d8d2c4; border-radius: 8px; padding: 1rem; }
+.card h2 { font-size: 1.1rem; margin-top: 0; }
+.price, .total { font-weight: 700; }
+.cart li { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin-bottom: .5rem; }
+.cart li span { flex: 1 1 100%; }
