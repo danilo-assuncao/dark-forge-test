@@ -21,3 +21,17 @@ label { display: flex; flex-direction: column; gap: 0.25rem; }
 input { padding: 0.6rem; font: inherit; border: 2px solid #c9bfb0; border-radius: 8px; }
 .empty { color: #4a4a4a; }
 @media (min-width: 600px) { .app { padding: 2rem; } }
+.category { margin-top: 0.75rem; }
+.category h3 { margin: 0; font-size: 1rem; }
+.combo-highlight { border: 2px solid #7a3e12; background: #fbf1e4; border-radius: 10px; padding: 0.75rem; }
+.badge { margin-left: 0.5rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: #7a3e12; color: #fff; font-size: 0.75rem; }
+.hint { margin: 0.25rem 0 0; font-size: 0.85rem; color: #4a4a4a; }
+.perks { display: flex; flex-direction: column; gap: 0.75rem; }
+.check { flex-direction: row; align-items: center; gap: 0.5rem; }
+.check input { width: 1.25rem; height: 1.25rem; }
+.summary { margin: 0.75rem 0 0; }
+.summary div { display: flex; justify-content: space-between; padding: 0.15rem 0; }
+.summary dt, .summary dd { margin: 0; }
+.summary .total { font-weight: 700; border-top: 1px solid #c9bfb0; margin-top: 0.25rem; padding-top: 0.35rem; }
+.error { color: #9b1c1c; }
+.comanda { font-size: 1.25rem; }
