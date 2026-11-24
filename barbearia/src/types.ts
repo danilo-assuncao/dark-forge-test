@@ -26,3 +26,15 @@ export interface Booking {
   time: string // HH:MM
   clientName: string
 }
+
+export type ServiceCategory = Category
+
+export type BarberService = Service
+
+export type BarberProfile = Professional
+
+export interface BookingSlot {
+  barberId: string
+  date: string // YYYY-MM-DD
+  time: string // HH:MM
+}
