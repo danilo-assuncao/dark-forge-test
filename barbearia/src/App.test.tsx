@@ -47,16 +47,16 @@ describe('availableSlots', () => {
 })
 
 describe('booking flow', () => {
-  it('books a slot and then removes it from availability', () => {
-    const now = () => NOW
-    render(<App now={now} />)
-    const tuesday = nextDays(NOW, 7)[1]
-    expect(tuesday).toBe('2030-01-08')
+  const pick = (name: RegExp | string) => fireEvent.click(screen.getByRole('button', { name }))
 
-    fireEvent.click(screen.getByRole('button', { name: /Corte de cabelo/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Dan/ }))
-    fireEvent.click(screen.getByRole('button', { name: /ter 08\/01/ }))
-    fireEvent.click(screen.getByRole('button', { name: '09:00' }))
+  it('books a slot and then removes it from availability', () => {
+    render(<App now={() => NOW} random={() => 0.1234} />)
+    expect(nextDays(NOW, 7)[1]).toBe('2030-01-08')
+
+    pick(/Dan/)
+    pick(/Corte de cabelo/)
+    pick(/ter 08\/01/)
+    pick('09:00')
 
     const confirmBtn = screen.getByRole('button', { name: 'Confirmar agendamento' })
     expect(confirmBtn).toBeDisabled()
@@ -66,19 +66,70 @@ describe('booking flow', () => {
     expect(screen.getByText('Agendamento confirmado!')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('João')
     expect(screen.getByRole('status')).toHaveTextContent('09:00')
+    expect(screen.getByRole('status')).toHaveTextContent('BRB-1234')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Novo agendamento' }))
-    fireEvent.click(screen.getByRole('button', { name: /Corte de cabelo/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Dan/ }))
-    fireEvent.click(screen.getByRole('button', { name: /ter 08\/01/ }))
+    pick('Novo agendamento')
+    pick(/Dan/)
+    pick(/Corte de cabelo/)
+    pick(/ter 08\/01/)
     expect(screen.queryByRole('button', { name: '09:00' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '09:30' })).toBeInTheDocument()
   })
 
-  it('only lists professionals who perform the chosen service', () => {
+  it('only lists services the chosen barber performs, grouped by category', () => {
     render(<App now={() => NOW} />)
-    fireEvent.click(screen.getByRole('button', { name: /Barba completa/ }))
-    expect(screen.getByRole('button', { name: /Bruno/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Rafa/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /Serviços de/ })).not.toBeInTheDocument()
+    pick(/Rafa/)
+    expect(screen.getByRole('group', { name: 'Serviços de Cabelo' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Serviços de Barba' })).not.toBeInTheDocument()
+    pick(/Bruno/)
+    expect(screen.getByRole('group', { name: 'Serviços de Barba' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Serviços de Cabelo' })).not.toBeInTheDocument()
+  })
+
+  it('highlights the combo category', () => {
+    render(<App now={() => NOW} />)
+    pick(/Dan/)
+    const combo = screen.getByRole('group', { name: /Combo Corte \+ Barba/ })
+    expect(combo).toHaveClass('combo-highlight')
+    expect(combo).toHaveTextContent('Destaque')
+  })
+
+  it('applies combo, VIP and coupon discounts and add-ons to the total', () => {
+    render(<App now={() => NOW} />)
+    pick(/Dan/)
+    pick(/Corte de cabelo/)
+    pick(/Barba completa/)
+    pick(/Toalha quente/)
+    pick(/ter 08\/01/)
+    pick('09:00')
+    // 4500 + 3500 + 1000 = 9000; combo 15% -> 7650
+    expect(screen.getByLabelText('Resumo do valor')).toHaveTextContent('Combo Corte + Barba (-15%)')
+    fireEvent.click(screen.getByLabelText(/Clube VIP/))
+    fireEvent.change(screen.getByLabelText('Cupom de desconto'), { target: { value: 'danbarber10' } })
+    const summary = screen.getByLabelText('Resumo do valor')
+    expect(summary).toHaveTextContent('Clube VIP (-20%)')
+    expect(summary).toHaveTextContent('Cupom (-10%)')
+    // 7650 -> 6120 -> 5508
+    expect(summary).toHaveTextContent(/Total\s*R\$\s*55,08/)
+  })
+
+  it('extends the blocked time when add-ons are selected', () => {
+    render(<App now={() => NOW} random={() => 0.5} />)
+    pick(/Dan/)
+    pick(/Corte de cabelo/)
+    pick(/Vapor de ozônio/)
+    pick(/ter 08\/01/)
+    pick('09:00')
+    fireEvent.change(screen.getByLabelText('Seu nome'), { target: { value: 'Ana' } })
+    pick('Confirmar agendamento')
+    expect(screen.getByRole('status')).toHaveTextContent('40 min')
+
+    pick('Novo agendamento')
+    pick(/Dan/)
+    pick(/Corte de cabelo/)
+    pick(/ter 08\/01/)
+    expect(screen.queryByRole('button', { name: '09:30' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '10:00' })).toBeInTheDocument()
   })
 })
